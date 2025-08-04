@@ -1,57 +1,1137 @@
-'enable_dashboard' - undeclared identifier	VisualManager.mqh	99	20
-'CChartObjectRectangleLabel' - undeclared identifier	VisualManager.mqh	117	9
-'main_box' - undeclared identifier	VisualManager.mqh	117	36
-'main_box' - some operator expected	VisualManager.mqh	117	36
-'main_box' - undeclared identifier	VisualManager.mqh	118	9
-'main_box' - undeclared identifier	VisualManager.mqh	119	9
-'main_box' - undeclared identifier	VisualManager.mqh	120	9
-'main_box' - undeclared identifier	VisualManager.mqh	121	9
-'main_box' - undeclared identifier	VisualManager.mqh	122	9
-no one of the overloads can be applied to the function call	VisualManager.mqh	128	22
-could be one of 2 function(s)	VisualManager.mqh	128	22
-   string CChartObjectText::Font() const	ChartObjectsTxtControls.mqh	26	22
-   bool CChartObjectText::Font(const string) const	ChartObjectsTxtControls.mqh	27	22
-'CChartObjectRectangleLabel' - undeclared identifier	VisualManager.mqh	132	9
-'sub_panel' - undeclared identifier	VisualManager.mqh	132	36
-'sub_panel' - some operator expected	VisualManager.mqh	132	36
-'sub_panel' - undeclared identifier	VisualManager.mqh	133	9
-'sub_panel' - undeclared identifier	VisualManager.mqh	134	9
-'sub_panel' - undeclared identifier	VisualManager.mqh	135	9
-'sub_panel' - undeclared identifier	VisualManager.mqh	136	9
-'sub_panel' - undeclared identifier	VisualManager.mqh	137	9
-'sub_panel' - undeclared identifier	VisualManager.mqh	138	9
-no one of the overloads can be applied to the function call	VisualManager.mqh	146	22
-could be one of 2 function(s)	VisualManager.mqh	146	22
-   string CChartObjectText::Font() const	ChartObjectsTxtControls.mqh	26	22
-   bool CChartObjectText::Font(const string) const	ChartObjectsTxtControls.mqh	27	22
-no one of the overloads can be applied to the function call	VisualManager.mqh	146	49
-could be one of 2 function(s)	VisualManager.mqh	146	49
-   string CChartObjectText::Font() const	ChartObjectsTxtControls.mqh	26	22
-   bool CChartObjectText::Font(const string) const	ChartObjectsTxtControls.mqh	27	22
-'State' - undeclared identifier	VisualManager.mqh	148	22
-'false' - some operator expected	VisualManager.mqh	148	28
-'State' - undeclared identifier	VisualManager.mqh	148	45
-'false' - some operator expected	VisualManager.mqh	148	51
-'enable_dashboard' - undeclared identifier	VisualManager.mqh	161	20
-wrong parameters count, 5 passed, but 6 requires	VisualManager.mqh	307	14
-   bool CChartObjectArrow::Create(long,const string,const int,const datetime,const double,const char)	ChartObjectsArrows.mqh	20	22
-'SYMBOL_ARROWUP' - undeclared identifier	VisualManager.mqh	309	34
-'SYMBOL_ARROWDOWN' - undeclared identifier	VisualManager.mqh	309	51
-'CChartObjectVLine' - undeclared identifier	VisualManager.mqh	274	5
-'vline' - undeclared identifier	VisualManager.mqh	274	23
-'vline' - some operator expected	VisualManager.mqh	274	23
-'vline' - undeclared identifier	VisualManager.mqh	275	8
-';' - unexpected token	VisualManager.mqh	277	30
-'(' - unbalanced left parenthesis	VisualManager.mqh	275	7
-empty controlled statement found	VisualManager.mqh	277	30
-'vline' - undeclared identifier	VisualManager.mqh	278	9
-wrong parameters count, 1 passed, but 0 requires	IchimokuLogic.mqh	162	26
-   void CVisualManager::InitDashboard()	VisualManager.mqh	58	10
-wrong parameters count, 1 passed, but 0 requires	IchimokuLogic.mqh	185	26
-   void CVisualManager::UpdateDashboard()	VisualManager.mqh	59	10
-'if' - semicolon expected	IchimokuLogic.mqh	189	5
-'ClearGraphics' - undeclared identifier	IchimokuLogic.mqh	207	30
-')' - expression expected	IchimokuLogic.mqh	207	44
-'ClearGraphics' - undeclared identifier	IchimokuLogic.mqh	213	30
-')' - expression expected	IchimokuLogic.mqh	213	44
-43 errors, 1 warnings		43	1
+فایل 1:
+
+
+//+------------------------------------------------------------------+
+//|                                                                  |
+//|                    Project: Memento (By HipoAlgorithm)           |
+//|                    File: set.mqh (EA Settings)                   |
+//|                    Version: 3.1 (Final Fixed)                    |
+//|                    © 2025, Mohammad & Gemini                     |
+//|                                                                  |
+//+------------------------------------------------------------------+
+#property copyright "© 2025, hipoalgoritm"
+#property link      "https://www.mql5.com"
+#property version   "3.1"
+
+//--- انواع شمارشی برای خوانایی بهتر کد
+enum E_Confirmation_Mode { MODE_CLOSE_ONLY, MODE_OPEN_AND_CLOSE };
+enum E_SL_Mode           { MODE_COMPLEX, MODE_SIMPLE };
+
+//+------------------------------------------------------------------+
+//|                      تنظیمات ورودی اکسپرت                         |
+//+------------------------------------------------------------------+
+
+// ---=== ⚙️ 1. تنظیمات عمومی (General) ⚙️ ===---
+input group           "          ---=== ⚙️ 1. تنظیمات عمومی (General) ⚙️ ===---"
+input bool            Inp_Enable_Dashboard  = true;                   // ✅ فعال/غیرفعال کردن داشبورد اطلاعاتی
+input string          Inp_Symbols_List      = "EURUSD,XAUUSD,GBPUSD"; // لیست نمادها (جدا شده با کاما)
+input int             Inp_Magic_Number      = 12345;                  // شماره جادویی معاملات
+input bool            Inp_Enable_Logging    = true;                   // فعال/غیرفعال کردن لاگ‌ها
+
+// ---=== 📈 2. تنظیمات ایچیموکو (Ichimoku) 📈 ===---
+input group           "      ---=== 📈 2. تنظیمات ایچیموکو (Ichimoku) 📈 ===---"
+input int             Inp_Tenkan_Period     = 9;                      // دوره تنکان-سن
+input int             Inp_Kijun_Period      = 26;                     // دوره کیجون-سن
+input int             Inp_Senkou_Period     = 52;                     // دوره سنکو اسپن بی
+input int             Inp_Chikou_Period     = 26;                     // دوره چیکو اسپن (نقطه مرجع)
+
+// ---=== 🎯 3. سیگنال و تاییدیه (Signal & Confirmation) 🎯 ===---
+input group           "---=== 🎯 3. سیگنال و تاییدیه (Signal & Confirmation) 🎯 ===---"
+input E_Confirmation_Mode Inp_Confirmation_Type = MODE_OPEN_AND_CLOSE;  // نوع تایید قیمت نهایی
+input int             Inp_Grace_Period_Candles= 5;                      // تعداد کندل مهلت برای تاییدیه
+
+// --- زیرگروه تنظیمات تلاقی (Confluence)
+input group           "         --- تنظیمات تلاقی (Confluence) ---"
+input bool            Inp_Talaqi_Auto_Mode    = true;                   // ✅ فعالسازی حالت اتوماتیک برای فاصله تلاقی
+input double          Inp_Talaqi_Distance_in_Points = 3.0;              // [MANUAL] فاصله تلاقی (بر اساس پوینت)
+input int             Inp_Talaqi_Lookback_Period  = 10;                 // [AUTO] دوره نگاه به عقب برای محاسبه فاصله تاریخی
+input double          Inp_Talaqi_Hist_Multiplier = 0.5;                // [AUTO] ضریب تلاقی (مثلا 0.5 یعنی 50% فاصله تاریخی)
+
+// ---=== 🛡️ 4. مدیریت حد ضرر (Stop Loss) 🛡️ ===---
+input group           "       ---=== 🛡️ 4. مدیریت حد ضرر (Stop Loss) 🛡️ ===---"
+input E_SL_Mode       Inp_StopLoss_Type       = MODE_COMPLEX;           // روش محاسبه استاپ لاس
+input int             Inp_Flat_Kijun_Period   = 50;                     // [COMPLEX] تعداد کندل برای جستجوی کیجون فلت
+input int             Inp_Flat_Kijun_Min_Length = 5;                    // [COMPLEX] حداقل طول کیجون فلت
+input int             Inp_Pivot_Lookback      = 30;                     // [COMPLEX] تعداد کندل برای جستجوی پیوت
+input int             Inp_SL_Lookback_Period  = 15;                     // [SIMPLE] دوره نگاه به عقب برای یافتن سقف/کف
+input double          Inp_SL_Buffer_Multiplier = 3.0;                   // ضریب بافر برای فاصله از سقف/کف
+
+// ---=== 💰 5. مدیریت سرمایه (Money Management) 💰 ===---
+input group           " ---=== 💰 5. مدیریت سرمایه (Money Management) 💰 ===---"
+input double          Inp_Risk_Percent_Per_Trade = 1.0;                 // درصد ریسک در هر معامله
+input double          Inp_Take_Profit_Ratio   = 1.5;                    // نسبت ریسک به ریوارد برای حد سود
+input int             Inp_Max_Trades_Per_Symbol = 1;                    // حداکثر معاملات باز برای هر نماد
+input int             Inp_Max_Total_Trades    = 5;                      // حداکثر کل معاملات باز
+
+// ---=== 🎨 6. تنظیمات گرافیکی (Visuals) 🎨 ===---
+input group           "        ---=== 🎨 6. تنظیمات گرافیکی (Visuals) 🎨 ===---"
+input double          Inp_Object_Size_Multiplier = 1.0;                 // ضریب اندازه اشیاء گرافیکی
+input color           Inp_Bullish_Color       = clrLimeGreen;           // رنگ سیگنال و اشیاء خرید
+input color           Inp_Bearish_Color       = clrRed;                 // رنگ سیگنال و اشیاء فروش
+
+
+//+------------------------------------------------------------------+
+//|     ساختار اصلی برای نگهداری تمام تنظیمات ورودی (SSettings)       |
+//+------------------------------------------------------------------+
+struct SSettings
+{
+    // 1. General
+    bool                enable_dashboard;
+    string              symbols_list;
+    int                 magic_number;
+    bool                enable_logging;
+    // 2. Ichimoku
+    int                 tenkan_period, kijun_period, senkou_period, chikou_period;
+    // 3. Signal & Confirmation
+    E_Confirmation_Mode confirmation_type;
+    int                 grace_period_candles;
+    // 3.1. Talaqi
+    bool                talaqi_auto_mode;
+    double              talaqi_distance_in_points;
+    int                 talaqi_lookback_period;
+    double              talaqi_hist_multiplier;
+    // 4. Stop Loss
+    E_SL_Mode           stoploss_type;
+    int                 flat_kijun_period, flat_kijun_min_length, pivot_lookback, sl_lookback_period;
+    double              sl_buffer_multiplier;
+    // 5. Money Management
+    double              risk_percent_per_trade, take_profit_ratio;
+    int                 max_trades_per_symbol, max_total_trades;
+    // 6. Visuals
+    double              object_size_multiplier;
+    color               bullish_color, bearish_color;
+};
+
+
+
+
+
+فایل 2:::
+
+//+------------------------------------------------------------------+
+//|                                                      Memento.mq5 |
+//|                                  Copyright 2025, Mohammad & Gemini |
+//|                                                  Final & Bulletproof |
+//+------------------------------------------------------------------+
+#property copyright "Copyright 2025, Mohammad & Gemini"
+#property link      "https://www.mql5.com"
+#property version   "6.6" // نسخه نهایی و کاملا اصلاح شده
+#property description "اکسپرت معاملاتی پیشرفته ممنتو بر اساس استراتژی کراس سه گانه ایچیموکو"
+
+#include <Trade\Trade.mqh>
+#include <Object.mqh>
+#include "IchimokuLogic.mqh"
+#include "VisualManager.mqh"
+
+
+//--- متغیرهای سراسری
+SSettings            g_settings;
+string               g_symbols_array[];
+CStrategyManager* g_symbol_managers[];
+
+//+------------------------------------------------------------------+
+//| تابع شروع اکسپرت (مقداردهی اولیه)                                |
+//+------------------------------------------------------------------+
+int OnInit()
+{
+    //--- مقداردهی اولیه ساختار تنظیمات از ورودی‌های کاربر
+    g_settings.symbols_list                 = Inp_Symbols_List;
+    g_settings.magic_number                 = Inp_Magic_Number;
+    g_settings.enable_logging               = Inp_Enable_Logging;
+    g_settings.tenkan_period                = Inp_Tenkan_Period;
+    g_settings.kijun_period                 = Inp_Kijun_Period;
+    g_settings.senkou_period                = Inp_Senkou_Period;
+    g_settings.chikou_period                = Inp_Chikou_Period;
+    g_settings.confirmation_type            = Inp_Confirmation_Type;
+    g_settings.grace_period_candles         = Inp_Grace_Period_Candles;
+    g_settings.talaqi_distance_in_points    = Inp_Talaqi_Distance_in_Points;
+    g_settings.stoploss_type                = Inp_StopLoss_Type;
+    g_settings.sl_lookback_period           = Inp_SL_Lookback_Period;
+    g_settings.sl_buffer_multiplier         = Inp_SL_Buffer_Multiplier;
+    g_settings.risk_percent_per_trade       = Inp_Risk_Percent_Per_Trade;
+    g_settings.take_profit_ratio            = Inp_Take_Profit_Ratio;
+    g_settings.max_trades_per_symbol        = Inp_Max_Trades_Per_Symbol;
+    g_settings.max_total_trades             = Inp_Max_Total_Trades;
+    g_settings.object_size_multiplier       = Inp_Object_Size_Multiplier;
+    g_settings.bullish_color                = Inp_Bullish_Color;
+    g_settings.bearish_color                = Inp_Bearish_Color;
+    g_settings.flat_kijun_period            = Inp_Flat_Kijun_Period;
+    g_settings.flat_kijun_min_length        = Inp_Flat_Kijun_Min_Length;
+    g_settings.pivot_lookback               = Inp_Pivot_Lookback;
+
+    //--- تقسیم رشته نمادها و ایجاد شیء مدیریت برای هر نماد
+    int symbols_count = StringSplit(g_settings.symbols_list, ',', g_symbols_array);
+    if (symbols_count == 0)
+    {
+        Print("خطا: هیچ نمادی برای معامله مشخص نشده است.");
+        return INIT_FAILED;
+    }
+    
+    ArrayResize(g_symbol_managers, symbols_count);
+    for (int i = 0; i < symbols_count; i++)
+    {
+        string sym = g_symbols_array[i];
+        StringTrimLeft(sym);
+        StringTrimRight(sym);
+        g_symbol_managers[i] = new CStrategyManager(sym, g_settings);
+        if (!g_symbol_managers[i].Init())
+        {
+            Print("مقداردهی اولیه نماد ", sym, " با خطا مواجه شد.");
+            return INIT_FAILED;
+        }
+    }
+
+    Print("اکسپرت Memento با موفقیت برای نمادهای زیر مقداردهی اولیه شد: ", g_settings.symbols_list);
+    
+    //--- راه‌اندازی تایمر برای اجرای مداوم
+    EventSetTimer(1);
+    return(INIT_SUCCEEDED);
+}
+
+//+------------------------------------------------------------------+
+//| تابع پایان اکسپرت (پاکسازی)                                      |
+//+------------------------------------------------------------------+
+void OnDeinit(const int reason)
+{
+    EventKillTimer();
+    //--- پاکسازی شیءها
+    for (int i = 0; i < ArraySize(g_symbol_managers); i++)
+    {
+        if (g_symbol_managers[i] != NULL)
+        {
+            delete g_symbol_managers[i];
+            g_symbol_managers[i] = NULL;
+        }
+    }
+    ArrayFree(g_symbol_managers);
+    //--- پاک کردن تمام اشیاء گرافیکی
+    //--- از VisualManager برای پاک کردن اشیا استفاده میکنیم
+    ObjectsDeleteAll(0, g_settings.symbols_list);
+    ChartRedraw();
+}
+
+//+------------------------------------------------------------------+
+//| تابع تایمر (بررسی مداوم کندل‌ها و سیگنال‌ها)                      |
+//+------------------------------------------------------------------+
+void OnTimer()
+{
+    //--- اجرای منطق برای تمام نمادهای تحت مدیریت
+    for (int i = 0; i < ArraySize(g_symbol_managers); i++)
+    {
+        if (g_symbol_managers[i] != NULL)
+        {
+            g_symbol_managers[i].ProcessNewBar();
+        }
+    }
+}
+
+
+
+فایل3::::
+
+//+------------------------------------------------------------------+
+//|                                     IchimokuLogic.mqh            |
+//|                          © 2025, hipoalgoritm              |
+//+------------------------------------------------------------------+
+#property copyright "© 2025,hipoalgoritm"
+#property link      "https://www.mql5.com"
+#property version   "1.03" // نسخه نهایی و کاملا اصلاح شده
+#include "set.mqh"
+#include <Trade\Trade.mqh>
+#include <Trade\SymbolInfo.mqh>
+#include <Object.mqh>
+#include "VisualManager.mqh"
+
+//--- تعریف ساختار سیگنال
+struct SPotentialSignal
+{
+    datetime        time;
+    bool            is_buy;
+    int             grace_candle_count;
+};
+/*struct SSettings
+{
+    string              symbols_list;
+    int                 magic_number;
+    bool                enable_logging;
+
+    int                 tenkan_period;
+    int                 kijun_period;
+    int                 senkou_period;
+    int                 chikou_period;
+
+    E_Confirmation_Mode confirmation_type;
+    int                 grace_period_candles;
+    double              talaqi_distance_in_points;
+
+    E_SL_Mode           stoploss_type;
+    int                 sl_lookback_period;
+    double              sl_buffer_multiplier;
+
+    double              risk_percent_per_trade;
+    double              take_profit_ratio;
+    int                 max_trades_per_symbol;
+    int                 max_total_trades;
+
+    double              object_size_multiplier;
+    color               bullish_color;
+    color               bearish_color;
+};
+*/
+//+------------------------------------------------------------------+
+//| کلاس مدیریت استراتژی برای یک نماد خاص                             |
+//+------------------------------------------------------------------+
+class CStrategyManager
+{
+private:
+    string              m_symbol;
+    SSettings           m_settings;
+    CTrade              m_trade;
+   
+    datetime            m_last_bar_time;
+    
+    int                 m_ichimoku_handle;
+    double              m_tenkan_buffer[];
+    double              m_kijun_buffer[];
+    double              m_chikou_buffer[];
+    
+    SPotentialSignal    m_signal;
+    bool                m_is_waiting;
+    
+    CVisualManager* m_visual_manager;
+
+    //--- توابع کمکی
+    void Log(string message);
+    bool CheckTripleCross(bool& is_buy);
+    bool CheckFinalConfirmation(bool is_buy);
+    
+    //--- محاسبه استاپ لاس
+    double CalculateStopLoss(bool is_buy, double entry_price);
+    
+    double GetTalaqiTolerance(int reference_shift);      // <<-- این خط رو اضافه کن
+    double CalculateDynamicTolerance(int reference_shift); // <<-- این خط رو هم اضافه کن
+  
+    double FindFlatKijun();
+    double FindPivotKijun(bool is_buy);
+    double FindPivotTenkan(bool is_buy);
+    double FindBackupStopLoss(bool is_buy, double buffer);
+    
+    //--- مدیریت معاملات
+    int CountSymbolTrades();
+    int CountTotalTrades();
+    void OpenTrade(bool is_buy);
+
+public:
+    CStrategyManager(string symbol,   SSettings &settings);
+    bool Init();
+    void ProcessNewBar();
+    
+    ~CStrategyManager();
+};
+
+//+------------------------------------------------------------------+
+//| کانستراکتور کلاس                                                |
+//+------------------------------------------------------------------+
+CStrategyManager::CStrategyManager(string symbol, SSettings &settings)
+
+{
+    m_symbol = symbol;
+    m_settings = settings;
+    m_last_bar_time = 0;
+    m_is_waiting = false;
+    m_ichimoku_handle = INVALID_HANDLE;
+    m_visual_manager = new CVisualManager(m_symbol, m_settings);
+
+}
+
+//+------------------------------------------------------------------+
+//| دیستراکتور کلاس                                                  |
+//+------------------------------------------------------------------+
+CStrategyManager::~CStrategyManager()
+{
+    if (m_visual_manager != NULL)
+    {
+        delete m_visual_manager;
+        m_visual_manager = NULL;
+    }
+}
+
+//+------------------------------------------------------------------+
+//| مقداردهی اولیه                                                   |
+//+------------------------------------------------------------------+
+//+------------------------------------------------------------------+
+//| مقداردهی اولیه                                                   |
+//+------------------------------------------------------------------+
+bool CStrategyManager::Init()
+{
+    m_trade.SetExpertMagicNumber(m_settings.magic_number);
+    m_trade.SetTypeFillingBySymbol(m_symbol);
+    
+    m_ichimoku_handle = iIchimoku(m_symbol, _Period, m_settings.tenkan_period, m_settings.kijun_period, m_settings.senkou_period);
+    if (m_ichimoku_handle == INVALID_HANDLE)
+    {
+        Log("خطا در ایجاد اندیکاتور Ichimoku.");
+        return false;
+    }
+    
+    ArraySetAsSeries(m_tenkan_buffer, true);
+    ArraySetAsSeries(m_kijun_buffer, true);
+    ArraySetAsSeries(m_chikou_buffer, true);
+    
+    if (!m_visual_manager.Init())
+    {
+        Log("خطا در مقداردهی اولیه VisualManager.");
+        return false;
+    }
+
+    // ✅✅✅ بخش اصلاح شده ✅✅✅
+    // فقط نمونه‌ای که نمادش با نماد چارت یکی است، داشبورد را می‌سازد
+    if(m_symbol == _Symbol)
+    {
+        
+        m_visual_manager.InitDashboard();
+    }
+    
+    Log("با موفقیت مقداردهی اولیه شد.");
+    return true;
+}
+
+//+------------------------------------------------------------------+
+//| تابع اصلی پردازش کندل جدید                                       |
+//+------------------------------------------------------------------+
+void CStrategyManager::ProcessNewBar()
+{
+    datetime current_bar_time = iTime(m_symbol, _Period, 0);
+    if (current_bar_time == m_last_bar_time)
+        return;
+    m_last_bar_time = current_bar_time;
+
+    // ✅✅✅ بخش اصلاح شده ✅✅✅
+    // فقط نمونه‌ای که نمادش با نماد چارت یکی است، داشبورد را آپدیت می‌کند
+    if(m_symbol == _Symbol)
+    {
+    m_visual_manager.UpdateDashboard();
+    }
+
+    bool is_buy_signal = false;
+    if (!m_is_waiting && CheckTripleCross(is_buy_signal))
+    {
+        m_is_waiting = true;
+        m_signal.time = iTime(m_symbol, _Period, m_settings.chikou_period);
+        m_signal.is_buy = is_buy_signal;
+        m_signal.grace_candle_count = 0;
+        
+        Log("سیگنال اولیه " + (is_buy_signal ? "خرید" : "فروش") + " در کندل " + TimeToString(m_signal.time) + " پیدا شد.");
+        m_visual_manager.DrawTripleCrossRectangle(m_signal.is_buy, m_settings.chikou_period);
+    }
+    
+    if (m_is_waiting)
+    {
+        m_visual_manager.DrawScanningArea(m_signal.is_buy, m_settings.chikou_period, m_signal.grace_candle_count);
+        
+        if (m_signal.grace_candle_count >= m_settings.grace_period_candles)
+        {
+            m_is_waiting = false;
+          //  m_visual_manager.ClearGraphics();
+            Log("زمان تأیید سیگنال " + (m_signal.is_buy ? "خرید" : "فروش") + " به پایان رسید و سیگنال رد شد.");
+        }
+        else if (CheckFinalConfirmation(m_signal.is_buy))
+        {
+            m_is_waiting = false;
+          //  m_visual_manager.ClearGraphics();
+            m_visual_manager.DrawConfirmationArrow(m_signal.is_buy, 1);
+            Log("سیگنال " + (m_signal.is_buy ? "خرید" : "فروش") + " تأیید نهایی شد. در حال باز کردن معامله.");
+            OpenTrade(m_signal.is_buy);
+        }
+        else
+        {
+            m_signal.grace_candle_count++;
+        }
+    }
+}
+//+------------------------------------------------------------------+
+//| منطق فاز ۱: چک کردن کراس سه گانه (کاملاً اصلاح شده بر اساس منطق صحیح) |
+//+------------------------------------------------------------------+
+bool CStrategyManager::CheckTripleCross(bool& is_buy)
+{
+    int shift = m_settings.chikou_period;
+    if (iBars(m_symbol, _Period) < shift + 2) return false;
+
+    //--- خواندن Tenkan و Kijun از بافر اندیکاتور در کندل مرجع (۲۶ کندل قبل)
+    CopyBuffer(m_ichimoku_handle, 0, shift, 2, m_tenkan_buffer);
+    CopyBuffer(m_ichimoku_handle, 1, shift, 2, m_kijun_buffer);
+    
+    //--- مقادیر تنکان و کیجون در نقطه مرجع
+    double tenkan_at_shift = m_tenkan_buffer[0]; // مقدار در کندل ۲۶
+    double kijun_at_shift = m_kijun_buffer[0];  // مقدار در کندل ۲۶
+
+    //--- خواندن قیمت فعلی و قبلی که نقش چیکو اسپن را برای نقطه مرجع بازی می‌کنند
+    double chikou_now  = iClose(m_symbol, _Period, 1); // قیمت Close کندل فعلی
+    double chikou_prev = iClose(m_symbol, _Period, 2); // قیمت Close کندل قبلی
+
+        //--- بررسی تلاقی یا کراس تنکان و کیجون در گذشته
+    double tolerance = GetTalaqiTolerance(shift); // گرفتن حد مجاز از مدیر کل!
+    
+    double current_distance = MathAbs(tenkan_at_shift - kijun_at_shift);
+    bool is_confluence = (tolerance > 0) ? (current_distance <= tolerance) : false;
+
+
+    bool tenkan_crossover = m_tenkan_buffer[1] < m_kijun_buffer[1] && tenkan_at_shift > kijun_at_shift;
+    bool tenkan_crossunder = m_tenkan_buffer[1] > m_kijun_buffer[1] && tenkan_at_shift < kijun_at_shift;
+
+    // --- شرط خرید: کراس صعودی تنکان/کیجون در گذشته و کراس قیمت فعلی (چیکو) از آنها
+    if (tenkan_crossover || (is_confluence && tenkan_at_shift > kijun_at_shift))
+    {
+        //--- آیا قیمت فعلی (چیکو) از خطوط تنکان و کیجون در نقطه مرجع عبور کرده؟
+        bool chikou_crosses_up = (chikou_prev < tenkan_at_shift && chikou_now > tenkan_at_shift) && 
+                                 (chikou_prev < kijun_at_shift && chikou_now > kijun_at_shift);
+      
+        if (chikou_crosses_up)
+        {
+            is_buy = true;
+            return true;
+        }
+    }
+    
+    // --- شرط فروش: کراس نزولی تنکان/کیجون در گذشته و کراس قیمت فعلی (چیکو) از آنها
+    if (tenkan_crossunder || (is_confluence && tenkan_at_shift < kijun_at_shift))
+    {
+        //--- آیا قیمت فعلی (چیکو) از خطوط تنکان و کیجون در نقطه مرجع عبور کرده؟
+        bool chikou_crosses_down = (chikou_prev > tenkan_at_shift && chikou_now < tenkan_at_shift) && 
+                                   (chikou_prev > kijun_at_shift && chikou_now < kijun_at_shift);
+        if (chikou_crosses_down)
+        {
+            is_buy = false;
+            return true;
+        }
+    }
+    
+    return false;
+}
+
+
+
+//+------------------------------------------------------------------+
+//| منطق فاز ۲: چک کردن تأیید نهایی در کندل شماره یک (اصلاح شده)      |
+//+------------------------------------------------------------------+
+bool CStrategyManager::CheckFinalConfirmation(bool is_buy)
+{
+    if (iBars(m_symbol, _Period) < 2) return false;
+
+    CopyBuffer(m_ichimoku_handle, 0, 1, 1, m_tenkan_buffer);
+    CopyBuffer(m_ichimoku_handle, 1, 1, 1, m_kijun_buffer);
+    
+    double tenkan_at_1 = m_tenkan_buffer[0];
+    double kijun_at_1 = m_kijun_buffer[0];
+    double open_at_1 = iOpen(m_symbol, _Period, 1);
+    double close_at_1 = iClose(m_symbol, _Period, 1);
+    
+    if (is_buy)
+    {
+        if (tenkan_at_1 <= kijun_at_1) return false;
+        if (m_settings.confirmation_type == MODE_OPEN_AND_CLOSE)
+        {
+           // برای خرید
+          // برای خرید
+        if (open_at_1 < tenkan_at_1 || open_at_1 < kijun_at_1 || close_at_1 < tenkan_at_1 || close_at_1 < kijun_at_1) return false;
+
+
+        }
+        else // MODE_CLOSE_ONLY
+        {
+            if (close_at_1 < tenkan_at_1 ||
+            close_at_1 < kijun_at_1) return false;
+        }
+        return true;
+    }
+    else // is_sell
+    {
+        if (tenkan_at_1 >= kijun_at_1) return false;
+        if (m_settings.confirmation_type == MODE_OPEN_AND_CLOSE)
+        {
+            if (open_at_1 > tenkan_at_1 || open_at_1 > kijun_at_1 || close_at_1 > tenkan_at_1 || close_at_1 > kijun_at_1) return false;
+        }
+        else // MODE_CLOSE_ONLY
+        {
+            if (close_at_1 > tenkan_at_1 || close_at_1 > kijun_at_1) return false;
+        }
+        return true;
+    
+    }
+}
+
+
+//+------------------------------------------------------------------+
+//| تابع محاسبه استاپ لاس (همراه با روش نهایی)                       |
+//+------------------------------------------------------------------+
+double CStrategyManager::CalculateStopLoss(bool is_buy, double entry_price)
+{
+    double buffer = m_settings.sl_buffer_multiplier * SymbolInfoDouble(m_symbol, SYMBOL_POINT);
+    double sl_price = 0;
+
+    if (m_settings.stoploss_type == MODE_COMPLEX)
+    {
+        sl_price = FindFlatKijun();
+        if (sl_price != 0) return is_buy ? sl_price - buffer : sl_price + buffer;
+        
+        sl_price = FindPivotKijun(is_buy);
+        if (sl_price != 0) return is_buy ? sl_price - buffer : sl_price + buffer;
+        
+        sl_price = FindPivotTenkan(is_buy);
+        if (sl_price != 0) return is_buy ? sl_price - buffer : sl_price + buffer;
+    }
+    
+    return FindBackupStopLoss(is_buy, buffer);
+}
+
+//+------------------------------------------------------------------+
+//| تابع نهایی محاسبه استاپ لاس (اصلاح شده)                           |
+//+------------------------------------------------------------------+
+double CStrategyManager::FindBackupStopLoss(bool is_buy, double buffer)
+{
+    double sl_price = 0;
+    int bars_to_check = m_settings.sl_lookback_period + 1;
+    if (iBars(m_symbol, _Period) < bars_to_check) return 0;
+    
+    if (is_buy)
+    {
+        double min_low = iLow(m_symbol, _Period, 1);
+        for (int i = 1; i < bars_to_check; i++)
+        {
+            if (iLow(m_symbol, _Period, i) < min_low)
+            {
+                min_low = iLow(m_symbol, _Period, i);
+            }
+        }
+        sl_price = min_low - buffer;
+    }
+    else // is_sell
+    {
+        double max_high = iHigh(m_symbol, _Period, 1);
+        for (int i = 1; i < bars_to_check; i++)
+        {
+            if (iHigh(m_symbol, _Period, i) > max_high)
+            {
+                max_high = iHigh(m_symbol, _Period, i);
+            }
+        }
+        sl_price = max_high + buffer;
+    }
+    
+    return sl_price;
+}
+
+
+//+------------------------------------------------------------------+
+//| توابع کمکی دیگر                                                  |
+//+------------------------------------------------------------------+
+void CStrategyManager::Log(string message)
+{
+    if (m_settings.enable_logging)
+    {
+        Print(m_symbol, ": ", message);
+    }
+}
+
+int CStrategyManager::CountSymbolTrades()
+{
+    int count = 0;
+    for(int i = PositionsTotal() - 1; i >= 0; i--)
+    {
+        if(PositionGetSymbol(i) == m_symbol && PositionGetInteger(POSITION_MAGIC) == (long)m_settings.magic_number)
+        {
+            count++;
+        }
+    }
+    return count;
+}
+
+int CStrategyManager::CountTotalTrades()
+{
+    int count = 0;
+    for(int i = PositionsTotal() - 1; i >= 0; i--)
+    {
+        if(PositionGetInteger(POSITION_MAGIC) == (long)m_settings.magic_number)
+        {
+            count++;
+        }
+    }
+    return count;
+}
+
+void CStrategyManager::OpenTrade(bool is_buy)
+{
+    if (CountTotalTrades() >= m_settings.max_total_trades || CountSymbolTrades() >= m_settings.max_trades_per_symbol)
+    {
+        Log("رسیدن به حد مجاز معاملات. معامله جدید باز نشد.");
+        return;
+    }
+
+    double entry_price = is_buy ? SymbolInfoDouble(m_symbol, SYMBOL_ASK) : SymbolInfoDouble(m_symbol, SYMBOL_BID);
+    double sl = CalculateStopLoss(is_buy, entry_price);
+
+    if (sl == 0)
+    {
+        Log("خطا در محاسبه استاپ لاس. معامله باز نشد.");
+        return;
+    }
+
+    double point = SymbolInfoDouble(m_symbol, SYMBOL_POINT);
+    double sl_distance_points = MathAbs(entry_price - sl) / point;
+    if (sl_distance_points < 1)
+    {
+        Log("فاصله استاپ لاس بسیار کم است. معامله باز نشد.");
+        return;
+    }
+
+    double risk_amount = AccountInfoDouble(ACCOUNT_BALANCE) * (m_settings.risk_percent_per_trade / 100.0);
+    double tick_value = SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_VALUE_PROFIT);
+    if (tick_value <= 0)
+    {
+        Log("مقدار Tick Value برای نماد نامعتبر است. معامله باز نشد.");
+        return;
+    }
+    
+    double lot_size = risk_amount / (sl_distance_points * tick_value);
+
+    double min_lot = SymbolInfoDouble(m_symbol, SYMBOL_VOLUME_MIN);
+    double max_lot = SymbolInfoDouble(m_symbol, SYMBOL_VOLUME_MAX);
+    double lot_step = SymbolInfoDouble(m_symbol, SYMBOL_VOLUME_STEP);
+    
+    lot_size = MathMax(min_lot, MathMin(max_lot, NormalizeDouble(lot_size, 2)));
+    lot_size = MathRound(lot_size / lot_step) * lot_step;
+
+    double tp_distance_points = sl_distance_points * m_settings.take_profit_ratio;
+    double tp = is_buy ? entry_price + tp_distance_points * point : entry_price - tp_distance_points * point;
+    
+    int digits = (int)SymbolInfoInteger(m_symbol, SYMBOL_DIGITS);
+    sl = NormalizeDouble(sl, digits);
+    tp = NormalizeDouble(tp, digits);
+    
+    if (is_buy)
+    {
+        if (!m_trade.Buy(lot_size, m_symbol, 0, sl, tp, "Memento Buy"))
+        {
+            Log("خطا در باز کردن معامله خرید: " + (string)m_trade.ResultRetcode());
+        }
+        else
+        {
+            Log("معامله خرید با لات " + DoubleToString(lot_size, 2) + " باز شد.");
+        }
+    }
+    else
+    {
+        if (!m_trade.Sell(lot_size, m_symbol, 0, sl, tp, "Memento Sell"))
+        {
+            Log("خطا در باز کردن معامله فروش: " + (string)m_trade.ResultRetcode());
+        }
+        else
+        {
+            Log("معامله فروش با لات " + DoubleToString(lot_size, 2) + " باز شد.");
+        }
+    }
+}
+
+//+------------------------------------------------------------------+
+//| پیدا کردن سطح کیجون سن فلت (صاف)                                  |
+//+------------------------------------------------------------------+
+double CStrategyManager::FindFlatKijun()
+{
+    double kijun_values[];
+    if (CopyBuffer(m_ichimoku_handle, 1, 1, m_settings.flat_kijun_period, kijun_values) < m_settings.flat_kijun_period)
+        return 0.0;
+
+    ArraySetAsSeries(kijun_values, true);
+
+    int flat_count = 1;
+    for (int i = 1; i < m_settings.flat_kijun_period; i++)
+    {
+        if (kijun_values[i] == kijun_values[i - 1])
+        {
+            flat_count++;
+            if (flat_count >= m_settings.flat_kijun_min_length)
+            {
+                return kijun_values[i]; // سطح فلت پیدا شد
+            }
+        }
+        else
+        {
+            flat_count = 1; // ریست کردن شمارنده
+        }
+    }
+
+    return 0.0; // هیچ سطح فلتی پیدا نشد
+}
+
+//+------------------------------------------------------------------+
+//| پیدا کردن پیوت (نقطه چرخش) روی کیجون سن                          |
+//+------------------------------------------------------------------+
+double CStrategyManager::FindPivotKijun(bool is_buy)
+{
+    double kijun_values[];
+    if (CopyBuffer(m_ichimoku_handle, 1, 1, m_settings.pivot_lookback, kijun_values) < m_settings.pivot_lookback)
+        return 0.0;
+
+    ArraySetAsSeries(kijun_values, true);
+
+    for (int i = 1; i < m_settings.pivot_lookback - 1; i++)
+    {
+        // برای معامله خرید، دنبال یک دره (پیوت کف) می‌گردیم
+        if (is_buy && kijun_values[i] < kijun_values[i - 1] && kijun_values[i] < kijun_values[i + 1])
+        {
+            return kijun_values[i];
+        }
+        // برای معامله فروش، دنبال یک قله (پیوت سقف) می‌گردیم
+        if (!is_buy && kijun_values[i] > kijun_values[i - 1] && kijun_values[i] > kijun_values[i + 1])
+        {
+            return kijun_values[i];
+        }
+    }
+
+    return 0.0; // هیچ پیوتی پیدا نشد
+}
+
+//+------------------------------------------------------------------+
+//| پیدا کردن پیوت (نقطه چرخش) روی تنکان سن                          |
+//+------------------------------------------------------------------+
+double CStrategyManager::FindPivotTenkan(bool is_buy)
+{
+    double tenkan_values[];
+    if (CopyBuffer(m_ichimoku_handle, 0, 1, m_settings.pivot_lookback, tenkan_values) < m_settings.pivot_lookback)
+        return 0.0;
+
+    ArraySetAsSeries(tenkan_values, true);
+
+    for (int i = 1; i < m_settings.pivot_lookback - 1; i++)
+    {
+        // برای معامله خرید، دنبال یک دره (پیوت کف) می‌گردیم
+        if (is_buy && tenkan_values[i] < tenkan_values[i - 1] && tenkan_values[i] < tenkan_values[i + 1])
+        {
+            return tenkan_values[i];
+        }
+        // برای معامله فروش، دنبال یک قله (پیوت سقف) می‌گردیم
+        if (!is_buy && tenkan_values[i] > tenkan_values[i - 1] && tenkan_values[i] > tenkan_values[i + 1])
+        {
+            return tenkan_values[i];
+        }
+    }
+
+    return 0.0; // هیچ پیوتی پیدا نشد
+}
+//+------------------------------------------------------------------+
+//| (اتوماتیک) محاسبه حد مجاز تلاقی بر اساس تاریخچه بازار               |
+//+------------------------------------------------------------------+
+double CStrategyManager::CalculateDynamicTolerance(int reference_shift)
+{
+    double total_distance = 0;
+    int lookback = m_settings.talaqi_lookback_period;
+    if(lookback <= 0) return 0.0;
+
+    double past_tenkan[], past_kijun[];
+    if(CopyBuffer(m_ichimoku_handle, 0, reference_shift, lookback, past_tenkan) < lookback || 
+       CopyBuffer(m_ichimoku_handle, 1, reference_shift, lookback, past_kijun) < lookback)
+    {
+       Log("داده کافی برای محاسبه فاصله تاریخی تلاقی وجود ندارد.");
+       return 0.0;
+    }
+    
+    for(int i = 0; i < lookback; i++)
+    {
+        total_distance += MathAbs(past_tenkan[i] - past_kijun[i]);
+    }
+    
+    double average_historical_distance = total_distance / lookback;
+    double tolerance = average_historical_distance * m_settings.talaqi_hist_multiplier;
+    
+    return tolerance;
+}
+
+//+------------------------------------------------------------------+
+//| (مدیر کل) گرفتن حد مجاز تلاقی بر اساس حالت انتخابی (اتو/دستی)     |
+//+------------------------------------------------------------------+
+double CStrategyManager::GetTalaqiTolerance(int reference_shift)
+{
+    // اگر حالت اتوماتیک روشن بود
+    if(m_settings.talaqi_auto_mode)
+    {
+        // برو از روش هوشمند (تاریخی) حساب کن
+        return CalculateDynamicTolerance(reference_shift);
+    }
+    // اگر حالت اتوماتیک خاموش بود
+    else
+    {
+        // برو از روش ساده (دستی) حساب کن
+        return m_settings.talaqi_distance_in_points * SymbolInfoDouble(m_symbol, SYMBOL_POINT);
+    }
+}
+
+
+
+
+
+
+فایل 4:::
+
+//+------------------------------------------------------------------+
+//|                                                                  |
+//|                    Project: Memento (By HipoAlgorithm)           |
+//|                    File: VisualManager.mqh (Graphics Engine)     |
+//|                    Version: 3.5 (Final Naming Fix)               |
+//|                    © 2025, Mohammad & Gemini                     |
+//|                                                                  |
+//+------------------------------------------------------------------+
+#property copyright "© 2025, hipoalgoritm"
+#property link      "https://www.mql5.com"
+#property version   "3.5" // اصلاح نهایی نام کلاس‌ها و توابع
+
+#include "set.mqh" 
+#include <ChartObjects\ChartObjectsTxtControls.mqh>
+#include <ChartObjects\ChartObjectsShapes.mqh>
+#include <ChartObjects\ChartObjectsArrows.mqh>
+#include <ChartObjects\ChartObjectsLines.mqh>
+
+// ---===== ثابت‌های طراحی داشبورد =====---
+#define DASHBOARD_Y_POS 5       // فاصله داشبورد از بالای چارت
+#define DASHBOARD_X_GAP 5       // فاصله افقی بین هر جعبه
+#define BOX_WIDTH 90            // عرض هر جعبه
+#define BOX_HEIGHT 25           // ارتفاع جعبه اصلی
+#define SUB_PANEL_HEIGHT 35     // ارتفاع پنل زیرین (سود و زیان)
+#define MEMENTO_OBJ_PREFIX "MEMENTO_UI_" // پیشوند کلی برای تمام اشیاء
+
+// --- ساختار برای نگهداری نام اشیاء هر جعبه در داشبورد ---
+struct SPanelBox
+{
+    string MainBoxName;
+    string SymbolLabelName;
+    string SubPanelName;
+    string TradesLabelName;
+    string PlLabelName;
+};
+
+//+------------------------------------------------------------------+
+//| کلاس مدیریت گرافیک (بازنویسی شده)                                 |
+//+------------------------------------------------------------------+
+class CVisualManager
+{
+private:
+    string              m_symbol;
+    SSettings           m_settings;
+    long                m_chart_id;
+    
+    // --- متغیرهای مخصوص داشبورد ---
+    SPanelBox           m_panel_boxes[];
+    string              m_symbols_list[];
+
+public:
+    CVisualManager(string symbol, SSettings &settings);
+    ~CVisualManager();
+    bool Init();
+    void Deinit();
+    void InitDashboard();
+    void UpdateDashboard();
+    void DrawTripleCrossRectangle(bool is_buy, int shift);
+    void DrawConfirmationArrow(bool is_buy, int shift);
+    void ClearSignalGraphics(int signal_shift);
+    void DrawScanningArea(bool is_buy, int start_shift, int current_shift);
+};
+
+//+------------------------------------------------------------------+
+//|                      پیاده‌سازی توابع کلاس                        |
+//+------------------------------------------------------------------+
+CVisualManager::CVisualManager(string symbol, SSettings &settings)
+{
+    m_symbol = symbol;
+    m_settings = settings;
+    m_chart_id = ChartID();
+}
+CVisualManager::~CVisualManager() {}
+
+bool CVisualManager::Init()
+{
+ // غیرفعال کردن گرید چارت
+   ChartSetInteger(0, CHART_SHOW_GRID, false);
+   
+   // تنظیم رنگ کندل‌ها
+   ChartSetInteger(0, CHART_COLOR_CANDLE_BULL, clrGreen);
+   ChartSetInteger(0, CHART_COLOR_CANDLE_BEAR, clrRed);
+   ChartSetInteger(0, CHART_COLOR_CHART_UP, clrGreen);
+   ChartSetInteger(0, CHART_COLOR_CHART_DOWN, clrRed);
+   
+    ChartSetInteger(m_chart_id, CHART_SHIFT, 1);
+    return true;
+}
+
+void CVisualManager::Deinit()
+{
+    ObjectsDeleteAll(m_chart_id, MEMENTO_OBJ_PREFIX);
+    ChartRedraw(m_chart_id);
+}
+
+void CVisualManager::InitDashboard()
+{
+    if(!m_settings.enable_dashboard) return;
+    StringSplit(m_settings.symbols_list, ',', m_symbols_list);
+    int total_symbols = ArraySize(m_symbols_list);
+    if(total_symbols == 0) return;
+    ArrayResize(m_panel_boxes, total_symbols);
+    int current_x = DASHBOARD_X_GAP;
+
+    for(int i = 0; i < total_symbols; i++)
+    {
+        string sym = m_symbols_list[i];
+        string base_name = MEMENTO_OBJ_PREFIX + sym;
+        m_panel_boxes[i].MainBoxName      = base_name + "_MainBox";
+        m_panel_boxes[i].SymbolLabelName  = base_name + "_SymbolLabel";
+        m_panel_boxes[i].SubPanelName     = base_name + "_SubPanel";
+        m_panel_boxes[i].TradesLabelName  = base_name + "_TradesLabel";
+        m_panel_boxes[i].PlLabelName      = base_name + "_PlLabel";
+
+        // ✅✅✅ اصلاح شد: استفاده از نام صحیح کلاس CChartObjectRectLabel ✅✅✅
+        CChartObjectRectLabel main_box;
+        main_box.Create(m_chart_id, m_panel_boxes[i].MainBoxName, 0, current_x, DASHBOARD_Y_POS, BOX_WIDTH, BOX_HEIGHT);
+        main_box.Color(clrGray); main_box.BackColor(clrDimGray);
+        main_box.Corner(CORNER_LEFT_UPPER); main_box.Z_Order(0);
+
+        CChartObjectLabel symbol_label;
+        symbol_label.Create(m_chart_id, m_panel_boxes[i].SymbolLabelName, 0, current_x + BOX_WIDTH / 2, DASHBOARD_Y_POS + BOX_HEIGHT / 2);
+        symbol_label.Description(sym); symbol_label.Color(clrWhite);
+        symbol_label.Font("Arial"); symbol_label.FontSize(10);
+        symbol_label.Anchor(ANCHOR_CENTER); symbol_label.Z_Order(1);
+        
+        // ✅✅✅ اصلاح شد: استفاده از نام صحیح کلاس CChartObjectRectLabel ✅✅✅
+        CChartObjectRectLabel sub_panel;
+        sub_panel.Create(m_chart_id, m_panel_boxes[i].SubPanelName, 0, current_x + 5, DASHBOARD_Y_POS + BOX_HEIGHT, BOX_WIDTH - 10, SUB_PANEL_HEIGHT);
+        sub_panel.Color(ColorToARGB(clrBlack, 100)); sub_panel.BackColor(ColorToARGB(clrBlack, 50));
+        sub_panel.Corner(CORNER_LEFT_UPPER); sub_panel.Z_Order(-1);
+        ObjectSetInteger(m_chart_id, m_panel_boxes[i].SubPanelName, OBJPROP_HIDDEN, true);
+
+        CChartObjectLabel trades_label, pl_label;
+        trades_label.Create(m_chart_id, m_panel_boxes[i].TradesLabelName, 0, current_x + 10, DASHBOARD_Y_POS + BOX_HEIGHT + 10);
+        pl_label.Create(m_chart_id, m_panel_boxes[i].PlLabelName, 0, current_x + 10, DASHBOARD_Y_POS + BOX_HEIGHT + 25);
+        trades_label.Description("Trades: 0"); pl_label.Description("P/L: 0.0");
+        trades_label.Color(clrWhite); pl_label.Color(clrWhite);
+        trades_label.Font("Arial"); pl_label.Font("Arial");
+        trades_label.FontSize(8); pl_label.FontSize(8);
+        trades_label.Anchor(ANCHOR_LEFT); pl_label.Anchor(ANCHOR_LEFT);
+        trades_label.Z_Order(0);
+        ObjectSetInteger(m_chart_id, m_panel_boxes[i].TradesLabelName, OBJPROP_HIDDEN, true);
+        ObjectSetInteger(m_chart_id, m_panel_boxes[i].PlLabelName, OBJPROP_HIDDEN, true);
+        
+        current_x += BOX_WIDTH + DASHBOARD_X_GAP;
+    }
+    ChartRedraw(m_chart_id);
+}
+
+void CVisualManager::UpdateDashboard()
+{
+    if(!m_settings.enable_dashboard) { Deinit(); return; }
+    if(ArraySize(m_symbols_list) == 0) return;
+
+    for(int i = 0; i < ArraySize(m_symbols_list); i++)
+    {
+        string sym = m_symbols_list[i];
+        long magic = m_settings.magic_number;
+        color box_color = clrDimGray;
+        if(PositionSelect(sym) && PositionGetInteger(POSITION_MAGIC) == magic)
+        {
+            if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY) box_color = clrDarkGreen;
+            else if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_SELL) box_color = clrMaroon;
+        }
+        ObjectSetInteger(m_chart_id, m_panel_boxes[i].MainBoxName, OBJPROP_BGCOLOR, box_color);
+
+        if(!HistorySelect(0, TimeCurrent())) continue;
+        int trades_count = 0;
+        double cumulative_pl = 0;
+        uint total_deals = HistoryDealsTotal();
+        for(uint j = 0; j < total_deals; j++)
+        {
+            ulong ticket = HistoryDealGetTicket(j);
+            if(HistoryDealGetString(ticket, DEAL_SYMBOL) == sym && HistoryDealGetInteger(ticket, DEAL_MAGIC) == magic && HistoryDealGetInteger(ticket, DEAL_ENTRY) == DEAL_ENTRY_OUT)
+            {
+                trades_count++;
+                cumulative_pl += HistoryDealGetDouble(ticket, DEAL_PROFIT) + HistoryDealGetDouble(ticket, DEAL_SWAP) + HistoryDealGetDouble(ticket, DEAL_COMMISSION);
+            }
+        }
+        
+        bool show_sub_panel = trades_count > 0;
+        ObjectSetInteger(m_chart_id, m_panel_boxes[i].SubPanelName, OBJPROP_HIDDEN, !show_sub_panel);
+        ObjectSetInteger(m_chart_id, m_panel_boxes[i].TradesLabelName, OBJPROP_HIDDEN, !show_sub_panel);
+        ObjectSetInteger(m_chart_id, m_panel_boxes[i].PlLabelName, OBJPROP_HIDDEN, !show_sub_panel);
+        if(show_sub_panel)
+        {
+            ObjectSetString(m_chart_id, m_panel_boxes[i].TradesLabelName, OBJPROP_TEXT, "Trades: " + (string)trades_count);
+            ObjectSetString(m_chart_id, m_panel_boxes[i].PlLabelName, OBJPROP_TEXT, "P/L: " + DoubleToString(cumulative_pl, 2));
+            ObjectSetInteger(m_chart_id, m_panel_boxes[i].PlLabelName, OBJPROP_COLOR, cumulative_pl >= 0 ? clrLime : clrRed);
+        }
+    }
+}
+
+void CVisualManager::DrawTripleCrossRectangle(bool is_buy, int shift)
+{
+    string obj_name = MEMENTO_OBJ_PREFIX + m_symbol + "_SignalRect_" + (string)iTime(m_symbol, _Period, shift);
+    double high = iHigh(m_symbol, _Period, shift); double low = iLow(m_symbol, _Period, shift);
+    double window_height = ChartGetDouble(m_chart_id, CHART_PRICE_MAX) - ChartGetDouble(m_chart_id, CHART_PRICE_MIN);
+    if(window_height <= 0) window_height = SymbolInfoDouble(m_symbol, SYMBOL_ASK) * 0.01;
+    double buffer = window_height * 0.02;
+    CChartObjectRectangle rect;
+    if(rect.Create(m_chart_id, obj_name, 0, iTime(m_symbol, _Period, shift), high + buffer, iTime(m_symbol, _Period, shift-1), low - buffer))
+    {
+        rect.Color(is_buy ? m_settings.bullish_color : m_settings.bearish_color);
+        rect.Style(STYLE_SOLID); rect.Width(1); rect.Background(true);
+    }
+}
+
+void CVisualManager::DrawScanningArea(bool is_buy, int start_shift, int current_shift)
+{
+    string base_name = MEMENTO_OBJ_PREFIX + m_symbol + "_Scan_" + (string)iTime(m_symbol, _Period, start_shift);
+    string rect_name = base_name + "_Rect"; string vline_name = base_name + "_VLine";
+    ObjectDelete(m_chart_id, rect_name); ObjectDelete(m_chart_id, vline_name);
+    datetime start_time = iTime(m_symbol, _Period, start_shift);
+    datetime end_time = start_time + (datetime)(m_settings.grace_period_candles + 1) * PeriodSeconds(_Period);
+    double max_high = iHigh(m_symbol, _Period, start_shift); double min_low = iLow(m_symbol, _Period, start_shift);
+    for(int i = 1; i <= m_settings.grace_period_candles; i++)
+    {
+        int check_shift = start_shift - i;
+        if(iBars(m_symbol, _Period) <= check_shift || check_shift < 0) continue;
+        max_high = MathMax(max_high, iHigh(m_symbol, _Period, check_shift));
+        min_low = MathMin(min_low, iLow(m_symbol, _Period, check_shift));
+    }
+    CChartObjectRectangle rect;
+    if(rect.Create(m_chart_id, rect_name, 0, start_time, max_high, end_time, min_low))
+    {
+        rect.Color(is_buy ? m_settings.bullish_color : m_settings.bearish_color);
+        rect.Style(STYLE_DOT); rect.Background(true);
+        ObjectSetInteger(m_chart_id, rect_name, OBJPROP_BGCOLOR, is_buy ? ColorToARGB(m_settings.bullish_color, 220) : ColorToARGB(m_settings.bearish_color, 220));
+    }
+    datetime scan_time = iTime(m_symbol, _Period, start_shift - current_shift);
+    CChartObjectVLine vline;
+    if(vline.Create(m_chart_id, vline_name, 0, scan_time))
+    {
+        vline.Color(clrWhite); vline.Style(STYLE_DASH);
+    }
+}
+
+void CVisualManager::ClearSignalGraphics(int signal_shift)
+{
+    string base_name_rect = MEMENTO_OBJ_PREFIX + m_symbol + "_SignalRect_" + (string)iTime(m_symbol, _Period, signal_shift);
+    string base_name_scan = MEMENTO_OBJ_PREFIX + m_symbol + "_Scan_" + (string)iTime(m_symbol, _Period, signal_shift);
+    ObjectDelete(m_chart_id, base_name_rect);
+    ObjectsDeleteAll(m_chart_id, base_name_scan);
+}
+
+void CVisualManager::DrawConfirmationArrow(bool is_buy, int shift)
+{
+    ClearSignalGraphics(m_settings.chikou_period);
+    string obj_name = MEMENTO_OBJ_PREFIX + m_symbol + "_ConfirmArrow_" + (string)iTime(m_symbol, _Period, shift);
+    double offset = 10 * SymbolInfoDouble(m_symbol, SYMBOL_POINT);
+    double price = is_buy ? iLow(m_symbol, _Period, shift) - offset : iHigh(m_symbol, _Period, shift) + offset;
+    uchar code = is_buy ? 223 : 224;
+    CChartObjectArrow arrow;
+    // ✅✅✅ اصلاح شد: کد freccia به صورت مستقیم در تابع Create پاس داده می‌شود ✅✅✅
+    if(arrow.Create(m_chart_id, obj_name, 0, iTime(m_symbol, _Period, shift), price, code))
+    {
+        arrow.Color(is_buy ? m_settings.bullish_color : m_settings.bearish_color);
+        arrow.Width(2);
+    }
+}
+
