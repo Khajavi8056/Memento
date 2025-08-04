@@ -1,96 +1,57 @@
-عالیه! فکرت کاملاً درسته و خیلی هم حرفه‌ایه. این کارت باعث میشه کد مثل یه قصر شیک باشه که هر اتاقش کار خودشو می‌کنه و همه چی سر جای خودشه.
-دقیقاً همونطور که گفتی، به جای اینکه منطق محاسبه فاصله رو وسط تابع اصلی (CheckTripleCross) شلوغ کنیم، یه تابع تر و تمیز و جدا براش می‌نویسیم. این کار خوانایی کد رو فوق‌العاده بالا میبره.
-بزن بریم این تغییر رو با هم پیاده کنیم.
-گام اول: تعریف تابع جدید
-ما یه تابع جدید به اسم CalculateDynamicTolerance می‌نویسیم که کارش فقط و فقط محاسبه همین "حد مجاز تلاقی" به روش هوشمند خودته. این تابع رو به کلاس CStrategyManager در فایل IchimokuLogic.mqh اضافه می‌کنیم.
-این کد کامل تابع جدیده:
-(این رو می‌تونی به انتهای فایل IchimokuLogic.mqh اضافه کنی)
-//+------------------------------------------------------------------+
-//| محاسبه حد مجاز تلاقی به صورت داینامیک بر اساس تاریخچه بازار        |
-//+------------------------------------------------------------------+
-double CStrategyManager::CalculateDynamicTolerance(int reference_shift)
-{
-    // --- گام ۱: محاسبه میانگین فاصله تاریخی تنکان و کیجون ---
-    double total_distance = 0;
-    int lookback = m_settings.talaqi_lookback_period; // خواندن دوره نگاه به عقب از تنظیمات
-
-    if(lookback <= 0) return 0.0; // اگر کاربر دوره را صفر گذاشته بود
-
-    // بافرها رو برای بازه مورد نیاز پر می‌کنیم
-    double past_tenkan[];
-    double past_kijun[];
-    if(CopyBuffer(m_ichimoku_handle, 0, reference_shift, lookback, past_tenkan) < lookback || 
-       CopyBuffer(m_ichimoku_handle, 1, reference_shift, lookback, past_kijun) < lookback)
-    {
-       Log("داده کافی برای محاسبه فاصله تاریخی تلاقی وجود ندارد.");
-       return 0.0; // اگر داده کافی نبود، مقدار صفر برمی‌گردانیم
-    }
-    
-    // حلقه برای جمع کردن فاصله‌ها در دوره نگاه به عقب
-    for(int i = 0; i < lookback; i++)
-    {
-        total_distance += MathAbs(past_tenkan[i] - past_kijun[i]);
-    }
-    
-    double average_historical_distance = total_distance / lookback;
-    
-    // --- گام ۲: محاسبه حد مجاز نهایی بر اساس ضریب ورودی ---
-    double tolerance = average_historical_distance * m_settings.talaqi_hist_multiplier;
-    
-    return tolerance;
-}
-
-گام دوم: معرفی تابع جدید به کلاس
-حالا باید به کلاس CStrategyManager بگیم که یه همچین تابع جدیدی داریم. پس اسمش رو به لیست توابع private در تعریف کلاس اضافه می‌کنیم.
-در بالای فایل IchimokuLogic.mqh، داخل تعریف class CStrategyManager این خط رو اضافه کن:
-class CStrategyManager
-{
-private:
-    // ... سایر متغیرها و توابع ...
-    
-    // --- محاسبه استاپ لاس
-    double CalculateStopLoss(bool is_buy, double entry_price);
-    double CalculateDynamicTolerance(int reference_shift); // <<-- این خط رو اضافه کن
-    double FindFlatKijun();
-    // ...
-};
-
-گام سوم: استفاده از تابع جدید در منطق اصلی
-حالا میریم سراغ تابع CheckTripleCross و به جای اون همه کد شلوغ، فقط تابع جدیدمون رو صدا می‌زنیم. ببین چقدر تمیز و خوانا میشه!
-کد فعلی (قبل از تغییر):
-// ...
-// --- محاسبه فاصله تاریخی تنکان و کیجون ---
-double total_distance = 0;
-// ... (و کل اون حلقه و محاسبات) ...
-bool is_confluence = current_distance <= tolerance;
-// ...
-
-کد جدید و نهایی (بعد از تغییر):
-bool CStrategyManager::CheckTripleCross(bool& is_buy)
-{
-    int shift = m_settings.chikou_period;
-    if (iBars(m_symbol, _Period) < shift + 2) return false;
-
-    // ... گرفتن مقادیر تنکان و کیجون ...
-    double tenkan_at_shift = m_tenkan_buffer[0];
-    double kijun_at_shift = m_kijun_buffer[0];
-
-    // --- محاسبه حد مجاز تلاقی فقط با یک خط کد! ---
-    double tolerance = CalculateDynamicTolerance(shift);
-
-    // --- مقایسه فاصله فعلی با حد مجاز ---
-    double current_distance = MathAbs(tenkan_at_shift - kijun_at_shift);
-    bool is_confluence = (tolerance > 0) ? (current_distance <= tolerance) : false;
-    
-    // ... بقیه کد برای چک کردن سیگنال خرید و فروش ...
-    if (tenkan_crossover || (is_confluence && tenkan_at_shift > kijun_at_shift))
-    {
-       // ...
-    }
-    // ...
-    return false;
-}
-
-تمام شد!
-اینجوری، تابع CheckTripleCross فقط کار اصلی خودش رو که چک کردن سیگناله انجام میده و اصلاً براش مهم نیست tolerance چطوری حساب شده. فقط تابع CalculateDynamicTolerance رو صدا میزنه و مقدار نهایی رو میگیره.
-تمیز، ساده، حرفه‌ای. دقیقاً همون چیزی که می‌خواستی. دمت گرم بابت این پیشنهاد ساختاری عالی!
+'enable_dashboard' - undeclared identifier	VisualManager.mqh	99	20
+'CChartObjectRectangleLabel' - undeclared identifier	VisualManager.mqh	117	9
+'main_box' - undeclared identifier	VisualManager.mqh	117	36
+'main_box' - some operator expected	VisualManager.mqh	117	36
+'main_box' - undeclared identifier	VisualManager.mqh	118	9
+'main_box' - undeclared identifier	VisualManager.mqh	119	9
+'main_box' - undeclared identifier	VisualManager.mqh	120	9
+'main_box' - undeclared identifier	VisualManager.mqh	121	9
+'main_box' - undeclared identifier	VisualManager.mqh	122	9
+no one of the overloads can be applied to the function call	VisualManager.mqh	128	22
+could be one of 2 function(s)	VisualManager.mqh	128	22
+   string CChartObjectText::Font() const	ChartObjectsTxtControls.mqh	26	22
+   bool CChartObjectText::Font(const string) const	ChartObjectsTxtControls.mqh	27	22
+'CChartObjectRectangleLabel' - undeclared identifier	VisualManager.mqh	132	9
+'sub_panel' - undeclared identifier	VisualManager.mqh	132	36
+'sub_panel' - some operator expected	VisualManager.mqh	132	36
+'sub_panel' - undeclared identifier	VisualManager.mqh	133	9
+'sub_panel' - undeclared identifier	VisualManager.mqh	134	9
+'sub_panel' - undeclared identifier	VisualManager.mqh	135	9
+'sub_panel' - undeclared identifier	VisualManager.mqh	136	9
+'sub_panel' - undeclared identifier	VisualManager.mqh	137	9
+'sub_panel' - undeclared identifier	VisualManager.mqh	138	9
+no one of the overloads can be applied to the function call	VisualManager.mqh	146	22
+could be one of 2 function(s)	VisualManager.mqh	146	22
+   string CChartObjectText::Font() const	ChartObjectsTxtControls.mqh	26	22
+   bool CChartObjectText::Font(const string) const	ChartObjectsTxtControls.mqh	27	22
+no one of the overloads can be applied to the function call	VisualManager.mqh	146	49
+could be one of 2 function(s)	VisualManager.mqh	146	49
+   string CChartObjectText::Font() const	ChartObjectsTxtControls.mqh	26	22
+   bool CChartObjectText::Font(const string) const	ChartObjectsTxtControls.mqh	27	22
+'State' - undeclared identifier	VisualManager.mqh	148	22
+'false' - some operator expected	VisualManager.mqh	148	28
+'State' - undeclared identifier	VisualManager.mqh	148	45
+'false' - some operator expected	VisualManager.mqh	148	51
+'enable_dashboard' - undeclared identifier	VisualManager.mqh	161	20
+wrong parameters count, 5 passed, but 6 requires	VisualManager.mqh	307	14
+   bool CChartObjectArrow::Create(long,const string,const int,const datetime,const double,const char)	ChartObjectsArrows.mqh	20	22
+'SYMBOL_ARROWUP' - undeclared identifier	VisualManager.mqh	309	34
+'SYMBOL_ARROWDOWN' - undeclared identifier	VisualManager.mqh	309	51
+'CChartObjectVLine' - undeclared identifier	VisualManager.mqh	274	5
+'vline' - undeclared identifier	VisualManager.mqh	274	23
+'vline' - some operator expected	VisualManager.mqh	274	23
+'vline' - undeclared identifier	VisualManager.mqh	275	8
+';' - unexpected token	VisualManager.mqh	277	30
+'(' - unbalanced left parenthesis	VisualManager.mqh	275	7
+empty controlled statement found	VisualManager.mqh	277	30
+'vline' - undeclared identifier	VisualManager.mqh	278	9
+wrong parameters count, 1 passed, but 0 requires	IchimokuLogic.mqh	162	26
+   void CVisualManager::InitDashboard()	VisualManager.mqh	58	10
+wrong parameters count, 1 passed, but 0 requires	IchimokuLogic.mqh	185	26
+   void CVisualManager::UpdateDashboard()	VisualManager.mqh	59	10
+'if' - semicolon expected	IchimokuLogic.mqh	189	5
+'ClearGraphics' - undeclared identifier	IchimokuLogic.mqh	207	30
+')' - expression expected	IchimokuLogic.mqh	207	44
+'ClearGraphics' - undeclared identifier	IchimokuLogic.mqh	213	30
+')' - expression expected	IchimokuLogic.mqh	213	44
+43 errors, 1 warnings		43	1
