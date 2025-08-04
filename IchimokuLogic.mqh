@@ -431,9 +431,12 @@ int CStrategyManager::CountTotalTrades()
     return count;
 }
 
+//+------------------------------------------------------------------+
+//| باز کردن معامله (با مدیریت سرمایه اصلاح شده و دقیق)                |
+//+------------------------------------------------------------------+
 void CStrategyManager::OpenTrade(bool is_buy)
 {
-    if (CountTotalTrades() >= m_settings.max_total_trades || CountSymbolTrades() >= m_settings.max_trades_per_symbol)
+    if(CountTotalTrades() >= m_settings.max_total_trades || CountSymbolTrades() >= m_settings.max_trades_per_symbol)
     {
         Log("رسیدن به حد مجاز معاملات. معامله جدید باز نشد.");
         return;
@@ -442,37 +445,58 @@ void CStrategyManager::OpenTrade(bool is_buy)
     double entry_price = is_buy ? SymbolInfoDouble(m_symbol, SYMBOL_ASK) : SymbolInfoDouble(m_symbol, SYMBOL_BID);
     double sl = CalculateStopLoss(is_buy, entry_price);
 
-    if (sl == 0)
+    if(sl == 0)
     {
         Log("خطا در محاسبه استاپ لاس. معامله باز نشد.");
         return;
     }
-
-    double point = SymbolInfoDouble(m_symbol, SYMBOL_POINT);
-    double sl_distance_points = MathAbs(entry_price - sl) / point;
-    if (sl_distance_points < 1)
-    {
-        Log("فاصله استاپ لاس بسیار کم است. معامله باز نشد.");
-        return;
-    }
-
-    double risk_amount = AccountInfoDouble(ACCOUNT_BALANCE) * (m_settings.risk_percent_per_trade / 100.0);
-    double tick_value = SymbolInfoDouble(m_symbol, SYMBOL_TRADE_TICK_VALUE_PROFIT);
-    if (tick_value <= 0)
-    {
-        Log("مقدار Tick Value برای نماد نامعتبر است. معامله باز نشد.");
-        return;
-    }
     
-    double lot_size = risk_amount / (sl_distance_points * tick_value);
+    // ✅✅✅ بخش کلیدی و اصلاح شده ✅✅✅
 
+    // --- گام ۱: محاسبه ریسک به ازای هر معامله به پول حساب ---
+    double balance = AccountInfoDouble(ACCOUNT_BALANCE);
+    double risk_amount = balance * (m_settings.risk_percent_per_trade / 100.0);
+
+    // --- گام ۲: محاسبه میزان ضرر برای ۱ لات معامله با این استاپ لاس ---
+    double loss_for_one_lot = 0;
+    string base_currency = AccountInfoString(ACCOUNT_CURRENCY);
+    // از تابع تخصصی متاتریدر برای این کار استفاده می‌کنیم
+    if(!OrderCalcProfit(is_buy ? ORDER_TYPE_BUY : ORDER_TYPE_SELL, m_symbol, 1.0, entry_price, sl, loss_for_one_lot))
+    {
+        Log("خطا در محاسبه سود/زیان با OrderCalcProfit. کد خطا: " + (string)GetLastError());
+        return;
+    }
+    loss_for_one_lot = MathAbs(loss_for_one_lot);
+
+    if(loss_for_one_lot <= 0)
+    {
+        Log("میزان ضرر محاسبه شده برای ۱ لات معتبر نیست. معامله باز نشد.");
+        return;
+    }
+
+    // --- گام ۳: محاسبه حجم دقیق لات بر اساس ریسک و میزان ضرر ۱ لات ---
+    double lot_size = NormalizeDouble(risk_amount / loss_for_one_lot, 2);
+
+    // --- گام ۴: نرمال‌سازی و گرد کردن لات بر اساس محدودیت‌های بروکر ---
     double min_lot = SymbolInfoDouble(m_symbol, SYMBOL_VOLUME_MIN);
     double max_lot = SymbolInfoDouble(m_symbol, SYMBOL_VOLUME_MAX);
     double lot_step = SymbolInfoDouble(m_symbol, SYMBOL_VOLUME_STEP);
     
-    lot_size = MathMax(min_lot, MathMin(max_lot, NormalizeDouble(lot_size, 2)));
+    // اطمینان از اینکه لات در محدوده مجاز است
+    lot_size = MathMax(min_lot, MathMin(max_lot, lot_size));
+    
+    // گرد کردن لات بر اساس گام مجاز بروکر
     lot_size = MathRound(lot_size / lot_step) * lot_step;
 
+    if(lot_size < min_lot)
+    {
+        Log("حجم محاسبه شده (" + DoubleToString(lot_size,2) + ") کمتر از حداقل لات مجاز (" + DoubleToString(min_lot,2) + ") است. معامله باز نشد.");
+        return;
+    }
+
+    // --- گام ۵: محاسبه حد سود و ارسال معامله ---
+    double point = SymbolInfoDouble(m_symbol, SYMBOL_POINT);
+    double sl_distance_points = MathAbs(entry_price - sl) / point;
     double tp_distance_points = sl_distance_points * m_settings.take_profit_ratio;
     double tp = is_buy ? entry_price + tp_distance_points * point : entry_price - tp_distance_points * point;
     
@@ -480,27 +504,26 @@ void CStrategyManager::OpenTrade(bool is_buy)
     sl = NormalizeDouble(sl, digits);
     tp = NormalizeDouble(tp, digits);
     
-    if (is_buy)
+    string comment = "Memento " + (is_buy ? "Buy" : "Sell");
+    MqlTradeResult result;
+    
+    if(is_buy)
     {
-        if (!m_trade.Buy(lot_size, m_symbol, 0, sl, tp, "Memento Buy"))
-        {
-            Log("خطا در باز کردن معامله خرید: " + (string)m_trade.ResultRetcode());
-        }
-        else
-        {
-            Log("معامله خرید با لات " + DoubleToString(lot_size, 2) + " باز شد.");
-        }
+        m_trade.Buy(lot_size, m_symbol, 0, sl, tp, comment);
     }
     else
     {
-        if (!m_trade.Sell(lot_size, m_symbol, 0, sl, tp, "Memento Sell"))
-        {
-            Log("خطا در باز کردن معامله فروش: " + (string)m_trade.ResultRetcode());
-        }
-        else
-        {
-            Log("معامله فروش با لات " + DoubleToString(lot_size, 2) + " باز شد.");
-        }
+        m_trade.Sell(lot_size, m_symbol, 0, sl, tp, comment);
+    }
+    
+    // لاگ کردن نتیجه
+    if(m_trade.ResultRetcode() == TRADE_RETCODE_DONE)
+    {
+        Log("معامله " + comment + " با لات " + DoubleToString(lot_size, 2) + " با موفقیت باز شد.");
+    }
+    else
+    {
+        Log("خطا در باز کردن معامله " + comment + ": " + (string)m_trade.ResultRetcode() + " - " + m_trade.ResultComment());
     }
 }
 
