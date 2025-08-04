@@ -1,0 +1,169 @@
+//+------------------------------------------------------------------+
+//|                                     VisualManager.mqh            |
+//|                          © 2025, Mohammad & Gemini               |
+//|                                                                  |
+//+------------------------------------------------------------------+
+#property copyright "© 2025, Mohammad & Gemini"
+#property link      "https://www.mql5.com"
+#property version   "1.01"
+
+#include <Object.mqh>
+#include <ChartObjects\ChartObjects.mqh>
+
+//--- نام‌های ثابت برای اشیاء
+#define RECT_PREFIX        "M_RECT_"
+#define SCAN_PREFIX        "M_SCAN_"
+#define CONFIRM_PREFIX     "M_CONFIRM_"
+
+//+------------------------------------------------------------------+
+//| کلاس مدیریت گرافیک                                               |
+//+------------------------------------------------------------------+
+class CVisualManager
+{
+private:
+    string              m_symbol;
+    SSettings           m_settings;
+    long                m_chart_id;
+    
+    string GetObjectName(string prefix, int shift);
+
+public:
+    CVisualManager(string symbol, SSettings settings);
+    bool Init();
+    void ClearGraphics();
+    void DrawTripleCrossRectangle(bool is_buy, int shift);
+    void DrawScanningArea(bool is_buy, int start_shift, int current_shift);
+    void DrawConfirmationArrow(bool is_buy, int shift);
+    
+    ~CVisualManager();
+};
+
+//+------------------------------------------------------------------+
+//| کانستراکتور کلاس                                                 |
+//+------------------------------------------------------------------+
+CVisualManager::CVisualManager(string symbol, SSettings settings)
+{
+    m_symbol = symbol;
+    m_settings = settings;
+    m_chart_id = ChartID();
+}
+
+//+------------------------------------------------------------------+
+//| دیستراکتور کلاس                                                  |
+//+------------------------------------------------------------------+
+CVisualManager::~CVisualManager()
+{
+    //--- پاک کردن تمام اشیاء گرافیکی مرتبط با این نماد
+    ObjectsDeleteAll(m_chart_id, RECT_PREFIX + m_symbol);
+    ObjectsDeleteAll(m_chart_id, SCAN_PREFIX + m_symbol);
+    ObjectsDeleteAll(m_chart_id, CONFIRM_PREFIX + m_symbol);
+}
+
+//+------------------------------------------------------------------+
+//| مقداردهی اولیه                                                   |
+//+------------------------------------------------------------------+
+bool CVisualManager::Init()
+{
+    //--- مدیریت شیفت چارت برای نمایش ناحیه اسکن
+    ChartSetInteger(m_chart_id, CHART_AUTOSCROLL, 0); // خاموش کردن اسکرول خودکار
+    ChartSetInteger(m_chart_id, CHART_SHIFT, 1);    // فعال کردن شیفت چارت
+    return true;
+}
+
+//+------------------------------------------------------------------+
+//| ساخت نام منحصر به فرد برای اشیاء                                 |
+//+------------------------------------------------------------------+
+string CVisualManager::GetObjectName(string prefix, int shift)
+{
+    datetime time = iTime(m_symbol, _Period, shift);
+    return prefix + m_symbol + "_" + (string)time;
+}
+
+//+------------------------------------------------------------------+
+//| پاکسازی گرافیک                                                   |
+//+------------------------------------------------------------------+
+void CVisualManager::ClearGraphics()
+{
+    ObjectsDeleteAll(m_chart_id, RECT_PREFIX + m_symbol + "_");
+    ObjectsDeleteAll(m_chart_id, SCAN_PREFIX + m_symbol + "_");
+    ObjectsDeleteAll(m_chart_id, CONFIRM_PREFIX + m_symbol + "_");
+}
+
+//+------------------------------------------------------------------+
+//| رسم مربع کراس سه گانه (کوچک و ثابت)                               |
+//+------------------------------------------------------------------+
+void CVisualManager::DrawTripleCrossRectangle(bool is_buy, int shift)
+{
+    ClearGraphics();
+    
+    datetime cross_time = iTime(m_symbol, _Period, shift);
+    string obj_name = GetObjectName(RECT_PREFIX, shift);
+    
+    double high = iHigh(m_symbol, _Period, shift);
+    double low = iLow(m_symbol, _Period, shift);
+    
+    CChartObjectRectangle rect;
+    if (rect.Create(m_chart_id, obj_name, 0, cross_time, high, cross_time + PeriodSeconds(_Period) * m_settings.object_size_multiplier, low))
+    {
+        rect.Color(is_buy ? m_settings.bullish_color : m_settings.bearish_color);
+        rect.Style(STYLE_SOLID);
+        rect.Width(1);
+        rect.Fill(false);
+    }
+}
+
+
+//+------------------------------------------------------------------+
+//| رسم ناحیه اسکن (مربع بزرگ شیشه‌ای)                                 |
+//+------------------------------------------------------------------+
+void CVisualManager::DrawScanningArea(bool is_buy, int start_shift, int current_shift)
+{
+    string obj_name = GetObjectName(SCAN_PREFIX, start_shift);
+    ObjectDelete(m_chart_id, obj_name);
+    
+    datetime start_time = iTime(m_symbol, _Period, start_shift);
+datetime end_time = iTime(m_symbol, _Period, start_shift - m_settings.grace_period_candles);
+    
+    double high = iHigh(m_symbol, _Period, start_shift);
+    double low = iLow(m_symbol, _Period, start_shift);
+    
+    CChartObjectRectangle rect;
+    if (rect.Create(m_chart_id, obj_name, 0, start_time, high, end_time, low))
+    {
+        rect.Color(is_buy ? m_settings.bullish_color : m_settings.bearish_color);
+        rect.Style(STYLE_DOT);
+        rect.Width(1);
+        rect.Fill(true);
+        rect.BackColor(is_buy ? ColorToARGB(m_settings.bullish_color, 50) : ColorToARGB(m_settings.bearish_color, 50));
+    }
+
+    string v_line_name = obj_name + "_VLine";
+    ObjectDelete(m_chart_id, v_line_name);
+    
+    datetime scan_time = iTime(m_symbol, _Period, start_shift - current_shift);
+    ObjectCreate(m_chart_id, v_line_name, OBJ_VLINE, 0, scan_time, 0);
+    ObjectSetInteger(m_chart_id, v_line_name, OBJPROP_COLOR, clrWhite);
+    ObjectSetInteger(m_chart_id, v_line_name, OBJPROP_STYLE, STYLE_DASH);
+    ObjectSetInteger(m_chart_id, v_line_name, OBJPROP_WIDTH, 1);
+}
+
+
+//+------------------------------------------------------------------+
+//| رسم فلش تأیید نهایی                                              |
+//+------------------------------------------------------------------+
+void CVisualManager::DrawConfirmationArrow(bool is_buy, int shift)
+{
+    string obj_name = GetObjectName(CONFIRM_PREFIX, shift);
+    
+    double price = is_buy ? iLow(m_symbol, _Period, shift) : iHigh(m_symbol, _Period, shift);
+    
+    CChartObjectArrow arrow;
+    if (arrow.Create(m_chart_id, obj_name, 0, iTime(m_symbol, _Period, shift), price))
+    {
+        arrow.Color(is_buy ? m_settings.bullish_color : m_settings.bearish_color);
+        arrow.Width(1);
+        arrow.Style(is_buy ? SYMBOL_ARROW_UP : SYMBOL_ARROW_DOWN);
+        arrow.Size(10);
+    }
+}
+
