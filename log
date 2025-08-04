@@ -1,189 +1,35 @@
-//+------------------------------------------------------------------+
-//|                                     VisualManager.mqh            |
-//|                          © 2025, Mohammad & Gemini               |
-//|                                                                  |
-//+------------------------------------------------------------------+
-#property copyright "© 2025, Mohammad & Gemini"
-#property link      "https://www.mql5.com"
-#property version   "1.02" // نسخه اصلاح شده نهایی
-
-#include "set.mqh"
-#include <Object.mqh>
-#include <ChartObjects\ChartObject.mqh>
-#include <Trade\Trade.mqh>
-#include <ChartObjects\ChartObjectsShapes.mqh> // برای رسم مستطیل
-#include <ChartObjects\ChartObjectsArrows.mqh>   // برای رسم فلش
-
-//--- نام‌های ثابت برای اشیاء
-#define RECT_PREFIX        "M_RECT_"
-#define SCAN_PREFIX        "M_SCAN_"
-#define CONFIRM_PREFIX     "M_CONFIRM_"
-
-//+------------------------------------------------------------------+
-//| کلاس مدیریت گرافیک                                               |
-//+------------------------------------------------------------------+
-class CVisualManager
-{
-private:
-    string              m_symbol;
-    SSettings           m_settings;
-    long                m_chart_id;
-
-    string GetObjectName(string prefix, int shift);
-
-public:
-    // --- نکته: اینجا استفاده از رفرنس (&) برای settings عالیه و از کپی شدن بیهوده دیتا جلوگیری میکنه. کارت درسته!
-    CVisualManager(string symbol, SSettings &settings);
-    bool Init();
-    void ClearGraphics();
-    void DrawTripleCrossRectangle(bool is_buy, int shift);
-    void DrawScanningArea(bool is_buy, int start_shift, int current_shift);
-    void DrawConfirmationArrow(bool is_buy, int shift);
-
-    ~CVisualManager();
-};
-
-//+------------------------------------------------------------------+
-//| کانستراکتور کلاس                                                 |
-//+------------------------------------------------------------------+
-CVisualManager::CVisualManager(string symbol, SSettings &settings)
-{
-    m_symbol = symbol;
-    m_settings = settings;
-    m_chart_id = ChartID();
-}
-
-//+------------------------------------------------------------------+
-//| دیستراکتور کلاس                                                  |
-//+------------------------------------------------------------------+
-CVisualManager::~CVisualManager()
-{
-    //--- پاک کردن تمام اشیاء گرافیکی مرتبط با این نماد
-    ObjectsDeleteAll(m_chart_id, RECT_PREFIX + m_symbol);
-    ObjectsDeleteAll(m_chart_id, SCAN_PREFIX + m_symbol);
-    ObjectsDeleteAll(m_chart_id, CONFIRM_PREFIX + m_symbol);
-    ChartRedraw(m_chart_id); // اضافه کردن این خط برای رفرش شدن چارت بعد از بستن اکسپرت
-}
-
-//+------------------------------------------------------------------+
-//| مقداردهی اولیه                                                   |
-//+------------------------------------------------------------------+
-bool CVisualManager::Init()
-{
-    //--- مدیریت شیفت چارت برای نمایش ناحیه اسکن
-    ChartSetInteger(m_chart_id, CHART_AUTOSCROLL, 0); // خاموش کردن اسکرول خودکار
-    ChartSetInteger(m_chart_id, CHART_SHIFT, 1);    // فعال کردن شیفت چارت
-    return true;
-}
-
-//+------------------------------------------------------------------+
-//| ساخت نام منحصر به فرد برای اشیاء                                 |
-//+------------------------------------------------------------------+
-string CVisualManager::GetObjectName(string prefix, int shift)
-{
-    datetime time = iTime(m_symbol, _Period, shift);
-    return prefix + m_symbol + "_" + (string)time;
-}
-
-//+------------------------------------------------------------------+
-//| پاکسازی گرافیک                                                   |
-//+------------------------------------------------------------------+
-void CVisualManager::ClearGraphics()
-{
-    // --- اصلاح شد: اضافه کردن "_" برای پاکسازی دقیق‌تر اشیائی که با GetObjectName ساخته شدن
-    ObjectsDeleteAll(m_chart_id, RECT_PREFIX + m_symbol + "_");
-    ObjectsDeleteAll(m_chart_id, SCAN_PREFIX + m_symbol + "_");
-    ObjectsDeleteAll(m_chart_id, CONFIRM_PREFIX + m_symbol + "_");
-}
-
-//+------------------------------------------------------------------+
-//| رسم مربع کراس سه گانه (کوچک و ثابت)                               |
-//+------------------------------------------------------------------+
-void CVisualManager::DrawTripleCrossRectangle(bool is_buy, int shift)
-{
-    ClearGraphics();
-
-    datetime cross_time = iTime(m_symbol, _Period, shift);
-    string obj_name = GetObjectName(RECT_PREFIX, shift);
-
-    double high = iHigh(m_symbol, _Period, shift);
-    double low = iLow(m_symbol, _Period, shift);
-
-    CChartObjectRectangle rect;
-    // --- اصلاح شد: اضافه کردن (datetime) برای رفع وارنینگ تبدیل نوع داده
-    if (rect.Create(m_chart_id, obj_name, 0, cross_time, high, (datetime)(cross_time + PeriodSeconds(_Period) * m_settings.object_size_multiplier), low))
-    {
-        rect.Color(is_buy ? m_settings.bullish_color : m_settings.bearish_color);
-        rect.Style(STYLE_SOLID);
-        rect.Width(1);
-        rect.Fill(false);
-    }
-}
-
-
-//+------------------------------------------------------------------+
-//| رسم ناحیه اسکن (مربع بزرگ شیشه‌ای)                                 |
-//+------------------------------------------------------------------+
-void CVisualManager::DrawScanningArea(bool is_buy, int start_shift, int current_shift)
-{
-    string obj_name = GetObjectName(SCAN_PREFIX, start_shift);
-    ObjectDelete(m_chart_id, obj_name);
-
-    datetime start_time = iTime(m_symbol, _Period, start_shift);
-    // --- اصلاح شد: محاسبه زمان پایان بر اساس کندل‌های مهلت
-    datetime end_time = iTime(m_symbol, _Period, start_shift - m_settings.grace_period_candles);
-
-    // --- برای اینکه باکس همیشه تمام کندل‌ها رو پوشش بده، بالا و پایین باکس رو در طول دوره پیدا می‌کنیم
-    double max_high = 0;
-    double min_low = 0;
-    int bars_to_scan = m_settings.grace_period_candles + 1;
-    CopyHigh(m_symbol, _Period, start_shift - bars_to_scan, bars_to_scan, &max_high);
-    CopyLow(m_symbol, _Period, start_shift - bars_to_scan, bars_to_scan, &min_low);
-    max_high = iHigh(m_symbol,_Period,ArrayMaximum(CopyHigh(m_symbol, _Period, start_shift - bars_to_scan, bars_to_scan, &max_high), WHOLE_ARRAY, 0));
-    min_low = iLow(m_symbol,_Period,ArrayMinimum(CopyLow(m_symbol, _Period, start_shift - bars_to_scan, bars_to_scan, &min_low), WHOLE_ARRAY, 0));
-
-
-    CChartObjectRectangle rect;
-    if (rect.Create(m_chart_id, obj_name, 0, start_time, max_high, end_time, min_low))
-    {
-        rect.Color(is_buy ? m_settings.bullish_color : m_settings.bearish_color);
-        rect.Style(STYLE_DOT);
-        rect.Width(1);
-        rect.Fill(true);
-        // --- اصلاح شد: اسم تابع از BackColor به BgColor تغییر کرد. دیدم خودت هم اینو درست کرده بودی، آفرین!
-        rect.BgColor(is_buy ? ColorToARGB(m_settings.bullish_color, 200) : ColorToARGB(m_settings.bearish_color, 200));    
-    }
-
-    string v_line_name = obj_name + "_VLine";
-    ObjectDelete(m_chart_id, v_line_name);
-
-    datetime scan_time = iTime(m_symbol, _Period, start_shift - current_shift);
-    ObjectCreate(m_chart_id, v_line_name, OBJ_VLINE, 0, scan_time, 0);
-    ObjectSetInteger(m_chart_id, v_line_name, OBJPROP_COLOR, clrWhite);
-    ObjectSetInteger(m_chart_id, v_line_name, OBJPROP_STYLE, STYLE_DASH);
-    ObjectSetInteger(m_chart_id, v_line_name, OBJPROP_WIDTH, 1);
-}
-
-
-//+------------------------------------------------------------------+
-//| رسم فلش تأیید نهایی (نسخه کاملاً اصلاح شده)                     |
-//+------------------------------------------------------------------+
-void CVisualManager::DrawConfirmationArrow(bool is_buy, int shift)
-{
-    string obj_name = GetObjectName(CONFIRM_PREFIX, shift);
-
-    double price = is_buy ? iLow(m_symbol, _Period, shift) : iHigh(m_symbol, _Period, shift);
-    
-    // --- اصلاح شد: کد صحیح برای شکل فلش ها از فونت Wingdings
-    uchar code = is_buy ? 233 : 234; // 233 کد فلش رو به بالا و 234 کد فلش رو به پایینه
-
-    CChartObjectArrow arrow;
-    // --- اصلاح شد: به پارامتر ششم (code) دقت کن که اضافه شده
-    if (arrow.Create(m_chart_id, obj_name, 0, iTime(m_symbol, _Period, shift), price, code))
-    {
-        arrow.Color(is_buy ? m_settings.bullish_color : m_settings.bearish_color);
-        // --- اصلاح شد: تابع صحیح برای اندازه فلش Width است نه Size
-        arrow.Width(2); // اندازه رو 2 گذاشتم که بهتر دیده بشه
-    }
-}
-
+'&' - illegal operation use	VisualManager.mqh	140	75
+class type expected	VisualManager.mqh	140	76
+no one of the overloads can be applied to the function call	VisualManager.mqh	140	5
+could be one of 3 function(s)	VisualManager.mqh	140	5
+   built-in: int CopyHigh(const string,ENUM_TIMEFRAMES,int,int,double&[])	VisualManager.mqh	140	5
+   built-in: int CopyHigh(const string,ENUM_TIMEFRAMES,datetime,int,double&[])	VisualManager.mqh	140	5
+   built-in: int CopyHigh(const string,ENUM_TIMEFRAMES,datetime,datetime,double&[])	VisualManager.mqh	140	5
+'&' - illegal operation use	VisualManager.mqh	141	74
+class type expected	VisualManager.mqh	141	75
+no one of the overloads can be applied to the function call	VisualManager.mqh	141	5
+could be one of 3 function(s)	VisualManager.mqh	141	5
+   built-in: int CopyLow(const string,ENUM_TIMEFRAMES,int,int,double&[])	VisualManager.mqh	141	5
+   built-in: int CopyLow(const string,ENUM_TIMEFRAMES,datetime,int,double&[])	VisualManager.mqh	141	5
+   built-in: int CopyLow(const string,ENUM_TIMEFRAMES,datetime,datetime,double&[])	VisualManager.mqh	141	5
+'&' - illegal operation use	VisualManager.mqh	142	122
+class type expected	VisualManager.mqh	142	123
+no one of the overloads can be applied to the function call	VisualManager.mqh	142	52
+could be one of 3 function(s)	VisualManager.mqh	142	52
+   built-in: int CopyHigh(const string,ENUM_TIMEFRAMES,int,int,double&[])	VisualManager.mqh	142	52
+   built-in: int CopyHigh(const string,ENUM_TIMEFRAMES,datetime,int,double&[])	VisualManager.mqh	142	52
+   built-in: int CopyHigh(const string,ENUM_TIMEFRAMES,datetime,datetime,double&[])	VisualManager.mqh	142	52
+variable expected	VisualManager.mqh	142	52
+   built-in: int ArrayMaximum(const T&[...],int,int)	VisualManager.mqh	142	52
+'&' - illegal operation use	VisualManager.mqh	143	119
+class type expected	VisualManager.mqh	143	120
+no one of the overloads can be applied to the function call	VisualManager.mqh	143	50
+could be one of 3 function(s)	VisualManager.mqh	143	50
+   built-in: int CopyLow(const string,ENUM_TIMEFRAMES,int,int,double&[])	VisualManager.mqh	143	50
+   built-in: int CopyLow(const string,ENUM_TIMEFRAMES,datetime,int,double&[])	VisualManager.mqh	143	50
+   built-in: int CopyLow(const string,ENUM_TIMEFRAMES,datetime,datetime,double&[])	VisualManager.mqh	143	50
+variable expected	VisualManager.mqh	143	50
+   built-in: int ArrayMinimum(const T&[...],int,int)	VisualManager.mqh	143	50
+'BgColor' - undeclared identifier	VisualManager.mqh	154	14
+'?' - some operator expected	VisualManager.mqh	154	29
+16 errors, 0 warnings		16	0
