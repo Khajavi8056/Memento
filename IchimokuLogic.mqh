@@ -6,7 +6,7 @@
 #property copyright "© 2025, Mohammad & Gemini"
 #property link      "https://www.mql5.com"
 #property version   "1.03" // نسخه نهایی و کاملا اصلاح شده
-
+#include "set.mqh"
 #include <Trade\Trade.mqh>
 #include <Trade\SymbolInfo.mqh>
 #include <Object.mqh>
@@ -19,7 +19,35 @@ struct SPotentialSignal
     bool            is_buy;
     int             grace_candle_count;
 };
+/*struct SSettings
+{
+    string              symbols_list;
+    int                 magic_number;
+    bool                enable_logging;
 
+    int                 tenkan_period;
+    int                 kijun_period;
+    int                 senkou_period;
+    int                 chikou_period;
+
+    E_Confirmation_Mode confirmation_type;
+    int                 grace_period_candles;
+    double              talaqi_distance_in_points;
+
+    E_SL_Mode           stoploss_type;
+    int                 sl_lookback_period;
+    double              sl_buffer_multiplier;
+
+    double              risk_percent_per_trade;
+    double              take_profit_ratio;
+    int                 max_trades_per_symbol;
+    int                 max_total_trades;
+
+    double              object_size_multiplier;
+    color               bullish_color;
+    color               bearish_color;
+};
+*/
 //+------------------------------------------------------------------+
 //| کلاس مدیریت استراتژی برای یک نماد خاص                             |
 //+------------------------------------------------------------------+
@@ -29,7 +57,7 @@ private:
     string              m_symbol;
     SSettings           m_settings;
     CTrade              m_trade;
-
+   
     datetime            m_last_bar_time;
     
     int                 m_ichimoku_handle;
@@ -60,7 +88,7 @@ private:
     void OpenTrade(bool is_buy);
 
 public:
-    CStrategyManager(string symbol, SSettings settings);
+    CStrategyManager(string symbol,   SSettings &settings);
     bool Init();
     void ProcessNewBar();
     
@@ -70,7 +98,7 @@ public:
 //+------------------------------------------------------------------+
 //| کانستراکتور کلاس                                                |
 //+------------------------------------------------------------------+
-CStrategyManager::CStrategyManager(string symbol, SSettings settings)
+CStrategyManager::CStrategyManager(string symbol, SSettings &settings)
 
 {
     m_symbol = symbol;
@@ -100,7 +128,7 @@ CStrategyManager::~CStrategyManager()
 bool CStrategyManager::Init()
 {
     m_trade.SetExpertMagicNumber(m_settings.magic_number);
-    m_trade.SetSymbol(m_symbol);
+    m_trade.SetTypeFillingBySymbol(m_symbol);
     
     m_ichimoku_handle = iIchimoku(m_symbol, _Period, m_settings.tenkan_period, m_settings.kijun_period, m_settings.senkou_period);
     if (m_ichimoku_handle == INVALID_HANDLE)
@@ -113,7 +141,7 @@ bool CStrategyManager::Init()
     ArraySetAsSeries(m_kijun_buffer, true);
     ArraySetAsSeries(m_chikou_buffer, true);
     
-    if (!m_visual_manager->Init())
+    if (!m_visual_manager.Init())
     {
         Log("خطا در مقداردهی اولیه VisualManager.");
         return false;
@@ -143,24 +171,24 @@ void CStrategyManager::ProcessNewBar()
         m_signal.grace_candle_count = 0;
         
         Log("سیگنال اولیه " + (is_buy_signal ? "خرید" : "فروش") + " در کندل " + TimeToString(m_signal.time) + " پیدا شد.");
-        m_visual_manager->DrawTripleCrossRectangle(m_signal.is_buy, m_settings.chikou_period);
+        m_visual_manager.DrawTripleCrossRectangle(m_signal.is_buy, m_settings.chikou_period);
     }
     
     if (m_is_waiting)
     {
-        m_visual_manager->DrawScanningArea(m_signal.is_buy, m_settings.chikou_period, m_signal.grace_candle_count);
+        m_visual_manager.DrawScanningArea(m_signal.is_buy, m_settings.chikou_period, m_signal.grace_candle_count);
         
         if (m_signal.grace_candle_count >= m_settings.grace_period_candles)
         {
             m_is_waiting = false;
-            m_visual_manager->ClearGraphics();
+            m_visual_manager.ClearGraphics();
             Log("زمان تأیید سیگنال " + (m_signal.is_buy ? "خرید" : "فروش") + " به پایان رسید و سیگنال رد شد.");
         }
         else if (CheckFinalConfirmation(m_signal.is_buy))
         {
             m_is_waiting = false;
-            m_visual_manager->ClearGraphics();
-            m_visual_manager->DrawConfirmationArrow(m_signal.is_buy, 1);
+            m_visual_manager.ClearGraphics();
+            m_visual_manager.DrawConfirmationArrow(m_signal.is_buy, 1);
             Log("سیگنال " + (m_signal.is_buy ? "خرید" : "فروش") + " تأیید نهایی شد. در حال باز کردن معامله.");
             OpenTrade(m_signal.is_buy);
         }
