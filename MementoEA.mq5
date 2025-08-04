@@ -1,11 +1,11 @@
 //+------------------------------------------------------------------+
 //|                                                      Memento.mq5 |
-//|                                  Copyright 2025, Mohammad & Gemini |
+//|                                  Copyright 2025,hipoalgoritm |
 //|                                                  Final & Bulletproof |
 //+------------------------------------------------------------------+
-#property copyright "Copyright 2025, Mohammad & Gemini"
+#property copyright "Copyright 2025,hipoalgoritm
 #property link      "https://www.mql5.com"
-#property version   "6.6" // نسخه نهایی و کاملا اصلاح شده
+#property version   "1.6" // نسخه نهایی و کاملا اصلاح شده
 #property description "اکسپرت معاملاتی پیشرفته ممنتو بر اساس استراتژی کراس سه گانه ایچیموکو"
 
 #include <Trade\Trade.mqh>
@@ -45,6 +45,9 @@ int OnInit()
     g_settings.object_size_multiplier       = Inp_Object_Size_Multiplier;
     g_settings.bullish_color                = Inp_Bullish_Color;
     g_settings.bearish_color                = Inp_Bearish_Color;
+    g_settings.flat_kijun_period            = Inp_Flat_Kijun_Period;
+    g_settings.flat_kijun_min_length        = Inp_Flat_Kijun_Min_Length;
+    g_settings.pivot_lookback               = Inp_Pivot_Lookback;
 
     //--- تقسیم رشته نمادها و ایجاد شیء مدیریت برای هر نماد
     int symbols_count = StringSplit(g_settings.symbols_list, ',', g_symbols_array);
