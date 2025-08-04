@@ -1,9 +1,8 @@
 //+------------------------------------------------------------------+
 //|                                     IchimokuLogic.mqh            |
-//|                          © 2025, Mohammad & Gemini               |
-//|                                                                  |
+//|                          © 2025, hipoalgoritm              |
 //+------------------------------------------------------------------+
-#property copyright "© 2025, Mohammad & Gemini"
+#property copyright "© 2025,hipoalgoritm"
 #property link      "https://www.mql5.com"
 #property version   "1.03" // نسخه نهایی و کاملا اصلاح شده
 #include "set.mqh"
