@@ -149,7 +149,10 @@ bool CStrategyManager::Init()
         Log("خطا در مقداردهی اولیه VisualManager.");
         return false;
     }
-    
+    if(m_symbol == _Symbol)
+    {
+        m_visual_manager.InitDashboard();
+    }
     Log("با موفقیت مقداردهی اولیه شد.");
     return true;
 }
@@ -163,6 +166,10 @@ void CStrategyManager::ProcessNewBar()
     if (current_bar_time == m_last_bar_time)
         return;
     m_last_bar_time = current_bar_time;
+      if(m_symbol == _Symbol)
+          {
+              m_visual_manager.UpdateDashboard();
+          }
 
     bool is_buy_signal = false;
 
