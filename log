@@ -1,18 +1,53 @@
-possible loss of data due to type conversion from 'double' to 'datetime'	VisualManager.mqh	109	75
-'BackColor' - undeclared identifier	VisualManager.mqh	140	14
-'?' - some operator expected	VisualManager.mqh	140	31
-wrong parameters count, 5 passed, but 6 requires	VisualManager.mqh	164	15
-   bool CChartObjectArrow::Create(long,const string,const int,const datetime,const double,const char)	ChartObjectsArrows.mqh	20	22
-'SYMBOL_ARROW_UP' - undeclared identifier	VisualManager.mqh	168	30
-'SYMBOL_ARROW_DOWN' - undeclared identifier	VisualManager.mqh	168	48
-no one of the overloads can be applied to the function call	VisualManager.mqh	168	15
-could be one of 2 function(s)	VisualManager.mqh	168	15
-   ENUM_LINE_STYLE CChartObject::Style() const	ChartObject.mqh	44	22
-   bool CChartObject::Style(const ENUM_LINE_STYLE) const	ChartObject.mqh	45	22
-'Size' - undeclared identifier	VisualManager.mqh	169	15
-'10' - some operator expected	VisualManager.mqh	169	20
-8 errors, 1 warnings		8	1
+دمت گرم محمد جان! خودت شاه‌کلید رو پیدا کردی! کاملاً درسته، برای مستطیل باید از #include <ChartObjects\ChartObjectsShapes.mqh> استفاده کرد. این یعنی دیگه کامل راه افتادی و داری خودت عیب‌یابی می‌کنی. خیلی عالیه!
+این ۸ تا ارور باقی مونده دیگه واقعاً آخرین نفس‌های مشکلات کدمونه. اینا همشون چندتا اشتباه کوچیک تایپی و ندونستن اسم صحیح توابع کتابخونه متاتریدره. الان یکی یکی بهت میگم چجوری حلشون کنی.
+رفع ارورها یکی یکی:
+۱. ارور BackColor:
+ * مشکل: توی کلاس CChartObjectRectangle، اسم تابع برای تغییر رنگ پس‌زمینه، BackColor نیست، بلکه BgColor هست (مخفف Background Color).
+ * راه حل: توی تابع DrawScanningArea، اون خطی که ارور میده رو پیدا کن و BackColor رو به BgColor تغییر بده.
+   کد اشتباه:
+   rect.BackColor(is_buy ? ColorToARGB(m_settings.bullish_color, 50) : ColorToARGB(m_settings.bearish_color, 50));
 
+   کد صحیح:
+   rect.BgColor(is_buy ? ColorToARGB(m_settings.bullish_color, 50) : ColorToARGB(m_settings.bearish_color, 50));
 
-ببین ما اون کتابخانه به اسم مستطیل نداریم بجاش به نام 
-#include <ChartObjects\ChartObjectsShapes.mqh> // برای رسم مستطیل
+۲. ارورهای مربوط به فلش (Arrow):
+اینجا سه تا مشکل کوچیک توی تابع DrawConfirmationArrow داری که با هم حلشون می‌کنیم. کار با فلش‌ها یه کم قلق داره.
+ * مشکل ۱ (wrong parameters count): تابع Create برای فلش، ۶ تا پارامتر ورودی می‌گیره، ولی تو ۵ تا بهش دادی. اون پارامتر ششمی، کدِ خودِ فلشه.
+ * مشکل ۲ (SYMBOL_ARROW_UP - undeclared): برای تعیین شکل فلش (بالا یا پایین) نباید از تابع Style استفاده کنی. Style برای استایل خطه (مثلا خط‌چین یا نقطه چین). باید از تابع ArrowCode استفاده کنی.
+ * مشکل ۳ (Size - undeclared): برای تعیین اندازه فلش، تابع Size وجود نداره. باید از تابع Width استفاده کنی. (عجیبه ولی برای فلش‌ها، Width همون کار Size رو می‌کنه).
+ * راه حل (کد کامل و اصلاح شده): کل تابع DrawConfirmationArrow رو با این کد جایگزین کن:
+   //+------------------------------------------------------------------+
+//| رسم فلش تأیید نهایی (نسخه کاملاً اصلاح شده)                     |
+//+------------------------------------------------------------------+
+void CVisualManager::DrawConfirmationArrow(bool is_buy, int shift)
+{
+    string obj_name = GetObjectName(CONFIRM_PREFIX, shift);
+
+    double price = is_buy ? iLow(m_symbol, _Period, shift) : iHigh(m_symbol, _Period, shift);
+
+    // --- کد صحیح برای شکل فلش ها
+    uchar code = is_buy ? 233 : 234; // 233 کد فلش رو به بالا و 234 کد فلش رو به پایینه
+
+    CChartObjectArrow arrow;
+    // --- به پارامتر ششم (code) دقت کن که اضافه شده
+    if (arrow.Create(m_chart_id, obj_name, 0, iTime(m_symbol, _Period, shift), price, code))
+    {
+        arrow.Color(is_buy ? m_settings.bullish_color : m_settings.bearish_color);
+        // --- تابع صحیح برای اندازه فلش Width است نه Size
+        arrow.Width(2); // اندازه فلش رو هم اینجا کمی بزرگتر کردم که بهتر دیده بشه
+        // --- نیازی به تابع Style یا ArrowCode در اینجا نیست چون موقع Create کد رو مشخص کردیم
+    }
+}
+
+۳. وارنینگ Possible loss of data:
+اون یه دونه وارنینگ هم که مونده، مربوط به تبدیل نوعه. ارور نیست ولی بهتره رفعش کنیم تا کدمون تمیز و حرفه‌ای باشه.
+ * مشکل: توی تابع DrawTripleCrossRectangle داری یه عدد از نوع double رو با datetime جمع می‌کنی و نتیجه رو به عنوان datetime استفاده می‌کنی.
+ * راه حل: باید به کامپایلر بگی که می‌دونی داری چیکار می‌کنی و نتیجه نهایی رو صراحتاً به datetime تبدیل کنی.
+   خط اشتباه:
+   if (rect.Create(m_chart_id, obj_name, 0, cross_time, high, cross_time + PeriodSeconds(_Period) * m_settings.object_size_multiplier, low))
+
+   خط صحیح:
+   if (rect.Create(m_chart_id, obj_name, 0, cross_time, high, (datetime)(cross_time + PeriodSeconds(_Period) * m_settings.object_size_multiplier), low))
+
+   فقط یه (datetime) قبل از محاسبات زمان دوم اضافه کردیم.
+این دیگه باید تیر خلاص باشه. این چندتا مورد رو که اصلاح کنی، به احتمال ۹۹.۹ درصد اکسپرتت بدون هیچ ارور و وارنینگی کامپایل میشه. برو اینا رو اعمال کن و بهم خبر بده که جشن بگیریم! 😉
