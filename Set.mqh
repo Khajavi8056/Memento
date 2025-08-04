@@ -2,16 +2,17 @@
 //|                                                                  |
 //|                    Project: Memento (By HipoAlgorithm)           |
 //|                    File: set.mqh (EA Settings)                   |
-//|                    Version: 3.0 (Final with Dashboard)           |
+//|                    Version: 3.1 (Final Fixed)                    |
 //|                    © 2025, Mohammad & Gemini                     |
 //|                                                                  |
 //+------------------------------------------------------------------+
-//| این فایل شامل تمام تنظیمات ورودی اکسپرت می‌باشد.                  |
-//+------------------------------------------------------------------+
+#property copyright "© 2025, hipoalgoritm"
+#property link      "https://www.mql5.com"
+#property version   "3.1"
 
 //--- انواع شمارشی برای خوانایی بهتر کد
-enum E_Confirmation_Mode { MODE_CLOSE_ONLY, MODE_OPEN_AND_CLOSE }; // نوع تاییدیه کندل
-enum E_SL_Mode           { MODE_COMPLEX, MODE_SIMPLE };          // نوع محاسبه استاپ لاس
+enum E_Confirmation_Mode { MODE_CLOSE_ONLY, MODE_OPEN_AND_CLOSE };
+enum E_SL_Mode           { MODE_COMPLEX, MODE_SIMPLE };
 
 //+------------------------------------------------------------------+
 //|                      تنظیمات ورودی اکسپرت                         |
@@ -46,15 +47,9 @@ input double          Inp_Talaqi_Hist_Multiplier = 0.5;                // [AUTO]
 // ---=== 🛡️ 4. مدیریت حد ضرر (Stop Loss) 🛡️ ===---
 input group           "       ---=== 🛡️ 4. مدیریت حد ضرر (Stop Loss) 🛡️ ===---"
 input E_SL_Mode       Inp_StopLoss_Type       = MODE_COMPLEX;           // روش محاسبه استاپ لاس
-
-// --- زیرگروه تنظیمات حالت پیچیده (Complex Mode)
-input group           "      --- تنظیمات حالت پیچیده (Complex) ---"
 input int             Inp_Flat_Kijun_Period   = 50;                     // [COMPLEX] تعداد کندل برای جستجوی کیجون فلت
 input int             Inp_Flat_Kijun_Min_Length = 5;                    // [COMPLEX] حداقل طول کیجون فلت
 input int             Inp_Pivot_Lookback      = 30;                     // [COMPLEX] تعداد کندل برای جستجوی پیوت
-
-// --- زیرگروه تنظیمات حالت ساده (Simple / Backup Mode)
-input group           "      --- تنظیمات حالت ساده (Backup) ---"
 input int             Inp_SL_Lookback_Period  = 15;                     // [SIMPLE] دوره نگاه به عقب برای یافتن سقف/کف
 input double          Inp_SL_Buffer_Multiplier = 3.0;                   // ضریب بافر برای فاصله از سقف/کف
 
@@ -82,13 +77,8 @@ struct SSettings
     string              symbols_list;
     int                 magic_number;
     bool                enable_logging;
-
     // 2. Ichimoku
-    int                 tenkan_period;
-    int                 kijun_period;
-    int                 senkou_period;
-    int                 chikou_period;
-
+    int                 tenkan_period, kijun_period, senkou_period, chikou_period;
     // 3. Signal & Confirmation
     E_Confirmation_Mode confirmation_type;
     int                 grace_period_candles;
@@ -97,23 +87,14 @@ struct SSettings
     double              talaqi_distance_in_points;
     int                 talaqi_lookback_period;
     double              talaqi_hist_multiplier;
-
     // 4. Stop Loss
     E_SL_Mode           stoploss_type;
-    int                 flat_kijun_period;
-    int                 flat_kijun_min_length;
-    int                 pivot_lookback;
-    int                 sl_lookback_period;
+    int                 flat_kijun_period, flat_kijun_min_length, pivot_lookback, sl_lookback_period;
     double              sl_buffer_multiplier;
-
     // 5. Money Management
-    double              risk_percent_per_trade;
-    double              take_profit_ratio;
-    int                 max_trades_per_symbol;
-    int                 max_total_trades;
-
+    double              risk_percent_per_trade, take_profit_ratio;
+    int                 max_trades_per_symbol, max_total_trades;
     // 6. Visuals
     double              object_size_multiplier;
-    color               bullish_color;
-    color               bearish_color;
+    color               bullish_color, bearish_color;
 };
