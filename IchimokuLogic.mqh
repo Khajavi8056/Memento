@@ -128,6 +128,9 @@ CStrategyManager::~CStrategyManager()
 //+------------------------------------------------------------------+
 //| مقداردهی اولیه                                                   |
 //+------------------------------------------------------------------+
+//+------------------------------------------------------------------+
+//| مقداردهی اولیه                                                   |
+//+------------------------------------------------------------------+
 bool CStrategyManager::Init()
 {
     m_trade.SetExpertMagicNumber(m_settings.magic_number);
@@ -149,10 +152,16 @@ bool CStrategyManager::Init()
         Log("خطا در مقداردهی اولیه VisualManager.");
         return false;
     }
+
+    // ✅✅✅ بخش اصلاح شده ✅✅✅
+    // فقط نمونه‌ای که نمادش با نماد چارت یکی است، داشبورد را می‌سازد
     if(m_symbol == _Symbol)
     {
-        m_visual_manager.InitDashboard();
+        string symbols_array[];
+        StringSplit(m_settings.symbols_list, ',', symbols_array);
+        m_visual_manager.InitDashboard(symbols_array);
     }
+    
     Log("با موفقیت مقداردهی اولیه شد.");
     return true;
 }
@@ -166,13 +175,17 @@ void CStrategyManager::ProcessNewBar()
     if (current_bar_time == m_last_bar_time)
         return;
     m_last_bar_time = current_bar_time;
-      if(m_symbol == _Symbol)
-          {
-              m_visual_manager.UpdateDashboard();
-          }
 
-    bool is_buy_signal = false;
+    // ✅✅✅ بخش اصلاح شده ✅✅✅
+    // فقط نمونه‌ای که نمادش با نماد چارت یکی است، داشبورد را آپدیت می‌کند
+    if(m_symbol == _Symbol)
+    {
+        string symbols_array[];
+        StringSplit(m_settings.symbols_list, ',', symbols_array);
+        m_visual_manager.UpdateDashboard(symbols_array);
+    }
 
+    bool is_buy_signal = false
     if (!m_is_waiting && CheckTripleCross(is_buy_signal))
     {
         m_is_waiting = true;
