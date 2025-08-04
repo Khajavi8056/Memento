@@ -2,18 +2,19 @@
 //|                                                                  |
 //|                    Project: Memento (By HipoAlgorithm)           |
 //|                    File: VisualManager.mqh (Graphics Engine)     |
-//|                    Version: 3.2 (Final Standalone)               |
+//|                    Version: 3.3 (Compiler-Fixed)                 |
 //|                    © 2025, Mohammad & Gemini                     |
 //|                                                                  |
 //+------------------------------------------------------------------+
 #property copyright "© 2025, hipoalgoritm"
 #property link      "https://www.mql5.com"
-#property version   "3.2" // بازنویسی کامل با داشبورد مستقل و اصلاحات نهایی
+#property version   "3.3" // بازنویسی کامل با داشبورد مستقل و اصلاحات نهایی
 
 #include "set.mqh" 
-#include <ChartObjects\ChartObjectsTxtControls.mqh> // کتابخانه استاندارد متاتریدر برای اشیاء گرافیکی
+#include <ChartObjects\ChartObjectsTxtControls.mqh>
 #include <ChartObjects\ChartObjectsShapes.mqh>
 #include <ChartObjects\ChartObjectsArrows.mqh>
+#include <ChartObjects\ChartObjectsLines.mqh>
 
 // ---===== ثابت‌های طراحی داشبورد =====---
 #define DASHBOARD_Y_POS 5       // فاصله داشبورد از بالای چارت
@@ -62,7 +63,7 @@ public:
     void DrawTripleCrossRectangle(bool is_buy, int shift);
     void DrawConfirmationArrow(bool is_buy, int shift);
     void ClearSignalGraphics(int signal_shift);
-    void DrawScanningArea(bool is_buy, int start_shift, int current_shift); // تابع قدیمی که اصلاح شده
+    void DrawScanningArea(bool is_buy, int start_shift, int current_shift);
 };
 
 //+------------------------------------------------------------------+
@@ -86,7 +87,6 @@ bool CVisualManager::Init()
 
 void CVisualManager::Deinit()
 {
-    // پاک کردن تمام اشیاء ساخته شده توسط این اکسپرت روی چارت
     ObjectsDeleteAll(m_chart_id, MEMENTO_OBJ_PREFIX);
     ChartRedraw(m_chart_id);
 }
@@ -125,7 +125,8 @@ void CVisualManager::InitDashboard()
         symbol_label.Create(m_chart_id, m_panel_boxes[i].SymbolLabelName, 0, current_x + BOX_WIDTH / 2, DASHBOARD_Y_POS + BOX_HEIGHT / 2);
         symbol_label.Description(sym);
         symbol_label.Color(clrWhite);
-        symbol_label.Font("Arial", 10, FW_BOLD);
+        symbol_label.Font("Arial");
+        symbol_label.FontSize(10);
         symbol_label.Anchor(ANCHOR_CENTER);
         symbol_label.Z_Order(1);
 
@@ -134,7 +135,7 @@ void CVisualManager::InitDashboard()
         sub_panel.Color(ColorToARGB(clrBlack, 100));
         sub_panel.BackColor(ColorToARGB(clrBlack, 50));
         sub_panel.Corner(CORNER_LEFT_UPPER);
-        sub_panel.State(false);
+        sub_panel.Hidden(true);
         sub_panel.Z_Order(-1);
 
         CChartObjectLabel trades_label, pl_label;
@@ -143,9 +144,10 @@ void CVisualManager::InitDashboard()
         trades_label.Description("Trades: 0");
         pl_label.Description("P/L: 0.0");
         trades_label.Color(clrWhite); pl_label.Color(clrWhite);
-        trades_label.Font("Arial", 8); pl_label.Font("Arial", 8);
+        trades_label.Font("Arial"); pl_label.Font("Arial");
+        trades_label.FontSize(8); pl_label.FontSize(8);
         trades_label.Anchor(ANCHOR_LEFT); pl_label.Anchor(ANCHOR_LEFT);
-        trades_label.State(false); pl_label.State(false);
+        trades_label.Hidden(true); pl_label.Hidden(true);
         trades_label.Z_Order(0); pl_label.Z_Order(0);
 
         current_x += BOX_WIDTH + DASHBOARD_X_GAP;
@@ -159,7 +161,7 @@ void CVisualManager::InitDashboard()
 void CVisualManager::UpdateDashboard()
 {
     if(!m_settings.enable_dashboard) { Deinit(); return; }
-    if(ArraySize(m_symbols_list) == 0) return; // اگر داشبورد هنوز ساخته نشده
+    if(ArraySize(m_symbols_list) == 0) return;
 
     for(int i = 0; i < ArraySize(m_symbols_list); i++)
     {
@@ -194,20 +196,16 @@ void CVisualManager::UpdateDashboard()
             }
         }
         
-        if(trades_count > 0)
+        bool show_sub_panel = trades_count > 0;
+        ObjectSetInteger(m_chart_id, m_panel_boxes[i].SubPanelName, OBJPROP_HIDDEN, !show_sub_panel);
+        ObjectSetInteger(m_chart_id, m_panel_boxes[i].TradesLabelName, OBJPROP_HIDDEN, !show_sub_panel);
+        ObjectSetInteger(m_chart_id, m_panel_boxes[i].PlLabelName, OBJPROP_HIDDEN, !show_sub_panel);
+
+        if(show_sub_panel)
         {
-            ObjectSetInteger(m_chart_id, m_panel_boxes[i].SubPanelName, OBJPROP_STATE, true);
-            ObjectSetInteger(m_chart_id, m_panel_boxes[i].TradesLabelName, OBJPROP_STATE, true);
-            ObjectSetInteger(m_chart_id, m_panel_boxes[i].PlLabelName, OBJPROP_STATE, true);
             ObjectSetString(m_chart_id, m_panel_boxes[i].TradesLabelName, OBJPROP_TEXT, "Trades: " + (string)trades_count);
             ObjectSetString(m_chart_id, m_panel_boxes[i].PlLabelName, OBJPROP_TEXT, "P/L: " + DoubleToString(cumulative_pl, 2));
             ObjectSetInteger(m_chart_id, m_panel_boxes[i].PlLabelName, OBJPROP_COLOR, cumulative_pl >= 0 ? clrLime : clrRed);
-        }
-        else
-        {
-             ObjectSetInteger(m_chart_id, m_panel_boxes[i].SubPanelName, OBJPROP_STATE, false);
-             ObjectSetInteger(m_chart_id, m_panel_boxes[i].TradesLabelName, OBJPROP_STATE, false);
-             ObjectSetInteger(m_chart_id, m_panel_boxes[i].PlLabelName, OBJPROP_STATE, false);
         }
     }
 }
@@ -248,7 +246,7 @@ void CVisualManager::DrawScanningArea(bool is_buy, int start_shift, int current_
     ObjectDelete(m_chart_id, vline_name);
 
     datetime start_time = iTime(m_symbol, _Period, start_shift);
-    datetime end_time = start_time + (m_settings.grace_period_candles + 1) * PeriodSeconds();
+    datetime end_time = start_time + (m_settings.grace_period_candles + 1) * PeriodSeconds(_Period);
     
     double max_high = iHigh(m_symbol, _Period, start_shift);
     double min_low = iLow(m_symbol, _Period, start_shift);
@@ -288,7 +286,7 @@ void CVisualManager::ClearSignalGraphics(int signal_shift)
     string base_name_rect = MEMENTO_OBJ_PREFIX + m_symbol + "_SignalRect_" + (string)iTime(m_symbol, _Period, signal_shift);
     string base_name_scan = MEMENTO_OBJ_PREFIX + m_symbol + "_Scan_" + (string)iTime(m_symbol, _Period, signal_shift);
     ObjectDelete(m_chart_id, base_name_rect);
-    ObjectsDeleteAll(m_chart_id, base_name_scan); // پاک کردن هم مربع اسکن و هم خط عمودی
+    ObjectsDeleteAll(m_chart_id, base_name_scan);
 }
 
 //+------------------------------------------------------------------+
@@ -302,11 +300,12 @@ void CVisualManager::DrawConfirmationArrow(bool is_buy, int shift)
 
     double offset = 10 * SymbolInfoDouble(m_symbol, SYMBOL_POINT);
     double price = is_buy ? iLow(m_symbol, _Period, shift) - offset : iHigh(m_symbol, _Period, shift) + offset;
-
+    
+    uchar code = is_buy ? SYMBOL_ARROWUP : SYMBOL_ARROWDOWN;
     CChartObjectArrow arrow;
     if(arrow.Create(m_chart_id, obj_name, 0, iTime(m_symbol, _Period, shift), price))
     {
-        arrow.ArrowCode(is_buy ? SYMBOL_ARROWUP : SYMBOL_ARROWDOWN);
+        arrow.ArrowCode(code);
         arrow.Color(is_buy ? m_settings.bullish_color : m_settings.bearish_color);
         arrow.Width(2);
     }
