@@ -1,0 +1,115 @@
+'SSettings' - unexpected token, probably type is missing?	VisualManager.mqh	25	5
+'m_settings' - semicolon expected	VisualManager.mqh	25	25
+'SSettings' - declaration without type	VisualManager.mqh	31	35
+'settings' - comma expected	VisualManager.mqh	31	45
+'SSettings' - declaration without type	VisualManager.mqh	44	47
+'settings' - comma expected	VisualManager.mqh	44	57
+'SSettings' - unexpected token, probably type is missing?	IchimokuLogic.mqh	30	5
+'m_settings' - semicolon expected	IchimokuLogic.mqh	30	25
+'SSettings' - declaration without type	IchimokuLogic.mqh	63	37
+'settings' - comma expected	IchimokuLogic.mqh	63	47
+'SSettings' - declaration without type	IchimokuLogic.mqh	73	51
+'settings' - comma expected	IchimokuLogic.mqh	73	61
+cannot convert parameter 'SSettings' to 'int'	Memento.mq5	134	58
+   CStrategyManager::CStrategyManager(string,int)	IchimokuLogic.mqh	63	5
+'>' - operand expected	Memento.mq5	135	35
+'Init' - undeclared identifier	Memento.mq5	135	36
+')' - expression expected	Memento.mq5	135	41
+expression not boolean	Memento.mq5	135	34
+'>' - operand expected	Memento.mq5	181	34
+'ProcessNewBar' - undeclared identifier	Memento.mq5	181	35
+')' - expression expected	Memento.mq5	181	49
+'ProcessNewBar' - object pointer expected	Memento.mq5	181	35
+expression has no effect	Memento.mq5	181	33
+'m_settings' - undeclared identifier	VisualManager.mqh	47	5
+'settings' - undeclared identifier	VisualManager.mqh	47	18
+'CChartObjectRectangle' - undeclared identifier	VisualManager.mqh	105	5
+'rect' - undeclared identifier	VisualManager.mqh	105	27
+'rect' - some operator expected	VisualManager.mqh	105	27
+'rect' - undeclared identifier	VisualManager.mqh	106	9
+';' - unexpected token	VisualManager.mqh	108	81
+'(' - unbalanced left parenthesis	VisualManager.mqh	106	8
+empty controlled statement found	VisualManager.mqh	108	81
+'rect' - undeclared identifier	VisualManager.mqh	109	9
+'rect' - undeclared identifier	VisualManager.mqh	110	9
+'rect' - undeclared identifier	VisualManager.mqh	111	9
+'m_settings' - undeclared identifier	VisualManager.mqh	125	60
+';' - unexpected token	VisualManager.mqh	125	92
+';' - unexpected token	VisualManager.mqh	125	92
+'CChartObjectRectangle' - undeclared identifier	VisualManager.mqh	130	5
+'rect' - undeclared identifier	VisualManager.mqh	130	27
+'rect' - some operator expected	VisualManager.mqh	130	27
+'rect' - undeclared identifier	VisualManager.mqh	131	9
+';' - unexpected token	VisualManager.mqh	133	81
+'(' - unbalanced left parenthesis	VisualManager.mqh	131	8
+empty controlled statement found	VisualManager.mqh	133	81
+'rect' - undeclared identifier	VisualManager.mqh	134	9
+'rect' - undeclared identifier	VisualManager.mqh	135	9
+'rect' - undeclared identifier	VisualManager.mqh	136	9
+'rect' - undeclared identifier	VisualManager.mqh	137	9
+'CChartObjectArrow' - undeclared identifier	VisualManager.mqh	160	5
+'arrow' - undeclared identifier	VisualManager.mqh	160	23
+'arrow' - some operator expected	VisualManager.mqh	160	23
+'arrow' - undeclared identifier	VisualManager.mqh	161	9
+';' - unexpected token	VisualManager.mqh	163	82
+'(' - unbalanced left parenthesis	VisualManager.mqh	161	8
+empty controlled statement found	VisualManager.mqh	163	82
+'arrow' - undeclared identifier	VisualManager.mqh	164	9
+'arrow' - undeclared identifier	VisualManager.mqh	165	9
+'arrow' - undeclared identifier	VisualManager.mqh	166	9
+'m_settings' - undeclared identifier	IchimokuLogic.mqh	348	9
+';' - unexpected token	IchimokuLogic.mqh	350	39
+'(' - unbalanced left parenthesis	IchimokuLogic.mqh	348	8
+empty controlled statement found	IchimokuLogic.mqh	350	39
+'m_settings' - undeclared identifier	IchimokuLogic.mqh	178	17
+'m_settings' - undeclared identifier	IchimokuLogic.mqh	195	24
+'m_settings' - undeclared identifier	IchimokuLogic.mqh	251	13
+'m_settings' - cannot convert enum	IchimokuLogic.mqh	251	13
+'m_settings' - undeclared identifier	IchimokuLogic.mqh	268	13
+'m_settings' - cannot convert enum	IchimokuLogic.mqh	268	13
+'m_settings' - undeclared identifier	IchimokuLogic.mqh	287	21
+'m_settings' - undeclared identifier	IchimokuLogic.mqh	290	9
+'m_settings' - cannot convert enum	IchimokuLogic.mqh	290	9
+'m_settings' - undeclared identifier	IchimokuLogic.mqh	311	25
+'m_settings' - undeclared identifier	IchimokuLogic.mqh	359	92
+';' - unexpected token	IchimokuLogic.mqh	361	20
+'(' - unbalanced left parenthesis	IchimokuLogic.mqh	359	11
+empty controlled statement found	IchimokuLogic.mqh	361	20
+'}' - not all control paths return a value	IchimokuLogic.mqh	365	1
+'m_settings' - undeclared identifier	IchimokuLogic.mqh	372	56
+';' - unexpected token	IchimokuLogic.mqh	374	20
+'(' - unbalanced left parenthesis	IchimokuLogic.mqh	372	11
+empty controlled statement found	IchimokuLogic.mqh	374	20
+'}' - not all control paths return a value	IchimokuLogic.mqh	378	1
+'m_settings' - undeclared identifier	IchimokuLogic.mqh	382	31
+'m_settings' - undeclared identifier	IchimokuLogic.mqh	382	85
+';' - unexpected token	IchimokuLogic.mqh	384	62
+'(' - unbalanced left parenthesis	IchimokuLogic.mqh	382	8
+empty controlled statement found	IchimokuLogic.mqh	384	62
+'m_settings' - undeclared identifier	IchimokuLogic.mqh	77	5
+'settings' - undeclared identifier	IchimokuLogic.mqh	77	18
+'m_settings' - undeclared identifier	IchimokuLogic.mqh	81	53
+'m_settings' - undeclared identifier	IchimokuLogic.mqh	102	34
+';' - unexpected token	IchimokuLogic.mqh	102	58
+';' - unexpected token	IchimokuLogic.mqh	102	58
+'m_settings' - undeclared identifier	IchimokuLogic.mqh	105	54
+'m_settings' - undeclared identifier	IchimokuLogic.mqh	105	80
+'m_settings' - undeclared identifier	IchimokuLogic.mqh	105	105
+';' - unexpected token	IchimokuLogic.mqh	105	130
+';' - unexpected token	IchimokuLogic.mqh	105	130
+';' - unexpected token	IchimokuLogic.mqh	108	48
+'{' - some operator expected	IchimokuLogic.mqh	107	5
+expression has no effect	IchimokuLogic.mqh	109	16
+'}' - not all control paths return a value	IchimokuLogic.mqh	124	1
+'m_settings' - undeclared identifier	IchimokuLogic.mqh	141	50
+';' - unexpected token	IchimokuLogic.mqh	141	75
+';' - unexpected token	IchimokuLogic.mqh	141	75
+implicit conversion from 'unknown' to 'string'	IchimokuLogic.mqh	141	25
+')' - unexpected token	IchimokuLogic.mqh	145	122
+implicit conversion from 'string' to 'datetime'	IchimokuLogic.mqh	145	109
+'DrawTripleCrossRectangle' - undeclared identifier	IchimokuLogic.mqh	146	26
+',' - unexpected token	IchimokuLogic.mqh	146	66
+'is_buy' - some operator expected	IchimokuLogic.mqh	146	60
+'DrawTripleCrossRectangle' - object pointer expected	IchimokuLogic.mqh	146	26
+expression has no effect	IchimokuLogic.mqh	146	25
+100 errors, 13 warnings		100	13
