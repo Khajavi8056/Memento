@@ -1,2 +1,18 @@
-#include <ChartObjects\ChartObjectsRectangle.mqh> // برای رسم مستطیل
-#include <ChartObjects\ChartObjectsArrows.mqh>   // برای رسم فلش
+possible loss of data due to type conversion from 'double' to 'datetime'	VisualManager.mqh	109	75
+'BackColor' - undeclared identifier	VisualManager.mqh	140	14
+'?' - some operator expected	VisualManager.mqh	140	31
+wrong parameters count, 5 passed, but 6 requires	VisualManager.mqh	164	15
+   bool CChartObjectArrow::Create(long,const string,const int,const datetime,const double,const char)	ChartObjectsArrows.mqh	20	22
+'SYMBOL_ARROW_UP' - undeclared identifier	VisualManager.mqh	168	30
+'SYMBOL_ARROW_DOWN' - undeclared identifier	VisualManager.mqh	168	48
+no one of the overloads can be applied to the function call	VisualManager.mqh	168	15
+could be one of 2 function(s)	VisualManager.mqh	168	15
+   ENUM_LINE_STYLE CChartObject::Style() const	ChartObject.mqh	44	22
+   bool CChartObject::Style(const ENUM_LINE_STYLE) const	ChartObject.mqh	45	22
+'Size' - undeclared identifier	VisualManager.mqh	169	15
+'10' - some operator expected	VisualManager.mqh	169	20
+8 errors, 1 warnings		8	1
+
+
+ببین ما اون کتابخانه به اسم مستطیل نداریم بجاش به نام 
+#include <ChartObjects\ChartObjectsShapes.mqh> // برای رسم مستطیل
