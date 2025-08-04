@@ -74,7 +74,15 @@ CVisualManager::~CVisualManager() {}
 
 bool CVisualManager::Init()
 {
-    ChartSetInteger(m_chart_id, CHART_AUTOSCROLL, 0);
+ // غیرفعال کردن گرید چارت
+   ChartSetInteger(0, CHART_SHOW_GRID, false);
+   
+   // تنظیم رنگ کندل‌ها
+   ChartSetInteger(0, CHART_COLOR_CANDLE_BULL, clrGreen);
+   ChartSetInteger(0, CHART_COLOR_CANDLE_BEAR, clrRed);
+   ChartSetInteger(0, CHART_COLOR_CHART_UP, clrGreen);
+   ChartSetInteger(0, CHART_COLOR_CHART_DOWN, clrRed);
+   
     ChartSetInteger(m_chart_id, CHART_SHIFT, 1);
     return true;
 }
@@ -243,7 +251,7 @@ void CVisualManager::DrawConfirmationArrow(bool is_buy, int shift)
     string obj_name = MEMENTO_OBJ_PREFIX + m_symbol + "_ConfirmArrow_" + (string)iTime(m_symbol, _Period, shift);
     double offset = 10 * SymbolInfoDouble(m_symbol, SYMBOL_POINT);
     double price = is_buy ? iLow(m_symbol, _Period, shift) - offset : iHigh(m_symbol, _Period, shift) + offset;
-    uchar code = is_buy ? SYMBOL_ARROWUP : SYMBOL_ARROWDOWN;
+    uchar code = is_buy ? 223 : 224;
     CChartObjectArrow arrow;
     // ✅✅✅ اصلاح شد: کد freccia به صورت مستقیم در تابع Create پاس داده می‌شود ✅✅✅
     if(arrow.Create(m_chart_id, obj_name, 0, iTime(m_symbol, _Period, shift), price, code))
