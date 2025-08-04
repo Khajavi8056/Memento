@@ -76,6 +76,10 @@ private:
     
     //--- محاسبه استاپ لاس
     double CalculateStopLoss(bool is_buy, double entry_price);
+    
+    double GetTalaqiTolerance(int reference_shift);      // <<-- این خط رو اضافه کن
+    double CalculateDynamicTolerance(int reference_shift); // <<-- این خط رو هم اضافه کن
+  
     double FindFlatKijun();
     double FindPivotKijun(bool is_buy);
     double FindPivotTenkan(bool is_buy);
@@ -217,10 +221,12 @@ bool CStrategyManager::CheckTripleCross(bool& is_buy)
     double chikou_now  = iClose(m_symbol, _Period, 1); // قیمت Close کندل فعلی
     double chikou_prev = iClose(m_symbol, _Period, 2); // قیمت Close کندل قبلی
 
-    //--- بررسی تلاقی یا کراس تنکان و کیجون در گذشته
-    double distance = MathAbs(tenkan_at_shift - kijun_at_shift);
-    double tolerance = m_settings.talaqi_distance_in_points * SymbolInfoDouble(m_symbol, SYMBOL_POINT);
-    bool is_confluence = distance <= tolerance;
+        //--- بررسی تلاقی یا کراس تنکان و کیجون در گذشته
+    double tolerance = GetTalaqiTolerance(shift); // گرفتن حد مجاز از مدیر کل!
+    
+    double current_distance = MathAbs(tenkan_at_shift - kijun_at_shift);
+    bool is_confluence = (tolerance > 0) ? (current_distance <= tolerance) : false;
+
 
     bool tenkan_crossover = m_tenkan_buffer[1] < m_kijun_buffer[1] && tenkan_at_shift > kijun_at_shift;
     bool tenkan_crossunder = m_tenkan_buffer[1] > m_kijun_buffer[1] && tenkan_at_shift < kijun_at_shift;
@@ -285,7 +291,8 @@ bool CStrategyManager::CheckFinalConfirmation(bool is_buy)
         }
         else // MODE_CLOSE_ONLY
         {
-            if (close_at_1 < tenkan_at_1 && close_at_1 < kijun_at_1) return false;
+            if (close_at_1 < tenkan_at_1 ||
+            close_at_1 < kijun_at_1) return false;
         }
         return true;
     }
@@ -563,3 +570,53 @@ double CStrategyManager::FindPivotTenkan(bool is_buy)
 
     return 0.0; // هیچ پیوتی پیدا نشد
 }
+//+------------------------------------------------------------------+
+//| (اتوماتیک) محاسبه حد مجاز تلاقی بر اساس تاریخچه بازار               |
+//+------------------------------------------------------------------+
+double CStrategyManager::CalculateDynamicTolerance(int reference_shift)
+{
+    double total_distance = 0;
+    int lookback = m_settings.talaqi_lookback_period;
+    if(lookback <= 0) return 0.0;
+
+    double past_tenkan[], past_kijun[];
+    if(CopyBuffer(m_ichimoku_handle, 0, reference_shift, lookback, past_tenkan) < lookback || 
+       CopyBuffer(m_ichimoku_handle, 1, reference_shift, lookback, past_kijun) < lookback)
+    {
+       Log("داده کافی برای محاسبه فاصله تاریخی تلاقی وجود ندارد.");
+       return 0.0;
+    }
+    
+    for(int i = 0; i < lookback; i++)
+    {
+        total_distance += MathAbs(past_tenkan[i] - past_kijun[i]);
+    }
+    
+    double average_historical_distance = total_distance / lookback;
+    double tolerance = average_historical_distance * m_settings.talaqi_hist_multiplier;
+    
+    return tolerance;
+}
+
+//+------------------------------------------------------------------+
+//| (مدیر کل) گرفتن حد مجاز تلاقی بر اساس حالت انتخابی (اتو/دستی)     |
+//+------------------------------------------------------------------+
+double CStrategyManager::GetTalaqiTolerance(int reference_shift)
+{
+    // اگر حالت اتوماتیک روشن بود
+    if(m_settings.talaqi_auto_mode)
+    {
+        // برو از روش هوشمند (تاریخی) حساب کن
+        return CalculateDynamicTolerance(reference_shift);
+    }
+    // اگر حالت اتوماتیک خاموش بود
+    else
+    {
+        // برو از روش ساده (دستی) حساب کن
+        return m_settings.talaqi_distance_in_points * SymbolInfoDouble(m_symbol, SYMBOL_POINT);
+    }
+}
+
+
+
+
