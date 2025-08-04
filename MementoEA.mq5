@@ -22,34 +22,49 @@ CStrategyManager* g_symbol_managers[];
 //+------------------------------------------------------------------+
 //| تابع شروع اکسپرت (مقداردهی اولیه)                                |
 //+------------------------------------------------------------------+
+//+------------------------------------------------------------------+
+//| تابع شروع اکسپرت (مقداردهی اولیه)                                |
+//+------------------------------------------------------------------+
 int OnInit()
 {
-    //--- مقداردهی اولیه ساختار تنظیمات از ورودی‌های کاربر
+    //--- ✅✅✅ این بخش را کامل جایگزین کن ✅✅✅ ---
+    //--- مقداردهی اولیه ساختار تنظیمات از ورودی‌های کاربر (نسخه کامل و اصلاح شده)
+    g_settings.enable_dashboard           = Inp_Enable_Dashboard;
     g_settings.symbols_list                 = Inp_Symbols_List;
     g_settings.magic_number                 = Inp_Magic_Number;
     g_settings.enable_logging               = Inp_Enable_Logging;
+    
     g_settings.tenkan_period                = Inp_Tenkan_Period;
     g_settings.kijun_period                 = Inp_Kijun_Period;
     g_settings.senkou_period                = Inp_Senkou_Period;
     g_settings.chikou_period                = Inp_Chikou_Period;
+    
     g_settings.confirmation_type            = Inp_Confirmation_Type;
     g_settings.grace_period_candles         = Inp_Grace_Period_Candles;
+    
+    g_settings.talaqi_auto_mode             = Inp_Talaqi_Auto_Mode;
     g_settings.talaqi_distance_in_points    = Inp_Talaqi_Distance_in_Points;
+    g_settings.talaqi_lookback_period       = Inp_Talaqi_Lookback_Period;
+    g_settings.talaqi_hist_multiplier       = Inp_Talaqi_Hist_Multiplier;
+    
     g_settings.stoploss_type                = Inp_StopLoss_Type;
     g_settings.sl_lookback_period           = Inp_SL_Lookback_Period;
     g_settings.sl_buffer_multiplier         = Inp_SL_Buffer_Multiplier;
+    g_settings.flat_kijun_period            = Inp_Flat_Kijun_Period;
+    g_settings.flat_kijun_min_length        = Inp_Flat_Kijun_Min_Length;
+    g_settings.pivot_lookback               = Inp_Pivot_Lookback;
+    
     g_settings.risk_percent_per_trade       = Inp_Risk_Percent_Per_Trade;
     g_settings.take_profit_ratio            = Inp_Take_Profit_Ratio;
     g_settings.max_trades_per_symbol        = Inp_Max_Trades_Per_Symbol;
     g_settings.max_total_trades             = Inp_Max_Total_Trades;
+    
     g_settings.object_size_multiplier       = Inp_Object_Size_Multiplier;
     g_settings.bullish_color                = Inp_Bullish_Color;
     g_settings.bearish_color                = Inp_Bearish_Color;
-    g_settings.flat_kijun_period            = Inp_Flat_Kijun_Period;
-    g_settings.flat_kijun_min_length        = Inp_Flat_Kijun_Min_Length;
-    g_settings.pivot_lookback               = Inp_Pivot_Lookback;
 
     //--- تقسیم رشته نمادها و ایجاد شیء مدیریت برای هر نماد
+    // (بقیه تابع OnInit بدون تغییر باقی می‌ماند)
     int symbols_count = StringSplit(g_settings.symbols_list, ',', g_symbols_array);
     if (symbols_count == 0)
     {
