@@ -478,3 +478,89 @@ void CStrategyManager::OpenTrade(bool is_buy)
     }
 }
 
+//+------------------------------------------------------------------+
+//| پیدا کردن سطح کیجون سن فلت (صاف)                                  |
+//+------------------------------------------------------------------+
+double CStrategyManager::FindFlatKijun()
+{
+    double kijun_values[];
+    if (CopyBuffer(m_ichimoku_handle, 1, 1, m_settings.flat_kijun_period, kijun_values) < m_settings.flat_kijun_period)
+        return 0.0;
+
+    ArraySetAsSeries(kijun_values, true);
+
+    int flat_count = 1;
+    for (int i = 1; i < m_settings.flat_kijun_period; i++)
+    {
+        if (kijun_values[i] == kijun_values[i - 1])
+        {
+            flat_count++;
+            if (flat_count >= m_settings.flat_kijun_min_length)
+            {
+                return kijun_values[i]; // سطح فلت پیدا شد
+            }
+        }
+        else
+        {
+            flat_count = 1; // ریست کردن شمارنده
+        }
+    }
+
+    return 0.0; // هیچ سطح فلتی پیدا نشد
+}
+
+//+------------------------------------------------------------------+
+//| پیدا کردن پیوت (نقطه چرخش) روی کیجون سن                          |
+//+------------------------------------------------------------------+
+double CStrategyManager::FindPivotKijun(bool is_buy)
+{
+    double kijun_values[];
+    if (CopyBuffer(m_ichimoku_handle, 1, 1, m_settings.pivot_lookback, kijun_values) < m_settings.pivot_lookback)
+        return 0.0;
+
+    ArraySetAsSeries(kijun_values, true);
+
+    for (int i = 1; i < m_settings.pivot_lookback - 1; i++)
+    {
+        // برای معامله خرید، دنبال یک دره (پیوت کف) می‌گردیم
+        if (is_buy && kijun_values[i] < kijun_values[i - 1] && kijun_values[i] < kijun_values[i + 1])
+        {
+            return kijun_values[i];
+        }
+        // برای معامله فروش، دنبال یک قله (پیوت سقف) می‌گردیم
+        if (!is_buy && kijun_values[i] > kijun_values[i - 1] && kijun_values[i] > kijun_values[i + 1])
+        {
+            return kijun_values[i];
+        }
+    }
+
+    return 0.0; // هیچ پیوتی پیدا نشد
+}
+
+//+------------------------------------------------------------------+
+//| پیدا کردن پیوت (نقطه چرخش) روی تنکان سن                          |
+//+------------------------------------------------------------------+
+double CStrategyManager::FindPivotTenkan(bool is_buy)
+{
+    double tenkan_values[];
+    if (CopyBuffer(m_ichimoku_handle, 0, 1, m_settings.pivot_lookback, tenkan_values) < m_settings.pivot_lookback)
+        return 0.0;
+
+    ArraySetAsSeries(tenkan_values, true);
+
+    for (int i = 1; i < m_settings.pivot_lookback - 1; i++)
+    {
+        // برای معامله خرید، دنبال یک دره (پیوت کف) می‌گردیم
+        if (is_buy && tenkan_values[i] < tenkan_values[i - 1] && tenkan_values[i] < tenkan_values[i + 1])
+        {
+            return tenkan_values[i];
+        }
+        // برای معامله فروش، دنبال یک قله (پیوت سقف) می‌گردیم
+        if (!is_buy && tenkan_values[i] > tenkan_values[i - 1] && tenkan_values[i] > tenkan_values[i + 1])
+        {
+            return tenkan_values[i];
+        }
+    }
+
+    return 0.0; // هیچ پیوتی پیدا نشد
+}
