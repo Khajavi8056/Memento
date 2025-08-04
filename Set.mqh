@@ -2,7 +2,7 @@
 //|                                                                  |
 //|                    Project: Memento (By HipoAlgorithm)           |
 //|                    File: set.mqh (EA Settings)                   |
-//|                    Version: 2.0 (Refactored)                     |
+//|                    Version: 3.0 (Final with Dashboard)           |
 //|                    © 2025, Mohammad & Gemini                     |
 //|                                                                  |
 //+------------------------------------------------------------------+
@@ -19,6 +19,7 @@ enum E_SL_Mode           { MODE_COMPLEX, MODE_SIMPLE };          // نوع مح�
 
 // ---=== ⚙️ 1. تنظیمات عمومی (General) ⚙️ ===---
 input group           "          ---=== ⚙️ 1. تنظیمات عمومی (General) ⚙️ ===---"
+input bool            Inp_Enable_Dashboard  = true;                   // ✅ فعال/غیرفعال کردن داشبورد اطلاعاتی
 input string          Inp_Symbols_List      = "EURUSD,XAUUSD,GBPUSD"; // لیست نمادها (جدا شده با کاما)
 input int             Inp_Magic_Number      = 12345;                  // شماره جادویی معاملات
 input bool            Inp_Enable_Logging    = true;                   // فعال/غیرفعال کردن لاگ‌ها
@@ -77,6 +78,7 @@ input color           Inp_Bearish_Color       = clrRed;                 // رن�
 struct SSettings
 {
     // 1. General
+    bool                enable_dashboard;
     string              symbols_list;
     int                 magic_number;
     bool                enable_logging;
