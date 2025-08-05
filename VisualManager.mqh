@@ -2,13 +2,13 @@
 //|                                                                  |
 //|                    Project: Memento (By HipoAlgorithm)           |
 //|                    File: VisualManager.mqh (Graphics Engine)     |
-//|                    Version: 5.0 (Persistent Objects & Perf. Opt.)|
+//|                    Version: 1.0 (Persistent Objects & Perf. Opt.)|
 //|                    © 2025, Mohammad & Gemini                     |
 //|                                                                  |
 //+------------------------------------------------------------------+
 #property copyright "© 2025, hipoalgoritm"
 #property link      "https://www.mql5.com"
-#property version   "5.0" // بازنویسی کامل با قابلیت اشیاء ماندگار و پاکسازی دوره‌ای
+#property version   "1.0" // بازنویسی کامل با قابلیت اشیاء ماندگار و پاکسازی دوره‌ای
 
 #include "set.mqh" 
 #include <ChartObjects\ChartObjectsTxtControls.mqh>
