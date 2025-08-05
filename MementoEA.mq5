@@ -5,13 +5,15 @@
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2025,hipoalgoritm
 #property link      "https://www.mql5.com"
-#property version   "1.6" // نسخه نهایی و کاملا اصلاح شده
+#property version   "1.7" // نسخه نهایی و کاملا اصلاح شده
 #property description "اکسپرت معاملاتی پیشرفته ممنتو بر اساس استراتژی کراس سه گانه ایچیموکو"
+
 
 #include <Trade\Trade.mqh>
 #include <Object.mqh>
 #include "IchimokuLogic.mqh"
 #include "VisualManager.mqh"
+
 
 
 //--- متغیرهای سراسری
@@ -40,9 +42,11 @@ int OnInit()
     g_settings.senkou_period                = Inp_Senkou_Period;
     g_settings.chikou_period                = Inp_Chikou_Period;
     
-    g_settings.confirmation_type            = Inp_Confirmation_Type;
-    g_settings.grace_period_candles         = Inp_Grace_Period_Candles;
-    
+    g_settings.confirmation_type           = Inp_Confirmation_Type;
+    g_settings.grace_period_candles     = Inp_Grace_Period_Candles;
+    g_settings.signal_mode                  = Inp_Signal_Mode;
+        
+        
     g_settings.talaqi_auto_mode             = Inp_Talaqi_Auto_Mode;
     g_settings.talaqi_distance_in_points    = Inp_Talaqi_Distance_in_Points;
     g_settings.talaqi_lookback_period       = Inp_Talaqi_Lookback_Period;
