@@ -1,10 +1,10 @@
-//+------------------------------------------------------------------+
+/+------------------------------------------------------------------+
 //|                                     IchimokuLogic.mqh            |
 //|                          © 2025, hipoalgoritm              |
 //+------------------------------------------------------------------+
 #property copyright "© 2025,hipoalgoritm"
 #property link      "https://www.mql5.com"
-#property version   "1.03" // نسخه نهایی و کاملا اصلاح شده
+#property version   "1.05" 
 #include "set.mqh"
 #include <Trade\Trade.mqh>
 #include <Trade\SymbolInfo.mqh>
@@ -63,6 +63,8 @@ private:
     double              m_tenkan_buffer[];
     double              m_kijun_buffer[];
     double              m_chikou_buffer[];
+    double              m_high_buffer[]; // 
+    double              m_low_buffer[];  // 
     
     SPotentialSignal    m_signal;
     bool                m_is_waiting;
@@ -146,7 +148,8 @@ bool CStrategyManager::Init()
     ArraySetAsSeries(m_tenkan_buffer, true);
     ArraySetAsSeries(m_kijun_buffer, true);
     ArraySetAsSeries(m_chikou_buffer, true);
-    
+    ArraySetAsSeries(m_high_buffer, true);
+    ArraySetAsSeries(m_low_buffer, true); 
     if (!m_visual_manager.Init())
     {
         Log("خطا در مقداردهی اولیه VisualManager.");
@@ -157,7 +160,7 @@ bool CStrategyManager::Init()
     // فقط نمونه‌ای که نمادش با نماد چارت یکی است، داشبورد را می‌سازد
     if(m_symbol == _Symbol)
     {
-        
+         Print("--- DEBUG 1: Master instance found for '", m_symbol, "'. Calling InitDashboard...");
         m_visual_manager.InitDashboard();
     }
     
@@ -168,125 +171,210 @@ bool CStrategyManager::Init()
 //+------------------------------------------------------------------+
 //| تابع اصلی پردازش کندل جدید                                       |
 //+------------------------------------------------------------------+
+//+------------------------------------------------------------------+
+//| تابع اصلی پردازش کندل جدید (نسخه هوشمند شده برای سیگنال مخالف)   |
+//+------------------------------------------------------------------+
 void CStrategyManager::ProcessNewBar()
 {
+    // --- گام ۱: چک کردن اینکه آیا کندل جدیدی تشکیل شده است یا نه ---
     datetime current_bar_time = iTime(m_symbol, _Period, 0);
     if (current_bar_time == m_last_bar_time)
+    {
+        // اگر زمان کندل فعلی با زمان آخرین کندل بررسی شده یکی بود، یعنی کندل جدیدی نداریم. پس از تابع خارج شو.
         return;
+    }
+    // اگر کندل جدید بود، زمان آن را در حافظه ذخیره کن تا در بررسی بعدی استفاده شود.
     m_last_bar_time = current_bar_time;
 
-    // ✅✅✅ بخش اصلاح شده ✅✅✅
-    // فقط نمونه‌ای که نمادش با نماد چارت یکی است، داشبورد را آپدیت می‌کند
+    // --- گام ۲: آپدیت کردن داشبورد (فقط توسط نمونه اصلی اکسپرت) ---
     if(m_symbol == _Symbol)
     {
-m_visual_manager.UpdateDashboard();
+        m_visual_manager.UpdateDashboard();
     }
 
-    bool is_buy_signal = false;
-    if (!m_is_waiting && CheckTripleCross(is_buy_signal))
+    // --- گام ۳: بررسی وجود سیگنال جدید در هر کندل ---
+    // این بخش همیشه اجرا می‌شود تا هیچ سیگنال جدیدی را از دست ندهیم.
+    
+    bool is_new_signal_buy = false; // متغیری برای نگهداری جهت سیگنال جدید
+    
+    // آیا تابع CheckTripleCross یک سیگنال جدید (چه خرید چه فروش) پیدا کرده است؟
+    if (CheckTripleCross(is_new_signal_buy))
     {
-        m_is_waiting = true;
-        m_signal.time = iTime(m_symbol, _Period, m_settings.chikou_period);
-        m_signal.is_buy = is_buy_signal;
-        m_signal.grace_candle_count = 0;
+        // اگر سیگنال جدیدی پیدا شد، حالا باید تصمیم بگیریم با آن چه کنیم.
         
-        Log("سیگنال اولیه " + (is_buy_signal ? "خرید" : "فروش") + " در کندل " + TimeToString(m_signal.time) + " پیدا شد.");
-        m_visual_manager.DrawTripleCrossRectangle(m_signal.is_buy, m_settings.chikou_period);
+        // آیا از قبل منتظر تایید یک سیگنال دیگر بودیم؟ (یعنی m_is_waiting=true بود؟)
+        if (m_is_waiting)
+        {
+            // اگر بله، آیا سیگنال جدید پیدا شده، مخالف سیگنال قبلی است؟
+            // (مثلاً منتظر تایید "فروش" بودیم ولی الان سیگنال "خرید" آمده)
+            if (is_new_signal_buy != m_signal.is_buy)
+            {
+                // اگر سیگنال‌ها مخالف هم بودند، سیگنال قدیمی دیگر ارزشی ندارد.
+                Log("سیگنال جدید و مخالف پیدا شد! سیگنال قبلی " + (m_signal.is_buy ? "خرید" : "فروش") + " کنسل شد.");
+                
+                // وضعیت انتظار را ریست کن تا برای سیگنال جدید آماده شویم.
+                m_is_waiting = false; 
+            }
+        }
+        
+        // اگر در حالت انتظار نبودیم (چه از اول، چه به خاطر اینکه سیگنال قبلی همین الان کنسل شد)...
+        if (!m_is_waiting)
+        {
+            // وضعیت را به "در حال انتظار" تغییر بده
+            m_is_waiting = true;
+            
+            // مشخصات سیگنال جدید را در ساختار m_signal ذخیره کن
+            m_signal.time = iTime(m_symbol, _Period, m_settings.chikou_period);
+            m_signal.is_buy = is_new_signal_buy;
+            m_signal.grace_candle_count = 0; // شمارنده کندل‌های انتظار را صفر کن
+            
+            Log("سیگنال اولیه " + (m_signal.is_buy ? "خرید" : "فروش") + " در کندل " + TimeToString(m_signal.time) + " پیدا شد.");
+            
+            // یک مستطیل روی چارت برای نمایش محل سیگنال اولیه رسم کن
+            m_visual_manager.DrawTripleCrossRectangle(m_signal.is_buy, m_settings.chikou_period);
+        }
     }
     
+    // --- گام ۴: مدیریت وضعیت انتظار (اگر در حال انتظار برای تایید هستیم) ---
     if (m_is_waiting)
     {
+        // ناحیه اسکن و انتظار را روی چارت رسم کن تا کاربر بداند اکسپرت منتظر است.
         m_visual_manager.DrawScanningArea(m_signal.is_buy, m_settings.chikou_period, m_signal.grace_candle_count);
         
+        // آیا تعداد کندل‌های انتظار از حد مجاز (grace_period) بیشتر شده است؟
         if (m_signal.grace_candle_count >= m_settings.grace_period_candles)
         {
-            m_is_waiting = false;
-           // m_visual_manager.ClearGraphics();
+            // اگر بله، یعنی زمان تایید به پایان رسیده و سیگنال منقضی شده است.
+            m_is_waiting = false; // از حالت انتظار خارج شو.
+            m_visual_manager.ClearSignalGraphics(m_settings.chikou_period); // اشکال گرافیکی مربوط به این سیگنال را پاک کن.
             Log("زمان تأیید سیگنال " + (m_signal.is_buy ? "خرید" : "فروش") + " به پایان رسید و سیگنال رد شد.");
         }
+        // اگر زمان تمام نشده، آیا تاییدیه نهایی صادر شده است؟
         else if (CheckFinalConfirmation(m_signal.is_buy))
         {
-            m_is_waiting = false;
-           // m_visual_manager.ClearGraphics();
-            m_visual_manager.DrawConfirmationArrow(m_signal.is_buy, 1);
+            // اگر بله، سیگنال ما تایید نهایی شده است!
+            m_is_waiting = false; // از حالت انتظار خارج شو.
+            m_visual_manager.DrawConfirmationArrow(m_signal.is_buy, 1); // یک فلش تایید روی چارت رسم کن.
             Log("سیگنال " + (m_signal.is_buy ? "خرید" : "فروش") + " تأیید نهایی شد. در حال باز کردن معامله.");
-            OpenTrade(m_signal.is_buy);
+            OpenTrade(m_signal.is_buy); // دستور باز کردن معامله را صادر کن.
         }
         else
         {
+            // اگر نه زمان تمام شده و نه تاییدیه آمده، یک واحد به شمارنده کندل‌های انتظار اضافه کن و منتظر کندل بعدی بمان.
             m_signal.grace_candle_count++;
         }
     }
 }
+
 //+------------------------------------------------------------------+
-//| منطق فاز ۱: چک کردن کراس سه گانه (کاملاً اصلاح شده بر اساس منطق صحیح) |
+//| منطق فاز ۱: چک کردن کراس سه گانه (بازنویسی کامل و نهایی)         |
 //+------------------------------------------------------------------+
 bool CStrategyManager::CheckTripleCross(bool& is_buy)
 {
+    // --- گام اول: آماده‌سازی داده‌ها ---
+
+    // شیفت زمانی که می‌خوایم در گذشته بررسی کنیم (مثلاً ۲۶ کندل قبل)
     int shift = m_settings.chikou_period;
+    
+    // اگه به اندازه کافی کندل توی چارت نباشه، از تابع خارج می‌شیم
     if (iBars(m_symbol, _Period) < shift + 2) return false;
 
-    //--- خواندن Tenkan و Kijun از بافر اندیکاتور در کندل مرجع (۲۶ کندل قبل)
-    CopyBuffer(m_ichimoku_handle, 0, shift, 2, m_tenkan_buffer);
-    CopyBuffer(m_ichimoku_handle, 1, shift, 2, m_kijun_buffer);
+    // --- گام دوم: دریافت مقادیر ایچیموکو در گذشته ---
+
+    // دو آرایه برای نگهداری مقادیر تنکان و کیجون در نقطه مرجع و کندل قبل از آن
+    double tk_shifted[], ks_shifted[];
     
-    //--- مقادیر تنکان و کیجون در نقطه مرجع
-    double tenkan_at_shift = m_tenkan_buffer[0]; // مقدار در کندل ۲۶
-    double kijun_at_shift = m_kijun_buffer[0];  // مقدار در کندل ۲۶
-
-    //--- خواندن قیمت فعلی و قبلی که نقش چیکو اسپن را برای نقطه مرجع بازی می‌کنند
-    double chikou_now  = iClose(m_symbol, _Period, 1); // قیمت Close کندل فعلی
-    double chikou_prev = iClose(m_symbol, _Period, 2); // قیمت Close کندل قبلی
-
-        //--- بررسی تلاقی یا کراس تنکان و کیجون در گذشته
-    double tolerance = GetTalaqiTolerance(shift); // گرفتن حد مجاز از مدیر کل!
-    
-    double current_distance = MathAbs(tenkan_at_shift - kijun_at_shift);
-    bool is_confluence = (tolerance > 0) ? (current_distance <= tolerance) : false;
-
-
-    bool tenkan_crossover = m_tenkan_buffer[1] < m_kijun_buffer[1] && tenkan_at_shift > kijun_at_shift;
-    bool tenkan_crossunder = m_tenkan_buffer[1] > m_kijun_buffer[1] && tenkan_at_shift < kijun_at_shift;
-
-    // --- شرط خرید: کراس صعودی تنکان/کیجون در گذشته و کراس قیمت فعلی (چیکو) از آنها
-    if (tenkan_crossover || (is_confluence && tenkan_at_shift > kijun_at_shift))
+    // از متاتریدر می‌خوایم که ۲ مقدار آخر تنکان و کیجون رو از نقطه "شیفت" به ما بده
+    if(CopyBuffer(m_ichimoku_handle, 0, shift, 2, tk_shifted) < 2 || 
+       CopyBuffer(m_ichimoku_handle, 1, shift, 2, ks_shifted) < 2)
     {
-        //--- آیا قیمت فعلی (چیکو) از خطوط تنکان و کیجون در نقطه مرجع عبور کرده؟
-        bool chikou_crosses_up = (chikou_prev < tenkan_at_shift && chikou_now > tenkan_at_shift) && 
-                                 (chikou_prev < kijun_at_shift && chikou_now > kijun_at_shift);
-      
-        if (chikou_crosses_up)
-        {
-            is_buy = true;
-            return true;
-        }
+       // اگر داده کافی وجود نداشت، ادامه نمی‌دهیم
+       return false;
     }
+       
+    // مقدار تنکان و کیجون در نقطه مرجع (مثلاً کندل ۲۶ قبل)
+    double tenkan_at_shift = tk_shifted[0];
+    double kijun_at_shift = ks_shifted[0];
     
-    // --- شرط فروش: کراس نزولی تنکان/کیجون در گذشته و کراس قیمت فعلی (چیکو) از آنها
-    if (tenkan_crossunder || (is_confluence && tenkan_at_shift < kijun_at_shift))
+    // مقدار تنکان و کیجون در کندلِ قبل از نقطه مرجع (مثلاً کندل ۲۷ قبل)
+    double tenkan_prev_shift = tk_shifted[1];
+    double kijun_prev_shift = ks_shifted[1];
+
+    // --- گام سوم: بررسی شرط اولیه (آیا در گذشته کراس یا تلاقی داشتیم؟) ---
+
+    // آیا کراس صعودی اتفاق افتاده؟ (تنکان از پایین اومده بالای کیجون)
+    bool is_cross_up = tenkan_prev_shift < kijun_prev_shift && tenkan_at_shift > kijun_at_shift;
+    
+    // آیا کراس نزولی اتفاق افتاده؟ (تنکان از بالا اومده پایین کیجون)
+    bool is_cross_down = tenkan_prev_shift > kijun_prev_shift && tenkan_at_shift < kijun_at_shift;
+    
+    // آیا کلاً کراسی داشتیم؟ (یا صعودی یا نزولی، جهتش مهم نیست)
+    bool is_tk_cross = is_cross_up || is_cross_down;
+
+    // آیا دو خط خیلی به هم نزدیک بودن (تلاقی)؟
+    double tolerance = GetTalaqiTolerance(shift);
+    bool is_confluence = (tolerance > 0) ? (MathAbs(tenkan_at_shift - kijun_at_shift) <= tolerance) : false;
+
+    // شرط اصلی اولیه: اگر نه کراسی داشتیم و نه تلاقی، پس سیگنالی در کار نیست و خارج می‌شویم
+    if (!is_tk_cross && !is_confluence)
     {
-        //--- آیا قیمت فعلی (چیکو) از خطوط تنکان و کیجون در نقطه مرجع عبور کرده؟
-        bool chikou_crosses_down = (chikou_prev > tenkan_at_shift && chikou_now < tenkan_at_shift) && 
-                                   (chikou_prev > kijun_at_shift && chikou_now < kijun_at_shift);
-        if (chikou_crosses_down)
-        {
-            is_buy = false;
-            return true;
-        }
+        return false;
     }
+
+    // --- گام چهارم: بررسی شرط نهایی (کراس چیکو اسپن از خطوط گذشته) ---
+
+    // قیمت فعلی که نقش چیکو اسپن را برای گذشته بازی می‌کند (کلوز کندل شماره ۱)
+    double chikou_now  = iClose(m_symbol, _Period, 1);
+    // قیمت کندل قبل از آن (کلوز کندل شماره ۲)
+    double chikou_prev = iClose(m_symbol, _Period, 2); 
+
+    // بالاترین سطح بین تنکان و کیجون در نقطه مرجع
+    double upper_line = MathMax(tenkan_at_shift, kijun_at_shift);
+    // پایین‌ترین سطح بین تنکان و کیجون در نقطه مرجع
+    double lower_line = MathMin(tenkan_at_shift, kijun_at_shift);
+
+    // بررسی برای سیگنال خرید:
+    // آیا قیمت فعلی (چیکو) از بالای هر دو خط عبور کرده؟
+    bool chikou_crosses_up = chikou_now > upper_line && // شرط ۱: قیمت فعلی باید بالای هر دو خط باشد
+                             chikou_prev < upper_line;    // شرط ۲: قیمت قبلی باید زیر بالاترین خط بوده باشد تا "کراس" معنی دهد
     
+    if (chikou_crosses_up)
+    {
+        // اگر بله، نوع سیگنال ما خرید است
+        is_buy = true;
+        // و یک سیگنال معتبر پیدا کرده‌ایم
+        return true; 
+    }
+
+    // بررسی برای سیگنال فروش:
+    // آیا قیمت فعلی (چیکو) از پایین هر دو خط عبور کرده؟
+    bool chikou_crosses_down = chikou_now < lower_line && // شرط ۱: قیمت فعلی باید پایین هر دو خط باشد
+                               chikou_prev > lower_line;    // شرط ۲: قیمت قبلی باید بالای پایین‌ترین خط بوده باشد تا "کراس" معنی دهد
+    
+    if (chikou_crosses_down)
+    {
+        // اگر بله، نوع سیگنال ما فروش است
+        is_buy = false;
+        // و یک سیگنال معتبر پیدا کرده‌ایم
+        return true; 
+    }
+
+    // اگر هیچکدام از شرط‌های کراس چیکو برقرار نبود، پس سیگنالی در کار نیست
     return false;
 }
 
 
-
 //+------------------------------------------------------------------+
-//| منطق فاز ۲: چک کردن تأیید نهایی در کندل شماره یک (اصلاح شده)      |
+//| منطق فاز ۲: چک کردن تأیید نهایی (بازنویسی کامل و نهایی)          |
 //+------------------------------------------------------------------+
 bool CStrategyManager::CheckFinalConfirmation(bool is_buy)
 {
+    // --- گام اول: آماده‌سازی داده‌ها ---
+
+    // اگه کمتر از ۲ کندل در چارت باشه، نمی‌تونیم بررسی کنیم
     if (iBars(m_symbol, _Period) < 2) return false;
 
+    // مقادیر ایچیموکو و کندل رو برای "کندل تاییدیه" (کندل شماره ۱) دریافت می‌کنیم
     CopyBuffer(m_ichimoku_handle, 0, 1, 1, m_tenkan_buffer);
     CopyBuffer(m_ichimoku_handle, 1, 1, 1, m_kijun_buffer);
     
@@ -295,38 +383,60 @@ bool CStrategyManager::CheckFinalConfirmation(bool is_buy)
     double open_at_1 = iOpen(m_symbol, _Period, 1);
     double close_at_1 = iClose(m_symbol, _Period, 1);
     
+    // --- گام دوم: بررسی منطق برای سیگنال خرید ---
     if (is_buy)
     {
+        // شرط اولیه خرید: تنکان باید بالای کیجون باشه. اگه نباشه، سیگنال خرید اعتبار نداره
         if (tenkan_at_1 <= kijun_at_1) return false;
+        
+        // حالا بر اساس تنظیمات ورودی، موقعیت کندل رو چک می‌کنیم
         if (m_settings.confirmation_type == MODE_OPEN_AND_CLOSE)
         {
-           // برای خرید
-          // برای خرید
-        if (open_at_1 < tenkan_at_1 || open_at_1 < kijun_at_1 || close_at_1 < tenkan_at_1 || close_at_1 < kijun_at_1) return false;
-
-
+            // در این حالت، برای تایید خرید، باید هم قیمت باز شدن و هم بسته شدن کندل، بالای هر دو خط باشه
+            // استفاده از && (وَ) یعنی تمام این ۴ شرط باید همزمان برقرار باشن
+            if (open_at_1 > tenkan_at_1 && open_at_1 > kijun_at_1 && 
+                close_at_1 > tenkan_at_1 && close_at_1 > kijun_at_1)
+            {
+                return true; // تایید شد! سیگنال خرید معتبر است
+            }
         }
-        else // MODE_CLOSE_ONLY
+        else // این حالت یعنی MODE_CLOSE_ONLY
         {
-            if (close_at_1 < tenkan_at_1 ||
-            close_at_1 < kijun_at_1) return false;
+            // در این حالت، فقط کافیه قیمت بسته شدن کندل، بالای هر دو خط باشه
+            if (close_at_1 > tenkan_at_1 && close_at_1 > kijun_at_1)
+            {
+                return true; // تایید شد!
+            }
         }
-        return true;
     }
-    else // is_sell
+    // --- گام سوم: بررسی منطق برای سیگنال فروش ---
+    else // این بخش زمانی اجرا میشه که is_buy برابر با false باشه (یعنی سیگنال فروش داریم)
     {
+        // شرط اولیه فروش: تنکان باید پایین کیجون باشه. اگه نباشه، سیگنال فروش اعتبار نداره
         if (tenkan_at_1 >= kijun_at_1) return false;
+        
+        // حالا بر اساس تنظیمات ورودی، موقعیت کندل رو چک می‌کنیم
         if (m_settings.confirmation_type == MODE_OPEN_AND_CLOSE)
         {
-            if (open_at_1 > tenkan_at_1 || open_at_1 > kijun_at_1 || close_at_1 > tenkan_at_1 || close_at_1 > kijun_at_1) return false;
+            // برای تایید فروش، باید هم قیمت باز شدن و هم بسته شدن کندل، پایین هر دو خط باشه
+            if (open_at_1 < tenkan_at_1 && open_at_1 < kijun_at_1 && 
+                close_at_1 < tenkan_at_1 && close_at_1 < kijun_at_1)
+            {
+                return true; // تایید شد! سیگنال فروش معتبر است
+            }
         }
-        else // MODE_CLOSE_ONLY
+        else // این حالت یعنی MODE_CLOSE_ONLY
         {
-            if (close_at_1 > tenkan_at_1 || close_at_1 > kijun_at_1) return false;
+            // در این حالت، فقط کافیه قیمت بسته شدن کندل، پایین هر دو خط باشه
+            if (close_at_1 < tenkan_at_1 && close_at_1 < kijun_at_1)
+            {
+                return true; // تایید شد!
+            }
         }
-        return true;
-    
     }
+    
+    // اگر کد به اینجا برسه، یعنی هیچکدام از شرط‌های تایید برقرار نبوده
+    return false;
 }
 
 
@@ -353,43 +463,77 @@ double CStrategyManager::CalculateStopLoss(bool is_buy, double entry_price)
     return FindBackupStopLoss(is_buy, buffer);
 }
 
-//+------------------------------------------------------------------+
-//| تابع نهایی محاسبه استاپ لاس (اصلاح شده)                           |
+//---+//+------------------------------------------------------------------+
+//| تابع استاپ لاس پشتیبان (بازنویسی کامل بر اساس منطق رنگ مخالف)   |
 //+------------------------------------------------------------------+
 double CStrategyManager::FindBackupStopLoss(bool is_buy, double buffer)
 {
-    double sl_price = 0;
-    int bars_to_check = m_settings.sl_lookback_period + 1;
-    if (iBars(m_symbol, _Period) < bars_to_check) return 0;
+    // تعداد کندلی که می‌خواهیم در گذشته برای پیدا کردن استاپ لاس جستجو کنیم.
+    int bars_to_check = m_settings.sl_lookback_period;
     
-    if (is_buy)
-    {
-        double min_low = iLow(m_symbol, _Period, 1);
-        for (int i = 1; i < bars_to_check; i++)
-        {
-            if (iLow(m_symbol, _Period, i) < min_low)
-            {
-                min_low = iLow(m_symbol, _Period, i);
-            }
-        }
-        sl_price = min_low - buffer;
-    }
-    else // is_sell
-    {
-        double max_high = iHigh(m_symbol, _Period, 1);
-        for (int i = 1; i < bars_to_check; i++)
-        {
-            if (iHigh(m_symbol, _Period, i) > max_high)
-            {
-                max_high = iHigh(m_symbol, _Period, i);
-            }
-        }
-        sl_price = max_high + buffer;
-    }
+    // اگر تعداد کندل‌های موجود در چارت کافی نیست، از تابع خارج می‌شویم.
+    if (iBars(m_symbol, _Period) < bars_to_check + 1) return 0;
     
-    return sl_price;
-}
+    // یک حلقه 'for' می‌سازیم که از کندل شماره ۱ (کندل قبلی) شروع به حرکت به عقب می‌کند.
+    for (int i = 1; i <= bars_to_check; i++)
+    {
+        // رنگ کندلی که در حال بررسی آن هستیم را مشخص می‌کنیم.
+        bool is_candle_bullish = (iClose(m_symbol, _Period, i) > iOpen(m_symbol, _Period, i));
+        bool is_candle_bearish = (iClose(m_symbol, _Period, i) < iOpen(m_symbol, _Period, i));
 
+        // اگر معامله ما از نوع "خرید" (Buy) باشد...
+        if (is_buy)
+        {
+            // ...پس ما به دنبال اولین کندل با رنگ مخالف، یعنی کندل "نزولی" (Bearish) هستیم.
+            if (is_candle_bearish)
+            {
+                // به محض پیدا کردن اولین کندل نزولی، استاپ لاس را چند پوینت زیر کفِ (Low) همان کندل قرار می‌دهیم.
+                double sl_price = iLow(m_symbol, _Period, i) - buffer;
+                Log("استاپ لاس ساده: اولین کندل نزولی در شیفت " + (string)i + " پیدا شد.");
+                
+                // قیمت محاسبه شده را برمی‌گردانیم و کار تابع تمام می‌شود.
+                return sl_price;
+            }
+        }
+        // اگر معامله ما از نوع "فروش" (Sell) باشد...
+        else // is_sell
+        {
+            // ...پس ما به دنبال اولین کندل با رنگ مخالف، یعنی کندل "صعودی" (Bullish) هستیم.
+            if (is_candle_bullish)
+            {
+                // به محض پیدا کردن اولین کندل صعودی، استاپ لاس را چند پوینت بالای سقفِ (High) همان کندل قرار می‌دهیم.
+                double sl_price = iHigh(m_symbol, _Period, i) + buffer;
+                Log("استاپ لاس ساده: اولین کندل صعودی در شیفت " + (string)i + " پیدا شد.");
+                
+                // قیمت محاسبه شده را برمی‌گردانیم و کار تابع تمام می‌شود.
+                return sl_price;
+            }
+        }
+    }
+    
+    // --- بخش پشتیبانِ پشتیبان ---
+    // اگر حلقه 'for' تمام شود و کد به اینجا برسد، یعنی در کل بازه مورد بررسی، هیچ کندل رنگ مخالفی پیدا نشده است.
+    // (مثلاً در یک روند خیلی قوی که همه کندل‌ها یک رنگ هستند)
+    // در این حالت اضطراری، برای اینکه بدون استاپ لاس نمانیم، از روش قدیمی (پیدا کردن بالاترین/پایین‌ترین قیمت) استفاده می‌کنیم.
+    Log("هیچ کندل رنگ مخالفی برای استاپ لاس ساده پیدا نشد. از روش سقف/کف مطلق استفاده می‌شود.");
+    
+    // داده‌های سقف و کف کندل‌ها را در آرایه‌ها کپی می‌کنیم.
+    CopyHigh(_Symbol, _Period, 1, bars_to_check, m_high_buffer);
+    CopyLow(_Symbol, _Period, 1, bars_to_check, m_low_buffer);
+
+    if(is_buy)
+    {
+       // برای خرید، ایندکس پایین‌ترین کندل را پیدا کرده و قیمت Low آن را برمی‌گردانیم.
+       int min_index = ArrayMinimum(m_low_buffer, 0, bars_to_check);
+       return m_low_buffer[min_index] - buffer;
+    }
+    else
+    {
+       // برای فروش، ایندکس بالاترین کندل را پیدا کرده و قیمت High آن را برمی‌گردانیم.
+       int max_index = ArrayMaximum(m_high_buffer, 0, bars_to_check);
+       return m_high_buffer[max_index] + buffer;
+    }
+}
 
 //+------------------------------------------------------------------+
 //| توابع کمکی دیگر                                                  |
@@ -524,6 +668,7 @@ void CStrategyManager::OpenTrade(bool is_buy)
     }
 }
 
+
 //+------------------------------------------------------------------+
 //| پیدا کردن سطح کیجون سن فلت (صاف)                                  |
 //+------------------------------------------------------------------+
@@ -656,6 +801,9 @@ double CStrategyManager::GetTalaqiTolerance(int reference_shift)
         return m_settings.talaqi_distance_in_points * SymbolInfoDouble(m_symbol, SYMBOL_POINT);
     }
 }
+
+
+
 
 
 
