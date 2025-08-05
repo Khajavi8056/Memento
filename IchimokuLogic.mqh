@@ -157,9 +157,7 @@ bool CStrategyManager::Init()
     // فقط نمونه‌ای که نمادش با نماد چارت یکی است، داشبورد را می‌سازد
     if(m_symbol == _Symbol)
     {
-        string symbols_array[];
-        StringSplit(m_settings.symbols_list, ',', symbols_array);
-        m_visual_manager.InitDashboard(symbols_array);
+        m_visual_manager.InitDashboard();
     }
     
     Log("با موفقیت مقداردهی اولیه شد.");
@@ -180,12 +178,10 @@ void CStrategyManager::ProcessNewBar()
     // فقط نمونه‌ای که نمادش با نماد چارت یکی است، داشبورد را آپدیت می‌کند
     if(m_symbol == _Symbol)
     {
-        string symbols_array[];
-        StringSplit(m_settings.symbols_list, ',', symbols_array);
-        m_visual_manager.UpdateDashboard(symbols_array);
+        m_visual_manager.UpdateDashboard();
     }
 
-    bool is_buy_signal = false
+    bool is_buy_signal = false;
     if (!m_is_waiting && CheckTripleCross(is_buy_signal))
     {
         m_is_waiting = true;
@@ -204,13 +200,13 @@ void CStrategyManager::ProcessNewBar()
         if (m_signal.grace_candle_count >= m_settings.grace_period_candles)
         {
             m_is_waiting = false;
-            m_visual_manager.ClearGraphics();
+           // m_visual_manager.ClearGraphics();
             Log("زمان تأیید سیگنال " + (m_signal.is_buy ? "خرید" : "فروش") + " به پایان رسید و سیگنال رد شد.");
         }
         else if (CheckFinalConfirmation(m_signal.is_buy))
         {
             m_is_waiting = false;
-            m_visual_manager.ClearGraphics();
+           // m_visual_manager.ClearGraphics();
             m_visual_manager.DrawConfirmationArrow(m_signal.is_buy, 1);
             Log("سیگنال " + (m_signal.is_buy ? "خرید" : "فروش") + " تأیید نهایی شد. در حال باز کردن معامله.");
             OpenTrade(m_signal.is_buy);
@@ -659,7 +655,6 @@ double CStrategyManager::GetTalaqiTolerance(int reference_shift)
         return m_settings.talaqi_distance_in_points * SymbolInfoDouble(m_symbol, SYMBOL_POINT);
     }
 }
-
 
 
 
