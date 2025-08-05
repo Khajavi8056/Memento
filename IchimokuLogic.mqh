@@ -96,7 +96,8 @@ public:
     CStrategyManager(string symbol,   SSettings &settings);
     bool Init();
     void ProcessNewBar();
-    
+    string GetSymbol() const { return m_symbol; }
+    void UpdateMyDashboard() { if (m_visual_manager != NULL) m_visual_manager.UpdateDashboard(); }
     ~CStrategyManager();
 };
 
@@ -120,6 +121,7 @@ CStrategyManager::CStrategyManager(string symbol, SSettings &settings)
 //+------------------------------------------------------------------+
 CStrategyManager::~CStrategyManager()
 {
+    // اگر نیاز به پاکسازی چیزی در آینده بود، اینجا قرار میگیرد
     if (m_visual_manager != NULL)
     {
         delete m_visual_manager;
@@ -187,10 +189,9 @@ void CStrategyManager::ProcessNewBar()
     m_last_bar_time = current_bar_time;
 
     // --- گام ۲: آپدیت کردن داشبورد (فقط توسط نمونه اصلی اکسپرت) ---
-    if(m_symbol == _Symbol)
-    {
-        m_visual_manager.UpdateDashboard();
-    }
+        // --- گام ۰: پاکسازی اشیاء گرافیکی قدیمی ---
+    if(m_visual_manager != NULL) m_visual_manager.CleanupOldObjects(200);
+
 
     // --- گام ۳: بررسی وجود سیگنال جدید در هر کندل ---
     // این بخش همیشه اجرا می‌شود تا هیچ سیگنال جدیدی را از دست ندهیم.
@@ -246,7 +247,7 @@ void CStrategyManager::ProcessNewBar()
         {
             // اگر بله، یعنی زمان تایید به پایان رسیده و سیگنال منقضی شده است.
             m_is_waiting = false; // از حالت انتظار خارج شو.
-            m_visual_manager.ClearSignalGraphics(m_settings.chikou_period); // اشکال گرافیکی مربوط به این سیگنال را پاک کن.
+            
             Log("زمان تأیید سیگنال " + (m_signal.is_buy ? "خرید" : "فروش") + " به پایان رسید و سیگنال رد شد.");
         }
         // اگر زمان تمام نشده، آیا تاییدیه نهایی صادر شده است؟
@@ -518,8 +519,8 @@ double CStrategyManager::FindBackupStopLoss(bool is_buy, double buffer)
     Log("هیچ کندل رنگ مخالفی برای استاپ لاس ساده پیدا نشد. از روش سقف/کف مطلق استفاده می‌شود.");
     
     // داده‌های سقف و کف کندل‌ها را در آرایه‌ها کپی می‌کنیم.
-    CopyHigh(_Symbol, _Period, 1, bars_to_check, m_high_buffer);
-    CopyLow(_Symbol, _Period, 1, bars_to_check, m_low_buffer);
+    CopyHigh(m_symbol, _Period, 1, bars_to_check, m_high_buffer);
+    CopyLow(m_symbol, _Period, 1, bars_to_check, m_low_buffer);
 
     if(is_buy)
     {
@@ -801,6 +802,8 @@ double CStrategyManager::GetTalaqiTolerance(int reference_shift)
         return m_settings.talaqi_distance_in_points * SymbolInfoDouble(m_symbol, SYMBOL_POINT);
     }
 }
+
+
 
 
 
