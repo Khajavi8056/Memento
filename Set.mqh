@@ -8,12 +8,12 @@
 //+------------------------------------------------------------------+
 #property copyright "© 2025, hipoalgoritm"
 #property link      "https://www.mql5.com"
-#property version   "3.1"
+#property version   "1.2"
 
 //--- انواع شمارشی برای خوانایی بهتر کد
 enum E_Confirmation_Mode { MODE_CLOSE_ONLY, MODE_OPEN_AND_CLOSE };
 enum E_SL_Mode           { MODE_COMPLEX, MODE_SIMPLE };
-
+enum E_Signal_Mode     { MODE_REPLACE_SIGNAL, MODE_SIGNAL_CONTEST };
 //+------------------------------------------------------------------+
 //|                      تنظیمات ورودی اکسپرت                         |
 //+------------------------------------------------------------------+
@@ -34,7 +34,10 @@ input int             Inp_Chikou_Period     = 26;                     // دور�
 
 // ---=== 🎯 3. سیگنال و تاییدیه (Signal & Confirmation) 🎯 ===---
 input group           "---=== 🎯 3. سیگنال و تاییدیه (Signal & Confirmation) 🎯 ===---"
+input E_Signal_Mode   Inp_Signal_Mode         = MODE_SIGNAL_CONTEST;  // ✅ این وش مدیریت سیگنال
 input E_Confirmation_Mode Inp_Confirmation_Type = MODE_OPEN_AND_CLOSE;  // نوع تایید قیمت نهایی
+// ... بقیه ورودی‌ها
+
 input int             Inp_Grace_Period_Candles= 5;                      // تعداد کندل مهلت برای تاییدیه
 
 // --- زیرگروه تنظیمات تلاقی (Confluence)
@@ -79,7 +82,8 @@ struct SSettings
     bool                enable_logging;
     // 2. Ichimoku
     int                 tenkan_period, kijun_period, senkou_period, chikou_period;
-    // 3. Signal & Confirmation
+// 3. Signal & Confirmation
+    E_Signal_Mode       signal_mode; // ✅ این خط را اضافه کن
     E_Confirmation_Mode confirmation_type;
     int                 grace_period_candles;
     // 3.1. Talaqi
