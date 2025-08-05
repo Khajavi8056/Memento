@@ -109,10 +109,12 @@ void OnDeinit(const int reason)
         }
     }
     ArrayFree(g_symbol_managers);
-    //--- پاک کردن تمام اشیاء گرافیکی
-    //--- از VisualManager برای پاک کردن اشیا استفاده میکنیم
-    ObjectsDeleteAll(0, g_settings.symbols_list);
-    ChartRedraw();
+
+
+//--- پاک کردن تمام اشیاء گرافیکی با پیشوند صحیح
+ObjectsDeleteAll(0, "MEMENTO_UI_");
+ChartRedraw();
+
 }
 
 //+------------------------------------------------------------------+
