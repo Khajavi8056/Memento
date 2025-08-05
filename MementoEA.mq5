@@ -12,13 +12,13 @@
 #include <Object.mqh>
 #include "IchimokuLogic.mqh"
 #include "VisualManager.mqh"
-ةذ
+
 
 //--- متغیرهای سراسری
 SSettings            g_settings;
 string               g_symbols_array[];
 CStrategyManager* g_symbol_managers[];
-g_dashboard_needs_update = true; // پرچم برای آپدیت هوشمند داشبورد
+bool              g_dashboard_needs_update = true; // پرچم برای آپدیت هوشمند داشبورد
 
 //+------------------------------------------------------------------+
 //| تابع شروع اکسپرت (مقداردهی اولیه)                                |
