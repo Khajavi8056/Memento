@@ -12,7 +12,7 @@
 #include <Object.mqh>
 #include "IchimokuLogic.mqh"
 #include "VisualManager.mqh"
-
+ةذ
 
 //--- متغیرهای سراسری
 SSettings            g_settings;
@@ -130,4 +130,42 @@ void OnTimer()
             g_symbol_managers[i].ProcessNewBar();
         }
     }
+
+    //--- آپدیت هوشمند داشبورد فقط در صورت نیاز
+    if (g_dashboard_needs_update)
+    {
+        // پیدا کردن نمونه‌ای از منیجر که مسئول چارت اصلی است
+        for (int i = 0; i < ArraySize(g_symbol_managers); i++)
+        {
+            if (g_symbol_managers[i] != NULL && g_symbol_managers[i].GetSymbol() == _Symbol)
+            {
+                 g_symbol_managers[i].UpdateMyDashboard();
+                 Print("داشبورد به دلیل رویداد معاملاتی آپدیت شد.");
+                 break; // بعد از آپدیت از حلقه خارج شو
+            }
+        }
+        g_dashboard_needs_update = false; // پرچم را برای آپدیت بعدی ریست کن
+    }
 }
+
+
+
+//+------------------------------------------------------------------+
+//| تابع رویدادهای معاملاتی                                           |
+//+------------------------------------------------------------------+
+void OnTradeTransaction(const MqlTradeTransaction &trans,
+                        const MqlTradeRequest &request,
+                        const MqlTradeResult &result)
+{
+    // ما فقط به رویدادهایی که یک معامله (deal) به تاریخچه اضافه می‌کنند علاقه داریم
+    // این رویداد هم موقع باز شدن و هم بسته شدن پوزیشن رخ میده
+    if (trans.type == TRADE_TRANSACTION_DEAL_ADD)
+    {
+        // اگه معامله مربوط به همین اکسپرت بود
+        if (trans.magic == (ulong)g_settings.magic_number)
+        {
+            g_dashboard_needs_update = true;
+        }
+    }
+}
+
