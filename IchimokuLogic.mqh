@@ -157,6 +157,7 @@ bool CStrategyManager::Init()
     // فقط نمونه‌ای که نمادش با نماد چارت یکی است، داشبورد را می‌سازد
     if(m_symbol == _Symbol)
     {
+        
         m_visual_manager.InitDashboard();
     }
     
@@ -178,7 +179,7 @@ void CStrategyManager::ProcessNewBar()
     // فقط نمونه‌ای که نمادش با نماد چارت یکی است، داشبورد را آپدیت می‌کند
     if(m_symbol == _Symbol)
     {
-        m_visual_manager.UpdateDashboard();
+m_visual_manager.UpdateDashboard();
     }
 
     bool is_buy_signal = false;
