@@ -833,35 +833,8 @@ double CStrategyManager::FindPivotTenkan(bool is_buy)
 
     return 0.0; // هیچ پیوتی پیدا نشد
 }
-//+------------------------------------------------------------------+
-//| (اتوماتیک) محاسبه حد مجاز تلاقی بر اساس تاریخچه بازار               |
-//+------------------------------------------------------------------+
-double CStrategyManager::CalculateDynamicTolerance(int reference_shift)
-{
-    double total_distance = 0;
-    int lookback = m_settings.talaqi_lookback_period;
-    if(lookback <= 0) return 0.0;
 
-    double past_tenkan[], past_kijun[];
-    if(CopyBuffer(m_ichimoku_handle, 0, reference_shift, lookback, past_tenkan) < lookback || 
-       CopyBuffer(m_ichimoku_handle, 1, reference_shift, lookback, past_kijun) < lookback)
-    {
-       Log("داده کافی برای محاسبه فاصله تاریخی تلاقی وجود ندارد.");
-       return 0.0;
-    }
-    
-    for(int i = 0; i < lookback; i++)
-    {
-        total_distance += MathAbs(past_tenkan[i] - past_kijun[i]);
-    }
-    
-    double average_historical_distance = total_distance / lookback;
-    double tolerance = average_historical_distance * m_settings.talaqi_hist_multiplier;
-    
-    return tolerance;
-}
-
-/////+------------------------------------------------------------------+
+///+------------------------------------------------------------------+
 //| (مدیر کل) گرفتن حد مجاز تلاقی بر اساس حالت انتخابی (اتو/دستی)     |
 //+------------------------------------------------------------------+
 double CStrategyManager::GetTalaqiTolerance(int reference_shift)
