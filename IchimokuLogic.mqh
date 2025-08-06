@@ -4,7 +4,7 @@
 //+------------------------------------------------------------------+
 #property copyright "© 2025,hipoalgoritm"
 #property link      "https://www.mql5.com"
-#property version   "1.2" 
+#property version   "1.3" 
 #include "set.mqh"
 #include <Trade\Trade.mqh>
 #include <Trade\SymbolInfo.mqh>
@@ -218,8 +218,10 @@ void CStrategyManager::ProcessNewBar()
     if (current_bar_time == m_last_bar_time) return; // اگر کندل جدید نبود، خارج شو
     m_last_bar_time = current_bar_time;
 
-    // پاکسازی اشیاء گرافیکی که عمرشان تمام شده
-    if(m_visual_manager != NULL) m_visual_manager.CleanupOldObjects(200);
+        if(m_symbol == _Symbol && m_visual_manager != NULL)
+        {
+            m_visual_manager.CleanupOldObjects(200);
+        }
 
     //================================================================//
     //                 انتخاب منطق بر اساس تنظیمات ورودی                 //
@@ -247,7 +249,7 @@ void CStrategyManager::ProcessNewBar()
                 m_signal.is_buy = is_new_signal_buy;
                 m_signal.grace_candle_count = 0;
                 Log("[حالت جایگزینی] سیگنال اولیه " + (m_signal.is_buy ? "خرید" : "فروش") + " پیدا شد. ورود به حالت انتظار...");
-                if(m_visual_manager != NULL) m_visual_manager.DrawTripleCrossRectangle(m_signal.is_buy, m_settings.chikou_period);
+                if(m_symbol == _Symbol && m_visual_manager != NULL) m_visual_manager.DrawTripleCrossRectangle(m_signal.is_buy, m_settings.chikou_period);
             }
         }
     
@@ -262,13 +264,13 @@ void CStrategyManager::ProcessNewBar()
             {
                 m_is_waiting = false; 
                 Log("[حالت جایگزینی] سیگنال " + (m_signal.is_buy ? "خرید" : "فروش") + " تأیید نهایی شد. باز کردن معامله...");
-                if(m_visual_manager != NULL) m_visual_manager.DrawConfirmationArrow(m_signal.is_buy, 1);
+                if(m_symbol == _Symbol && m_visual_manager != NULL) m_visual_manager.DrawConfirmationArrow(m_signal.is_buy, 1);
                 OpenTrade(m_signal.is_buy);
             }
             else
             {
                 m_signal.grace_candle_count++;
-                if(m_visual_manager != NULL) m_visual_manager.DrawScanningArea(m_signal.is_buy, m_settings.chikou_period, m_signal.grace_candle_count);
+                if(m_symbol == _Symbol && m_visual_manager != NULL) m_visual_manager.DrawScanningArea(m_signal.is_buy, m_settings.chikou_period, m_signal.grace_candle_count);
             }
         }
     }
@@ -305,7 +307,7 @@ void CStrategyManager::ProcessNewBar()
                     Log("🏆 [حالت مسابقه‌ای] برنده پیدا شد! سیگنال " + (candidate.is_buy ? "خرید" : "فروش") + " تأیید نهایی شد!");
                     
                     // رسم فلش تایید روی چارت
-                    if(m_visual_manager != NULL) m_visual_manager.DrawConfirmationArrow(candidate.is_buy, 1);
+                    if(m_symbol == _Symbol && m_visual_manager != NULL) m_visual_manager.DrawConfirmationArrow(candidate.is_buy, 1);
                     
                     // باز کردن معامله بر اساس سیگنال برنده
                     OpenTrade(candidate.is_buy);
@@ -335,7 +337,7 @@ void CStrategyManager::ProcessNewBar()
                 else
                 {
                     candidate.grace_candle_count++;
-                    if(m_visual_manager != NULL) m_visual_manager.DrawScanningArea(candidate.is_buy, m_settings.chikou_period, candidate.grace_candle_count);
+                    if(m_symbol == _Symbol && m_visual_manager != NULL) m_visual_manager.DrawScanningArea(candidate.is_buy, m_settings.chikou_period, candidate.grace_candle_count);
                 }
             }
         }
@@ -898,6 +900,7 @@ void CStrategyManager::AddOrUpdatePotentialSignal(bool is_buy)
     Log("[حالت مسابقه‌ای] سیگنال نامزد جدید " + (is_buy ? "خرید" : "فروش") + " به لیست انتظار مسابقه اضافه شد. تعداد کل نامزدها: " + (string)ArraySize(m_potential_signals));
     
     // یک مستطیل برای نمایش سیگنال اولیه روی چارت رسم کن
-    if(m_visual_manager != NULL)
-        m_visual_manager.DrawTripleCrossRectangle(is_buy, m_settings.chikou_period);
+    if(m_symbol == _Symbol && m_visual_manager != NULL)
+    m_visual_manager.DrawTripleCrossRectangle(is_buy, m_settings.chikou_period);
+
 }
