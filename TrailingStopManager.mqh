@@ -57,7 +57,7 @@ enum E_TSL_Mode
 input E_TSL_Mode          Inp_TSL_Mode             = TSL_MODE_TENKAN; // روش اجرای حد ضرر متحرک
 
 // --- پارامترهای داخلی (برای تنظیمات پیشرفته، کلمه input را از کامنت خارج کنید) ---
-/*input*/ group "--- پارامترهای داخلی Trailing Stop ---";
+//input group "--- پارامترهای داخلی Trailing Stop ---";
 /*input*/ double Inp_TSL_Buffer_Pips      = 3.0;      // فاصله از خط تریل (بر حسب پیپ)
 
 /*input*/ int    Inp_TSL_Ichimoku_Tenkan  = 9;        // [ایچیموکو] دوره تنکان
@@ -189,7 +189,7 @@ void CTrailingStopManager::Process()
 
     for(int i = PositionsTotal() - 1; i >= 0; i--)
     {
-        if(!PositionSelectByIndex(i)) continue;
+        if(!PositionSelectByTicket(i)) continue;
         if(PositionGetInteger(POSITION_MAGIC) != m_magic_number) continue;
 
         long   ticket     = PositionGetInteger(POSITION_TICKET);
