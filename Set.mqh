@@ -40,12 +40,11 @@ input E_Confirmation_Mode Inp_Confirmation_Type = MODE_OPEN_AND_CLOSE;  // نو�
 
 input int             Inp_Grace_Period_Candles= 5;                      // تعداد کندل مهلت برای تاییدیه
 
-// --- زیرگروه تنظیمات تلاقی (Confluence)
+// // --- زیرگروه تنظیمات تلاقی (Confluence) ---
 input group           "         --- تنظیمات تلاقی (Confluence) ---"
 input bool            Inp_Talaqi_Auto_Mode    = true;                   // ✅ فعالسازی حالت اتوماتیک برای فاصله تلاقی
 input double          Inp_Talaqi_Distance_in_Points = 3.0;              // [MANUAL] فاصله تلاقی (بر اساس پوینت)
-input int             Inp_Talaqi_Lookback_Period  = 10;                 // [AUTO] دوره نگاه به عقب برای محاسبه فاصله تاریخی
-input double          Inp_Talaqi_Hist_Multiplier = 0.5;                // [AUTO] ضریب تلاقی (مثلا 0.5 یعنی 50% فاصله تاریخی)
+input double          Inp_Talaqi_Kumo_Factor  = 0.2;                    // [AUTO] ضریب تلاقی (0.2 = 20% ضخامت ابر کومو)
 
 // ---=== 🛡️ 4. مدیریت حد ضرر (Stop Loss) 🛡️ ===---
 input group           "       ---=== 🛡️ 4. مدیریت حد ضرر (Stop Loss) 🛡️ ===---"
@@ -87,10 +86,10 @@ struct SSettings
     E_Confirmation_Mode confirmation_type;
     int                 grace_period_candles;
     // 3.1. Talaqi
-    bool                talaqi_auto_mode;
-    double              talaqi_distance_in_points;
-    int                 talaqi_lookback_period;
-    double              talaqi_hist_multiplier;
+bool                talaqi_auto_mode;
+double              talaqi_distance_in_points;
+double              talaqi_kumo_factor; // متغیرهای قدیمی حذف و متغیر جدید اضافه شد
+
     // 4. Stop Loss
     E_SL_Mode           stoploss_type;
     int                 flat_kijun_period, flat_kijun_min_length, pivot_lookback, sl_lookback_period;
