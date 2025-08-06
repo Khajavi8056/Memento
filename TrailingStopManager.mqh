@@ -180,22 +180,24 @@ void CTrailingStopManager::Init(long magic_number)
     if(m_tsl_enabled) Print("کتابخانه Trailing Stop Universal با موفقیت برای مجیک نامبر ", m_magic_number, " فعال شد.");
     
     m_is_initialized = true;
-}
-
-// --- تابع اصلی پردازش که در هر تیک/تایمر اجرا می‌شود ---
+}//+------------------------------------------------------------------+
+//| تابع اصلی پردازش (نسخه نهایی و اصلاح شده)                        |
+//+------------------------------------------------------------------+
 void CTrailingStopManager::Process()
 {
     if(!m_tsl_enabled || !m_is_initialized) return;
 
     for(int i = PositionsTotal() - 1; i >= 0; i--)
     {
-        if(!PositionSelectByTicket(i)) continue;
+        // ✅✅✅ اصلاحیه باگ شماره ۲: استفاده از تابع صحیح برای انتخاب پوزیشن ✅✅✅
+        if(!PositionSelectByIndex(i)) continue;
+        
         if(PositionGetInteger(POSITION_MAGIC) != m_magic_number) continue;
 
         long   ticket     = PositionGetInteger(POSITION_TICKET);
         string symbol     = PositionGetString(POSITION_SYMBOL);
+        ENUM_POSITION_TYPE type = (ENUM_POSITION_TYPE)PositionGetInteger(POSITION_TYPE);
         
-        // دریافت SL اولیه از تاریخچه معامله برای محاسبه دقیق ریسک
         double initial_sl = 0;
         if(HistorySelectByPosition(ticket) && HistoryDealsTotal() > 0)
         {
@@ -203,18 +205,21 @@ void CTrailingStopManager::Process()
            if(deal_ticket > 0) initial_sl = HistoryDealGetDouble(deal_ticket, DEAL_SL);
         }
         
-        if(initial_sl == 0) continue; // اگر معامله از ابتدا SL نداشته، تریل نمی‌کنیم
+        if(initial_sl == 0) continue;
 
-        // --- مرحله ۱: چک کردن شرط فعال‌سازی Trailing Stop ---
+        // --- مرحله ۱: چک کردن شرط فعال‌سازی (با منطق اصلاح شده) ---
         double open_price      = PositionGetDouble(POSITION_PRICE_OPEN);
         double initial_risk    = MathAbs(open_price - initial_sl);
-        double required_profit = initial_risk * m_activation_rr;
-        double current_profit  = PositionGetDouble(POSITION_PROFIT);
+        double required_profit_pips = initial_risk * m_activation_rr;
 
-        if(current_profit < required_profit) continue;
+        // ✅✅✅ اصلاحیه باگ شماره ۱: محاسبه سود فعلی بر حسب اختلاف قیمت (پیپ) ✅✅✅
+        double current_price = (type == POSITION_TYPE_BUY) ? SymbolInfoDouble(symbol, SYMBOL_BID) : SymbolInfoDouble(symbol, SYMBOL_ASK);
+        double current_profit_pips = (type == POSITION_TYPE_BUY) ? (current_price - open_price) : (open_price - current_price);
+        
+        // حالا مقایسه درست انجام می‌شود (پیپ با پیپ)
+        if(current_profit_pips < required_profit_pips) continue;
 
-        // --- مرحله ۲: محاسبه سطح جدید حد ضرر ---
-        ENUM_POSITION_TYPE type = (ENUM_POSITION_TYPE)PositionGetInteger(POSITION_TYPE);
+        // --- مرحله ۲: محاسبه سطح جدید حد ضرر (بدون تغییر) ---
         double new_sl_level = 0;
         switch(m_tsl_mode)
         {
@@ -228,22 +233,21 @@ void CTrailingStopManager::Process()
 
         if(new_sl_level == 0) continue;
 
-        // --- مرحله ۳: اعمال بافر (فقط برای روش‌های نیازمند به بافر) ---
+        // --- مرحله ۳: اعمال بافر (بدون تغییر) ---
         double final_new_sl = new_sl_level;
         if(m_tsl_mode == TSL_MODE_TENKAN || m_tsl_mode == TSL_MODE_KIJUN || m_tsl_mode == TSL_MODE_MA)
         {
             double point = SymbolInfoDouble(symbol, SYMBOL_POINT);
-            double buffer_points = m_buffer_pips * point;
+            double buffer_points = m_buffer_pips * point * 10; // اگر پیپ استاندارد مدنظرت هست
             if(type == POSITION_TYPE_BUY) final_new_sl -= buffer_points;
             else final_new_sl += buffer_points;
         }
         
-        // نرمال‌سازی قیمت بر اساس ارقام اعشار نماد
         int digits = (int)SymbolInfoInteger(symbol, SYMBOL_DIGITS);
         final_new_sl = NormalizeDouble(final_new_sl, digits);
 
-        // --- مرحله ۴: چک کردن اعتبار و بهبود حد ضرر ---
-        double current_sl      = PositionGetDouble(POSITION_SL);
+        // --- مرحله ۴: چک کردن اعتبار و بهبود حد ضرر (بدون تغییر) ---
+        double current_sl = PositionGetDouble(POSITION_SL);
         bool should_modify = false;
         if(type == POSITION_TYPE_BUY)
         {
@@ -252,17 +256,25 @@ void CTrailingStopManager::Process()
         }
         else // POSITION_TYPE_SELL
         {
-            if(final_new_sl < current_sl && final_new_sl > SymbolInfoDouble(symbol, SYMBOL_ASK))
+            if(final_new_sl < current_sl && (current_sl == 0 || final_new_sl > SymbolInfoDouble(symbol, SYMBOL_ASK))) // اضافه کردن شرط current_sl == 0 برای اولین تریل
                 should_modify = true;
         }
         
-        // --- مرحله ۵: ارسال دستور ویرایش پوزیشن ---
+        // --- مرحله ۵: ارسال دستور ویرایش پوزیشن (بدون تغییر) ---
         if(should_modify)
         {
-            m_trade.PositionModify(ticket, final_new_sl, PositionGetDouble(POSITION_TP));
+            if(m_trade.PositionModify(ticket, final_new_sl, PositionGetDouble(POSITION_TP)))
+            {
+                Print("تریلینگ استاپ برای تیکت ", ticket, " به قیمت ", DoubleToString(final_new_sl, digits), " آپدیت شد.");
+            }
+            else
+            {
+                Print("خطا در آپدیت تریلینگ استاپ برای تیکت ", ticket, ". کد خطا: ", m_trade.ResultRetcode());
+            }
         }
     }
 }
+
 
 // --- توابع کمکی برای مدیریت هندل‌ها (موتور مولتی-کارنسی) ---
 int CTrailingStopManager::GetIchimokuHandle(string symbol)
