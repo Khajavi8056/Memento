@@ -182,10 +182,11 @@ void CTrailingStopManager::Process()
 
     for(int i = PositionsTotal() - 1; i >= 0; i--)
     {
-        if(!PositionSelectByIndex(i)) continue;
+         ulong ticket= PositionGetTicket(i);
+        if(!PositionSelect(ticket)) continue;
         if(PositionGetInteger(POSITION_MAGIC) != m_magic_number) continue;
 
-        long ticket = PositionGetInteger(POSITION_TICKET);
+    //    ulong ticket = PositionGetInteger(POSITION_TICKET);
 
         // --- بخش ۱: مدیریت Breakeven (همیشه اول اجرا می‌شود) ---
         if(m_be_enabled) ManageBreakeven(ticket);
