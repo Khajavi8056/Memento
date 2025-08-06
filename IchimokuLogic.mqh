@@ -861,24 +861,40 @@ double CStrategyManager::CalculateDynamicTolerance(int reference_shift)
     return tolerance;
 }
 
+///+------------------------------------------------------------------+
+//| (اتوماتیک) محاسبه حد مجاز تلاقی بر اساس ضخامت ابر کومو            |
+//|                  (نسخه نهایی و هوشمند)                           |
 //+------------------------------------------------------------------+
-//| (مدیر کل) گرفتن حد مجاز تلاقی بر اساس حالت انتخابی (اتو/دستی)     |
-//+------------------------------------------------------------------+
-double CStrategyManager::GetTalaqiTolerance(int reference_shift)
+double CStrategyManager::CalculateDynamicTolerance(int reference_shift)
 {
-    // اگر حالت اتوماتیک روشن بود
-    if(m_settings.talaqi_auto_mode)
+    // اگر ضریب کومو صفر یا منفی باشه، یعنی این روش غیرفعاله
+    if(m_settings.talaqi_kumo_factor <= 0) return 0.0;
+
+    // آرایه‌ها برای نگهداری مقادیر سنکو اسپن A و B در گذشته
+    double senkou_a_buffer[], senkou_b_buffer[];
+
+    // از متاتریدر می‌خوایم که مقدار سنکو A و B رو در "نقطه X" تاریخی به ما بده
+    // بافر 2 = Senkou Span A
+    // بافر 3 = Senkou Span B
+    if(CopyBuffer(m_ichimoku_handle, 2, reference_shift, 1, senkou_a_buffer) < 1 || 
+       CopyBuffer(m_ichimoku_handle, 3, reference_shift, 1, senkou_b_buffer) < 1)
     {
-        // برو از روش هوشمند (تاریخی) حساب کن
-        return CalculateDynamicTolerance(reference_shift);
+       Log("داده کافی برای محاسبه ضخامت کومو در گذشته وجود ندارد.");
+       return 0.0; // اگر داده نبود، مقدار صفر برمی‌گردونیم تا تلاقی چک نشه
     }
-    // اگر حالت اتوماتیک خاموش بود
-    else
-    {
-        // برو از روش ساده (دستی) حساب کن
-        return m_settings.talaqi_distance_in_points * SymbolInfoDouble(m_symbol, SYMBOL_POINT);
-    }
+
+    // گام ۱: محاسبه ضخامت کومو در "نقطه X"
+    double kumo_thickness = MathAbs(senkou_a_buffer[0] - senkou_b_buffer[0]);
+
+    // اگر ضخامت کومو صفر بود (مثلا در کراس سنکوها)، یه مقدار خیلی کوچیک برگردون
+    if(kumo_thickness == 0) return SymbolInfoDouble(m_symbol, SYMBOL_POINT);
+
+    // گام ۲: محاسبه حد مجاز تلاقی بر اساس ضریب ورودی کاربر
+    double tolerance = kumo_thickness * m_settings.talaqi_kumo_factor;
+
+    return tolerance;
 }
+
 
 //+------------------------------------------------------------------+
 //| (حالت مسابقه‌ای) اضافه کردن سیگنال جدید به لیست نامزدها            |
