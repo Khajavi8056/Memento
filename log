@@ -1,2 +1,1 @@
-'struct SPotentialSignal' initialized from type type 'SPotentialSignal' using assignment operator, this behavior is deprecated and will be removed in future	IchimokuLogic.mqh	253	44
-   consider defining copy constructor 'SPotentialSignal(const SPotentialSignal&)'	IchimokuLogic.mqh	15	8
+'PositionSelectByIndex' - undeclared identifier	TrailingStopManager.mqh	185	13
