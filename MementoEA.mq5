@@ -48,12 +48,11 @@ int OnInit()
     g_settings.signal_mode                  = Inp_Signal_Mode;
         
         
-    g_settings.talaqi_auto_mode             = Inp_Talaqi_Auto_Mode;
-    g_settings.talaqi_distance_in_points    = Inp_Talaqi_Distance_in_Points;
-    g_settings.talaqi_lookback_period       = Inp_Talaqi_Lookback_Period;
-    g_settings.talaqi_hist_multiplier       = Inp_Talaqi_Hist_Multiplier;
-    
-    g_settings.stoploss_type                = Inp_StopLoss_Type;
+   g_settings.talaqi_auto_mode             = Inp_Talaqi_Auto_Mode;
+   g_settings.talaqi_distance_in_points    = Inp_Talaqi_Distance_in_Points;
+   g_settings.talaqi_kumo_factor           = Inp_Talaqi_Kumo_Factor;
+  
+   g_settings.stoploss_type                = Inp_StopLoss_Type;
     g_settings.sl_lookback_period           = Inp_SL_Lookback_Period;
     g_settings.sl_buffer_multiplier         = Inp_SL_Buffer_Multiplier;
     g_settings.flat_kijun_period            = Inp_Flat_Kijun_Period;
