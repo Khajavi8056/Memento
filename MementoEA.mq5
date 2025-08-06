@@ -3,7 +3,7 @@
 //|                                  Copyright 2025,hipoalgoritm |
 //|                                                  Final & Bulletproof |
 //+------------------------------------------------------------------+
-#property copyright "Copyright 2025,hipoalgoritm
+#property copyright "Copyright 2025,hipoalgoritm"
 #property link      "https://www.mql5.com"
 #property version   "1.7" // نسخه نهایی و کاملا اصلاح شده
 #property description "اکسپرت معاملاتی پیشرفته ممنتو بر اساس استراتژی کراس سه گانه ایچیموکو"
@@ -13,6 +13,7 @@
 #include <Object.mqh>
 #include "IchimokuLogic.mqh"
 #include "VisualManager.mqh"
+#include "TrailingStopManager.mqh"
 
 
 
@@ -21,7 +22,7 @@ SSettings            g_settings;
 string               g_symbols_array[];
 CStrategyManager* g_symbol_managers[];
 bool              g_dashboard_needs_update = true; // پرچم برای آپدیت هوشمند داشبورد
-
+   CTrailingStopManager TrailingStop;
 //+------------------------------------------------------------------+
 //| تابع شروع اکسپرت (مقداردهی اولیه)                                |
 //+------------------------------------------------------------------+
@@ -92,7 +93,8 @@ int OnInit()
     }
 
     Print("اکسپرت Memento با موفقیت برای نمادهای زیر مقداردهی اولیه شد: ", g_settings.symbols_list);
-    
+     TrailingStop.Init(Inp_Magic_Number); // magic_number شماره جادویی اکسپرت
+
     //--- راه‌اندازی تایمر برای اجرای مداوم
     EventSetTimer(1);
     return(INIT_SUCCEEDED);
@@ -127,6 +129,7 @@ ChartRedraw();
 //+------------------------------------------------------------------+
 void OnTimer()
 {
+ TrailingStop.Process();
     //--- اجرای منطق برای تمام نمادهای تحت مدیریت
     for (int i = 0; i < ArraySize(g_symbol_managers); i++)
     {
@@ -167,10 +170,8 @@ void OnTradeTransaction(const MqlTradeTransaction &trans,
     if (trans.type == TRADE_TRANSACTION_DEAL_ADD)
     {
         // اگه معامله مربوط به همین اکسپرت بود
-        if (trans.magic == (ulong)g_settings.magic_number)
-        {
+        
             g_dashboard_needs_update = true;
-        }
+       
     }
 }
-
