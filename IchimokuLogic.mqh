@@ -10,14 +10,30 @@
 #include <Trade\SymbolInfo.mqh>
 #include <Object.mqh>
 #include "VisualManager.mqh"
-
 //--- تعریف ساختار سیگنال
 struct SPotentialSignal
 {
     datetime        time;
     bool            is_buy;
     int             grace_candle_count;
+    
+    // +++ این بخش رو اضافه کن +++
+    // سازنده کپی (Copy Constructor)
+    SPotentialSignal(const SPotentialSignal &other)
+    {
+        time = other.time;
+        is_buy = other.is_buy;
+        grace_candle_count = other.grace_candle_count;
+    }
+    // سازنده پیش‌فرض (برای اینکه کد به مشکل نخوره)
+    SPotentialSignal()
+    {
+       // خالی می‌مونه
+    }
+    // +++ پایان بخش اضافه شده +++
 };
+
+ 
 /*struct SSettings
 {
     string              symbols_list;
