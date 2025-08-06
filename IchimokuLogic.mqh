@@ -1,4 +1,4 @@
-/+------------------------------------------------------------------+
+//+------------------------------------------------------------------+
 //|                                     IchimokuLogic.mqh            |
 //|                          © 2025, hipoalgoritm              |
 //+------------------------------------------------------------------+
@@ -250,7 +250,7 @@ void CStrategyManager::ProcessNewBar()
         {
             for (int i = ArraySize(m_potential_signals) - 1; i >= 0; i--)
             {
-                SPotentialSignal &candidate = m_potential_signals[i];
+                SPotentialSignal candidate = m_potential_signals[i];
 
                 // آیا مهلت این نامزد تمام شده؟
                 if (candidate.grace_candle_count >= m_settings.grace_period_candles)
