@@ -98,8 +98,10 @@ private:
     
     //--- محاسبه استاپ لاس
     double CalculateStopLoss(bool is_buy, double entry_price);
-    
-    double GetTalaqiTolerance(int reference_shift);      // <<-- این خط رو اضافه کن
+    double CalculateAtrStopLoss(bool is_buy, double entry_price);
+        double GetTalaqiTolerance(int reference_shift);
+    double CalculateAtrTolerance(int reference_shift);
+
     double CalculateDynamicTolerance(int reference_shift); // <<-- این خط رو هم اضافه کن
   
     double FindFlatKijun();
@@ -524,29 +526,46 @@ bool CStrategyManager::CheckFinalConfirmation(bool is_buy)
     return false;
 }
 
-
 //+------------------------------------------------------------------+
-//| تابع محاسبه استاپ لاس (همراه با روش نهایی)                       |
+//| (جایگزین شد) تابع محاسبه استاپ لاس با پشتیبانی از تمام حالت‌ها     |
 //+------------------------------------------------------------------+
 double CStrategyManager::CalculateStopLoss(bool is_buy, double entry_price)
 {
-    double buffer = m_settings.sl_buffer_multiplier * SymbolInfoDouble(m_symbol, SYMBOL_POINT);
     double sl_price = 0;
+    double buffer = m_settings.sl_buffer_multiplier * SymbolInfoDouble(m_symbol, SYMBOL_POINT);
 
-    if (m_settings.stoploss_type == MODE_COMPLEX)
+    switch(m_settings.stoploss_type)
     {
-        sl_price = FindFlatKijun();
-        if (sl_price != 0) return is_buy ? sl_price - buffer : sl_price + buffer;
-        
-        sl_price = FindPivotKijun(is_buy);
-        if (sl_price != 0) return is_buy ? sl_price - buffer : sl_price + buffer;
-        
-        sl_price = FindPivotTenkan(is_buy);
-        if (sl_price != 0) return is_buy ? sl_price - buffer : sl_price + buffer;
+        case MODE_COMPLEX:
+            sl_price = FindFlatKijun();
+            if (sl_price != 0) return(is_buy ? sl_price - buffer : sl_price + buffer);
+            
+            sl_price = FindPivotKijun(is_buy);
+            if (sl_price != 0) return(is_buy ? sl_price - buffer : sl_price + buffer);
+            
+            sl_price = FindPivotTenkan(is_buy);
+            if (sl_price != 0) return(is_buy ? sl_price - buffer : sl_price + buffer);
+            
+            // اگر هیچکدام از روش‌های پیچیده جواب نداد، از روش ساده استفاده کن
+            return FindBackupStopLoss(is_buy, buffer);
+
+        case MODE_SIMPLE:
+            return FindBackupStopLoss(is_buy, buffer);
+
+        case MODE_ATR:
+            sl_price = CalculateAtrStopLoss(is_buy, entry_price);
+            // اگر محاسبه ATR به هر دلیلی موفقیت‌آمیز نبود، برای امنیت از روش ساده استفاده کن
+            if(sl_price == 0)
+            {
+                Log("محاسبه ATR SL با خطا مواجه شد. استفاده از روش پشتیبان...");
+                return FindBackupStopLoss(is_buy, buffer);
+            }
+            return sl_price;
     }
-    
-    return FindBackupStopLoss(is_buy, buffer);
+
+    return 0.0; // این خط هرگز نباید اجرا شود، اما برای ایمنی کد وجود دارد
 }
+
 
 //---+//+------------------------------------------------------------------+
 //| تابع استاپ لاس پشتیبان (بازنویسی کامل بر اساس منطق رنگ مخالف)   |
@@ -841,24 +860,27 @@ double CStrategyManager::FindPivotTenkan(bool is_buy)
     return 0.0; // هیچ پیوتی پیدا نشد
 }
 
-///+------------------------------------------------------------------+
-//| (مدیر کل) گرفتن حد مجاز تلاقی بر اساس حالت انتخابی (اتو/دستی)     |
+////+------------------------------------------------------------------+
+//| (جایگزین شد) مدیر کل گرفتن حد مجاز تلاقی بر اساس حالت انتخابی      |
 //+------------------------------------------------------------------+
 double CStrategyManager::GetTalaqiTolerance(int reference_shift)
 {
-    // اگر حالت اتوماتیک روشن بود
-    if(m_settings.talaqi_auto_mode)
+    switch(m_settings.talaqi_calculation_mode)
     {
-        // برو از روش هوشمند (مبتنی بر کومو) حساب کن
-        return CalculateDynamicTolerance(reference_shift);
-    }
-    // اگر حالت اتوماتیک خاموش بود
-    else
-    {
-        // برو از روش ساده (دستی) حساب کن
-        return m_settings.talaqi_distance_in_points * SymbolInfoDouble(m_symbol, SYMBOL_POINT);
+        case TALAQI_MODE_MANUAL:
+            return m_settings.talaqi_distance_in_points * SymbolInfoDouble(m_symbol, SYMBOL_POINT);
+        
+        case TALAQI_MODE_KUMO:
+            return CalculateDynamicTolerance(reference_shift); // روش مبتنی بر کومو
+        
+        case TALAQI_MODE_ATR:
+            return CalculateAtrTolerance(reference_shift);     // روش جدید مبتنی بر ATR
+            
+        default:
+            return 0.0;
     }
 }
+
 
 //+------------------------------------------------------------------+
 //| (اتوماتیک) محاسبه حد مجاز تلاقی بر اساس ضخامت ابر کومو            |
@@ -919,3 +941,70 @@ void CStrategyManager::AddOrUpdatePotentialSignal(bool is_buy)
     m_visual_manager.DrawTripleCrossRectangle(is_buy, m_settings.chikou_period);
 
 }
+
+//+------------------------------------------------------------------+
+//| (جدید) محاسبه حد مجاز تلاقی بر اساس ATR                          |
+//+------------------------------------------------------------------+
+double CStrategyManager::CalculateAtrTolerance(int reference_shift)
+{
+    if(m_settings.talaqi_atr_multiplier <= 0) return 0.0;
+
+    // تعریف هندل برای اندیکاتور ATR
+    int atr_handle = iATR(m_symbol, _Period, 14);
+    if(atr_handle == INVALID_HANDLE)
+    {
+        Log("خطا در ایجاد هندل ATR برای محاسبه تلاقی.");
+        return 0.0;
+    }
+
+    double atr_buffer[];
+    // مقدار ATR رو در کندل مرجع تاریخی (مثلا 26 کندل قبل) می‌گیریم
+    if(CopyBuffer(atr_handle, 0, reference_shift, 1, atr_buffer) < 1)
+    {
+        Log("داده کافی برای محاسبه ATR در گذشته وجود ندارد.");
+        IndicatorRelease(atr_handle);
+        return 0.0;
+    }
+    
+    IndicatorRelease(atr_handle); // هندل را آزاد می‌کنیم
+    
+    double tolerance = atr_buffer[0] * m_settings.talaqi_atr_multiplier;
+    return tolerance;
+}
+
+//+------------------------------------------------------------------+
+//| (جدید) محاسبه حد ضرر اولیه بر اساس ATR                           |
+//+------------------------------------------------------------------+
+double CStrategyManager::CalculateAtrStopLoss(bool is_buy, double entry_price)
+{
+    int atr_handle = iATR(m_symbol, _Period, 14);
+    if(atr_handle == INVALID_HANDLE)
+    {
+        Log("خطا در ایجاد هندل ATR برای محاسبه حد ضرر.");
+        return 0.0;
+    }
+
+    double atr_buffer[];
+    // مقدار ATR کندل قبلی (کندل شماره 1) رو می‌گیریم
+    if(CopyBuffer(atr_handle, 0, 1, 1, atr_buffer) < 1)
+    {
+        Log("داده ATR برای محاسبه حد ضرر موجود نیست.");
+        IndicatorRelease(atr_handle);
+        return 0.0;
+    }
+    
+    IndicatorRelease(atr_handle);
+
+    double atr_value = atr_buffer[0];
+    double sl_price = 0;
+
+    if(is_buy)
+        sl_price = entry_price - (atr_value * m_settings.sl_atr_multiplier);
+    else
+        sl_price = entry_price + (atr_value * m_settings.sl_atr_multiplier);
+            
+    return sl_price;
+}
+
+
+
