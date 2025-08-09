@@ -86,6 +86,12 @@ private:
     bool                m_is_waiting;
     SPotentialSignal    m_potential_signals[];
     CVisualManager* m_visual_manager;
+    
+    // +++ این تابع جدید را اینجا اضافه کن +++
+    CVisualManager* GetVisualManager() { return m_visual_manager; }
+    // +++ پایان بخش اضافه شده +++
+    
+
 
     //--- توابع کمکی
     void Log(string message);
