@@ -37,6 +37,12 @@ struct SManagedObject
     long            CreationBar;    // شماره کندلی که شیء در آن ساخته شده
 };
 
+struct SDashboardData
+{
+    int    trades_count;
+    double cumulative_pl;
+};
+
 
 //+------------------------------------------------------------------+
 //| کلاس مدیریت گرافیک (بازنویسی کامل)                                |
@@ -52,7 +58,17 @@ private:
     string              m_symbols_list[];
     
     // --- آرایه برای ردیابی اشیاء ماندگار
+    
+
+    // --- آرایه برای ردیابی اشیاء ماندگار
     SManagedObject      m_managed_objects[];
+    
+    // +++ این دو خط جدید را اینجا اضافه کن +++
+    SDashboardData      m_dashboard_data[];  // دفترچه حسابداری ما
+    // +++ پایان بخش اضافه شده +++
+
+
+
 
 public:
     CVisualManager(string symbol, SSettings &settings);
@@ -73,7 +89,35 @@ public:
     void DrawScanningArea(bool is_buy, int start_shift, int current_shift);
     
     // --- تابع پاکسازی
-    void CleanupOldObjects(const int max_age_in_bars);
+   void CleanupOldObjects(const int max_age_in_bars);
+
+
+    
+
+    // این تابع ایندکس یک نماد رو در آرایه‌های ما پیدا می‌کنه
+    int GetSymbolIndex(string symbol)
+    {
+        for(int i = 0; i < ArraySize(m_symbols_list); i++)
+        {
+            if(m_symbols_list[i] == symbol)
+                return i;
+        }
+        return -1; // اگر پیدا نشد
+    }
+
+    // این تابع دفترچه حسابداری ما رو برای یک نماد آپدیت می‌کنه
+    void UpdateDashboardCache(int symbol_index, double deal_profit, double deal_commission, double deal_swap)
+    {
+        if(symbol_index >= 0 && symbol_index < ArraySize(m_dashboard_data))
+        {
+            m_dashboard_data[symbol_index].trades_count++;
+            m_dashboard_data[symbol_index].cumulative_pl += deal_profit + deal_commission + deal_swap;
+        }
+    }
+    // +++ پایان بخش اضافه شده +++
+
+
+
 };
 
 
@@ -113,6 +157,7 @@ void CVisualManager::Deinit()
     ChartRedraw(0);
 }
 
+// +++ این تابع را به طور کامل جایگزین کن +++
 void CVisualManager::InitDashboard()
 {
     if(!m_settings.enable_dashboard) return;
@@ -121,7 +166,10 @@ void CVisualManager::InitDashboard()
     int total_symbols = ArraySize(m_symbols_list);
     if(total_symbols == 0) return;
     
+    // آماده‌سازی آرایه‌ها
     ArrayResize(m_panel_boxes, total_symbols);
+    ArrayResize(m_dashboard_data, total_symbols); // <- این خط جدید است
+    
     int current_x = DASHBOARD_X_GAP;
 
     for(int i = 0; i < total_symbols; i++)
@@ -130,6 +178,7 @@ void CVisualManager::InitDashboard()
         StringTrimLeft(sym);
         StringTrimRight(sym);
         
+        // --- بخش ساخت اشیاء گرافیکی (بدون تغییر) ---
         string base_name = MEMENTO_OBJ_PREFIX + sym;
         m_panel_boxes[i].MainBoxName      = base_name + "_MainBox";
         m_panel_boxes[i].SymbolLabelName  = base_name + "_SymbolLabel";
@@ -179,10 +228,29 @@ void CVisualManager::InitDashboard()
         ObjectSetInteger(0, m_panel_boxes[i].PlLabelName, OBJPROP_HIDDEN, true);
         
         current_x += BOX_WIDTH + DASHBOARD_X_GAP;
+        
+        // --- بخش جدید: حسابداری اولیه و پر کردن دفترچه ---
+        if(!HistorySelect(0, TimeCurrent())) continue;
+        int trades_count = 0;
+        double cumulative_pl = 0;
+        uint total_deals = HistoryDealsTotal();
+        for(uint j = 0; j < total_deals; j++)
+        {
+            ulong ticket = HistoryDealGetTicket(j);
+            if(HistoryDealGetString(ticket, DEAL_SYMBOL) == sym && HistoryDealGetInteger(ticket, DEAL_MAGIC) == (long)m_settings.magic_number && HistoryDealGetInteger(ticket, DEAL_ENTRY) == DEAL_ENTRY_OUT)
+            {
+                trades_count++;
+                cumulative_pl += HistoryDealGetDouble(ticket, DEAL_PROFIT) + HistoryDealGetDouble(ticket, DEAL_SWAP) + HistoryDealGetDouble(ticket, DEAL_COMMISSION);
+            }
+        }
+        m_dashboard_data[i].trades_count = trades_count;
+        m_dashboard_data[i].cumulative_pl = cumulative_pl;
     }
     ChartRedraw(0);
 }
 
+// +++ این تابع را به طور کامل جایگزین کن +++
+// +++ این تابع را به طور کامل جایگزین کن +++
 void CVisualManager::UpdateDashboard()
 {
     if(!m_settings.enable_dashboard || ArraySize(m_symbols_list) == 0) return;
@@ -190,8 +258,9 @@ void CVisualManager::UpdateDashboard()
     for(int i = 0; i < ArraySize(m_symbols_list); i++)
     {
         string sym = m_symbols_list[i];
-        long magic = m_settings.magic_number;
+        long magic = (long)m_settings.magic_number;
         
+        // --- بخش آپدیت رنگ جعبه اصلی (بدون تغییر) ---
         color box_color = clrSteelBlue; 
         if(PositionSelect(sym) && PositionGetInteger(POSITION_MAGIC) == magic)
         {
@@ -200,25 +269,16 @@ void CVisualManager::UpdateDashboard()
         }
         ObjectSetInteger(0, m_panel_boxes[i].MainBoxName, OBJPROP_BGCOLOR, box_color);
 
-        // PERFORMANCE WARNING: این حلقه در حساب‌هایی با تاریخچه طولانی بسیار کند خواهد بود
-        if(!HistorySelect(0, TimeCurrent())) continue;
-        int trades_count = 0;
-        double cumulative_pl = 0;
-        uint total_deals = HistoryDealsTotal();
-        for(uint j = 0; j < total_deals; j++)
-        {
-            ulong ticket = HistoryDealGetTicket(j);
-            if(HistoryDealGetString(ticket, DEAL_SYMBOL) == sym && HistoryDealGetInteger(ticket, DEAL_MAGIC) == magic && HistoryDealGetInteger(ticket, DEAL_ENTRY) == DEAL_ENTRY_OUT)
-            {
-                trades_count++;
-                cumulative_pl += HistoryDealGetDouble(ticket, DEAL_PROFIT) + HistoryDealGetDouble(ticket, DEAL_SWAP) + HistoryDealGetDouble(ticket, DEAL_COMMISSION);
-            }
-        }
+        // --- بخش جدید: خواندن اطلاعات از دفترچه (کش) ---
+        int trades_count = m_dashboard_data[i].trades_count;
+        double cumulative_pl = m_dashboard_data[i].cumulative_pl;
         
+        // --- بخش نمایش پنل زیرین بر اساس داده‌های دفترچه ---
         bool show_sub_panel = trades_count > 0;
         ObjectSetInteger(0, m_panel_boxes[i].SubPanelName, OBJPROP_HIDDEN, !show_sub_panel);
         ObjectSetInteger(0, m_panel_boxes[i].TradesLabelName, OBJPROP_HIDDEN, !show_sub_panel);
         ObjectSetInteger(0, m_panel_boxes[i].PlLabelName, OBJPROP_HIDDEN, !show_sub_panel);
+        
         if(show_sub_panel)
         {
             ObjectSetString(0, m_panel_boxes[i].TradesLabelName, OBJPROP_TEXT, "Trades: " + (string)trades_count);
@@ -228,6 +288,7 @@ void CVisualManager::UpdateDashboard()
     }
     ChartRedraw(0);
 }
+
 
 void CVisualManager::DrawTripleCrossRectangle(bool is_buy, int shift)
 {
