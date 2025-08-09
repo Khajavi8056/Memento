@@ -157,6 +157,8 @@ void OnTimer()
 
 
 
+
+
 //+------------------------------------------------------------------+
 //| تابع رویدادهای معاملاتی                                           |
 //+------------------------------------------------------------------+
@@ -209,6 +211,32 @@ void OnTradeTransaction(const MqlTradeTransaction &trans,
                  
                  // در هر صورت (چه باز شدن و چه بسته شدن) داشبورد نیاز به آپدیت دارد
                  g_dashboard_needs_update = true;
+            }
+        }
+    }
+}
+
+
+
+//+------------------------------------------------------------------+
+//| تابع مدیریت رویدادهای چارت (برای کلیک روی دکمه)                   |
+//+------------------------------------------------------------------+
+void OnChartEvent(const int id,
+                  const long &lparam,
+                  const double &dparam,
+                  const string &sparam)
+{
+    // اگر رویداد از نوع کلیک روی یک آبجکت بود
+    if(id == CHARTEVENT_OBJECT_CLICK)
+    {
+        // مدیر استراتژی مربوط به چارت فعلی را پیدا کن
+        for(int i = 0; i < ArraySize(g_symbol_managers); i++)
+        {
+            if(g_symbol_managers[i] != NULL && g_symbol_managers[i].GetSymbol() == _Symbol)
+            {
+                // رویداد را برای پردازش به مدیر گرافیک ارسال کن
+                g_symbol_managers[i].GetVisualManager().OnChartEvent(id, lparam, dparam, sparam);
+                break; // کار تمام است، از حلقه خارج شو
             }
         }
     }
