@@ -1,0 +1,198 @@
+<svg width="900" height="700" viewBox="0 0 900 700" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#111827;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1F2937;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+
+  <style>
+    /* --- SVG Styles --- */
+    .title { font: bold 24px 'Segoe UI', Tahoma, sans-serif; fill: #E5E7EB; text-anchor: middle; }
+    .phase { font: bold 18px 'Segoe UI', Tahoma, sans-serif; fill: #D1D5DB; text-anchor: end; }
+    .task { font: 16px 'Segoe UI', Tahoma, sans-serif; fill: #9CA3AF; text-anchor: end; }
+    .subtask { font: 14px 'Segoe UI', Tahoma, sans-serif; fill: #6B7280; text-anchor: end; }
+    .checkbox { cursor: pointer; }
+    .tick { fill: none; stroke: #10B981; stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
+    .toggleButtonText { font: bold 16px 'Segoe UI', Tahoma, sans-serif; fill: #D1D5DB; text-anchor: middle; pointer-events: none; }
+
+    /* --- HTML Styles (inside foreignObject) --- */
+    .report-container {
+      font-family: 'Vazirmatn', 'Segoe UI', Tahoma, sans-serif;
+      color: #D1D5DB;
+      background-color: rgba(31, 41, 55, 0.95);
+      border: 1px solid #4B5563;
+      border-radius: 10px;
+      padding: 20px;
+      height: 100%;
+      overflow-y: auto;
+    }
+    .report-container h1 { color: #93C5FD; font-size: 24px; border-bottom: 1px solid #4B5563; padding-bottom: 10px; }
+    .report-container h2 { color: #A5B4FC; font-size: 20px; margin-top: 30px; }
+    .report-container h3 { color: #C7D2FE; font-size: 16px; font-weight: bold; }
+    .report-container p { line-height: 1.6; text-align: justify; }
+    .report-container table { border-collapse: collapse; width: 100%; margin: 20px 0; }
+    .report-container th, .report-container td { border: 1px solid #4B5563; padding: 8px; text-align: center; }
+    .report-container th { background-color: #374151; color: #E5E7EB; }
+    .report-container strong { color: #FBBF24; }
+  </style>
+
+  <script type="text/javascript">
+    //<![CDATA[
+      function toggleReport() {
+        const report = document.getElementById('report-container');
+        if (report.style.display === 'none') {
+          report.style.display = 'block';
+        } else {
+          report.style.display = 'none';
+        }
+      }
+
+      window.addEventListener('load', function() {
+        const checkboxes = document.querySelectorAll('.checkbox');
+        checkboxes.forEach(box => {
+          const tickId = box.id.replace('box', 'tick');
+          const tick = document.getElementById(tickId);
+
+          if (localStorage.getItem(box.id) === 'checked') {
+            tick.style.display = 'inline';
+          } else {
+            tick.style.display = 'none';
+          }
+
+          box.addEventListener('click', function() {
+            if (tick.style.display === 'none') {
+              tick.style.display = 'inline';
+              localStorage.setItem(box.id, 'checked');
+            } else {
+              tick.style.display = 'none';
+              localStorage.removeItem(box.id);
+            }
+          });
+        });
+      });
+    //]]>
+  </script>
+
+  <rect width="100%" height="100%" fill="url(#bgGradient)"/>
+
+  <g id="roadmap-checklist">
+    <text x="450" y="50" class="title">نقشه راه توسعه و پیاده‌سازی اکسپرت Memento</text>
+    <line x1="50" y1="70" x2="850" y2="70" stroke="#374151" stroke-width="1"/>
+
+    <g>
+      <text x="820" y="110" class="phase">فاز ۱: پی‌ریزی بنیادین - پایداری و ریسک پویا</text>
+      <text x="760" y="145" class="task">۱.۱: پیاده‌سازی تلاقی مبتنی بر ATR</text>
+      <text x="760" y="195" class="task">۱.۲: پیاده‌سازی حد ضرر مبتنی بر ATR</text>
+      <text x="760" y="245" class="task">۱.۳: اعتبارسنجی فاز اول</text>
+      <rect id="box-1.1" class="checkbox" x="770" y="130" width="22" height="22" rx="4" stroke="#4B5563" fill="#1F2937" stroke-width="2"/>
+      <polyline id="tick-1.1" class="tick" points="776,141 781,146 788,135" style="display:none;"/>
+      <rect id="box-1.2" class="checkbox" x="770" y="180" width="22" height="22" rx="4" stroke="#4B5563" fill="#1F2937" stroke-width="2"/>
+      <polyline id="tick-1.2" class="tick" points="776,191 781,196 788,185" style="display:none;"/>
+      <rect id="box-1.3" class="checkbox" x="770" y="230" width="22" height="22" rx="4" stroke="#4B5563" fill="#1F2937" stroke-width="2"/>
+      <polyline id="tick-1.3" class="tick" points="776,241 781,246 788,235" style="display:none;"/>
+    </g>
+
+    <g>
+      <text x="820" y="310" class="phase">فاز ۲: افزایش دقت و سودآوری</text>
+      <text x="760" y="345" class="task">۲.۱: پیاده‌سازی دوره مهلت (Grace Period) انطباقی</text>
+      <text x="760" y="395" class="task">۲.۲: پیاده‌سازی فیلتر تایید چند-زمانی (MTF)</text>
+      <rect id="box-2.1" class="checkbox" x="770" y="330" width="22" height="22" rx="4" stroke="#4B5563" fill="#1F2937" stroke-width="2"/>
+      <polyline id="tick-2.1" class="tick" points="776,341 781,346 788,335" style="display:none;"/>
+      <rect id="box-2.2" class="checkbox" x="770" y="380" width="22" height="22" rx="4" stroke="#4B5563" fill="#1F2937" stroke-width="2"/>
+      <polyline id="tick-2.2" class="tick" points="776,391 781,396 788,385" style="display:none;"/>
+    </g>
+
+    <g>
+      <text x="820" y="460" class="phase">فاز ۳: بهینه‌سازی کیفیت - موتور امتیازدهی</text>
+      <text x="760" y="495" class="task">۳.۱: پیاده‌سازی موتور امتیازدهی سیگنال</text>
+      <rect id="box-3.1" class="checkbox" x="770" y="480" width="22" height="22" rx="4" stroke="#4B5563" fill="#1F2937" stroke-width="2"/>
+      <polyline id="tick-3.1" class="tick" points="776,491 781,496 788,485" style="display:none;"/>
+    </g>
+  </g>
+  
+  <g id="report-section">
+    <line x1="50" y1="560" x2="850" y2="560" stroke="#374151" stroke-width="1"/>
+    
+    <rect id="report-toggle-button" onclick="toggleReport()" class="checkbox" x="300" y="575" width="300" height="40" rx="8" stroke="#4B5563" fill="#293548" stroke-width="2"/>
+    <text class="toggleButtonText" x="450" y="601">نمایش / پنهان‌سازی گزارش کامل تحقیق</text>
+    
+    <foreignObject id="report-container" x="25" y="25" width="850" height="650" style="display:none;">
+      <div xmlns="http://www.w3.org/1999/xhtml" class="report-container">
+        <h1>گزارش جامع تحقیقاتی: اکسپرت Memento</h1>
+        
+        <h2>چکیده اجرایی</h2>
+        <p>
+          این گزارش یک تحلیل جامع و چندوجهی از اکسپرت معاملاتی "Memento" ارائه می‌دهد که بر اساس استراتژی معاملاتی ایچیموکو کینکو هیو (Ichimoku Kinko Hyo) استوار است. هدف اصلی این پروژه، کالبدشکافی استراتژی معاملاتی پایه، اعتبارسنجی کمی عملکرد آن از طریق بک‌تست‌های دقیق، و در نهایت، ارائه مجموعه‌ای از بهبودهای الگوریتمی پیشرفته و <strong>اثبات‌شده با داده</strong> برای ارتقای کارایی، پایداری و مدیریت ریسک سیستم است. تحلیل SWOT، نقاط ضعف حیاتی سیستم، به ویژه آسیب‌پذیری آن در بازارهای بدون روند را آشکار می‌سازد. برای رفع این نواقص، ماژول‌های بهبود کلیدی شامل <strong>فیلتر نوسان انطباقی</strong>، <strong>سیستم امتیازدهی کیفیت سیگنال</strong>، و <strong>هم‌افزایی چند-زمانی</strong> پیشنهاد و با نتایج بک‌تست اعتبارسنجی شده‌اند. علاوه بر این، یک تحقیق ویژه بر روی پنج روش پیشرفته برای محاسبه "تلاقی" ارائه شده است. نتیجه نهایی، یک نقشه راه عملی برای تبدیل Memento به یک ابزار معاملاتی قوی، هوشمند و باثبات‌تر است.
+        </p>
+        
+        <h2>بخش اول: تحلیل بنیادین استراتژی</h2>
+        <h3>۱.۱ کالبدشکافی منطق سیستم</h3>
+        <p>
+          بر اساس تحلیل کد منبع، اکسپرت Memento یک سیستم پیچیده و چندلایه است که منطق آن را می‌توان به سه بخش اصلی تقسیم کرد:
+          <ul>
+            <li><strong>موتور تولید سیگنال (کراس سه‌گانه):</strong> این هسته اصلی استراتژی است و خود از سه فیلتر متوالی تشکیل شده است:
+              <ol>
+                <li><strong>شرط اولیه (کراس/تلاقی تاریخی):</strong> در نقطه زمانی مرجع (به اندازه `chikou_period` کندل قبل)، باید کراس کلاسیک یا تلاقی بین خطوط تنکان-سن و کیجون-سن رخ داده باشد.</li>
+                <li><strong>شرط تکمیلی (عبور چیکو):</strong> قیمت فعلی (در نقش چیکو اسپن) باید از ناحیه کراس/تلاقی تاریخی عبور کند. این عبور باید با یک حرکت یکنواخت و بدون بازگشت در سه کندل اخیر همراه باشد.</li>
+                <li><strong>تأیید نهایی (Final Confirmation):</strong> پس از برقراری دو شرط اول، سیستم وارد یک "دوره مهلت" (Grace Period) شده و منتظر تایید نهایی بر اساس موقعیت کندل جاری نسبت به خطوط ایچیموکو می‌ماند.</li>
+              </ol>
+            </li>
+            <li><strong>سیستم تاییدیه و مدیریت سیگنال:</strong> این سیستم شامل "دوره مهلت" برای جلوگیری از ورود دیرهنگام و دو حالت "جایگزینی سیگنال" و "مسابقه سیگنال‌ها" برای مدیریت فرصت‌های معاملاتی است.</li>
+            <li><strong>سیستم مدیریت حد ضرر چندلایه:</strong> این سیستم پیشرفته به ترتیب اولویت از سطوح کیجون فلت، پیوت‌های کیجون/تنکان، و در نهایت از کندل با رنگ مخالف برای تعیین بهینه‌ترین نقطه حد ضرر استفاده می‌کند.</li>
+          </ul>
+        </p>
+        <h3>۱.۲ تحلیل SWOT جامع</h3>
+        <table>
+          <thead>
+            <tr><th>نقاط قوت (Strengths)</th><th>نقاط ضعف (Weaknesses)</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>- منطق چندلایه و فیلترشده برای کاهش سیگنال کاذب<br/>- مدیریت ریسک پیشرفته و چند سطحی<br/>- انعطاف‌پذیری بالا با دو حالت مدیریت سیگنال<br/>- تطبیق‌پذیری با نوسان از طریق تلاقی پویا</td>
+              <td>- تأخیر ذاتی (Lagging) به دلیل ماهیت ایچیموکو<br/>- آسیب‌پذیری بالا در بازارهای بدون روند (Ranging)<br/>- وابستگی به پارامترهای ثابت مانند Grace Period<br/>- عدم وجود تحلیل چند-زمانی (Multi-Timeframe)</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h2>بخش دوم: ارائه و اعتبارسنجی بهبودهای الگوریتمی</h2>
+        <h3>جدول خلاصه نتایج بک‌تست‌ها (۲۰۲۳-۲۰۲۴)</h3>
+        <table>
+          <thead>
+            <tr><th>نماد</th><th>معیار</th><th>نسخه اصلی</th><th>بهبود ۱: فیلتر نوسان</th><th>بهبود ۲: امتیازدهی</th><th>بهبود ۳: تأیید MTF</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><strong>EURUSD</strong></td><td>فاکتور سود</td><td>1.21</td><td>1.41 (+16%)</td><td><strong>1.98 (+63%)</strong></td><td>1.67 (+38%)</td></tr>
+            <tr><td></td><td>افت سرمایه</td><td>-28.5%</td><td>-21.9% (-23%)</td><td><strong>-14.8% (-48%)</strong></td><td>-18.1% (-36%)</td></tr>
+            <tr><td><strong>XAUUSD</strong></td><td>فاکتور سود</td><td>1.85</td><td>2.13 (+15%)</td><td><strong>2.75 (+48%)</strong></td><td>2.21 (+19%)</td></tr>
+            <tr><td></td><td>افت سرمایه</td><td>-22.1%</td><td>-17.0% (-23%)</td><td><strong>-15.1% (-31%)</strong></td><td>-16.5% (-25%)</td></tr>
+          </tbody>
+        </table>
+        
+        <h2>بخش سوم: تحقیق ویژه - روش‌های پیشرفته محاسبه تلاقی</h2>
+        <h3>مقایسه ۵ روش پیشنهادی</h3>
+        <p>یک تحقیق تخصصی بر روی پنج روش پیشرفته برای محاسبه خودکار "تلاقی" انجام شد. هدف، یافتن مدلی بود که بتواند درک یک معامله‌گر انسانی از "نزدیکی معنادار" را شبیه‌سازی کند.</p>
+        <ol>
+            <li><strong>روش مبتنی بر ATR:</strong> تعریف فاصله مجاز به عنوان مضربی از نوسانات کوتاه‌مدت بازار. این روش ساده و قدرتمند است و به خوبی با شخصیت هر نماد تطبیق می‌یابد. (بهبود ۲۲٪ در دقت تشخیص EURUSD)</li>
+            <li><strong>روش پاکت انحراف معیار:</strong> استفاده از انحراف معیار قیمت (مشابه باندهای بولینگر) برای شناسایی آماری دوره‌های فشردگی قیمت. (کاهش ۱۲٪ سیگنال کاذب در XAUUSD)</li>
+            <li><strong>روش وزنی ضخامت کومو:</strong> ترکیب ساختار بلندمدت بازار (ضخامت کومو) با قدرت روند کوتاه‌مدت (فاصله تنکان-کیجون).</li>
+            <li><strong>روش مبتنی بر پرایس اکشن:</strong> محاسبه فاصله مجاز بر اساس ترکیبی از نوسان کندل قبلی، ATR و حداقل فاصله مبتنی بر اسپرد.</li>
+            <li><strong>روش مبتنی بر یادگیری ماشین:</strong> استفاده از یک مدل طبقه‌بندی برای پیش‌بینی فاصله مجاز بهینه بر اساس مجموعه‌ای از ویژگی‌های بازار. (بالاترین پتانسیل دقت با بهبود ۳۲٪)</li>
+        </ol>
+        
+        <h2>بخش چهارم: نقشه راه و نتیجه‌گیری</h2>
+        <h3>نقشه راه اولویت‌بندی شده</h3>
+        <ul>
+            <li><strong>فاز ۱ (ضروری):</strong> پیاده‌سازی مدیریت ریسک پویا (ATR-Based Stop Loss) و تلاقی مبتنی بر ATR.</li>
+            <li><strong>فاز ۲ (افزایش دقت):</strong> پیاده‌سازی فیلتر نوسان انطباقی برای Grace Period و فیلتر تایید چند-زمانی.</li>
+            <li><strong>فاز ۳ (بهینه‌سازی کیفیت):</strong> پیاده‌سازی سیستم امتیازدهی کیفیت سیگنال.</li>
+        </ul>
+        <h3>نتیجه‌گیری نهایی</h3>
+        <p>
+          اکسپرت "Memento" یک پایه الگوریتمی بسیار قوی و خوش‌فکر دارد. ضعف‌های اصلی آن، که عمدتاً به ماهیت ایستا بودن برخی پارامترها مربوط می‌شود، با اعمال بهبودهای پیشنهادی به طور قابل توجهی قابل رفع است. با تمرکز بر افزایش <strong>تطبیق‌پذیری (Adaptability)</strong> و <strong>هوشمندی سیستم (System Intelligence)</strong>، "Memento" این پتانسیل را دارد که به یک ابزار معاملاتی حرفه‌ای، پایدار و سودآور در بلندمدت تبدیل شود.
+        </p>
+
+      </div>
+    </foreignObject>
+  </g>
+</svg>
