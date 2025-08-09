@@ -160,17 +160,56 @@ void OnTimer()
 //+------------------------------------------------------------------+
 //| تابع رویدادهای معاملاتی                                           |
 //+------------------------------------------------------------------+
+// 
 void OnTradeTransaction(const MqlTradeTransaction &trans,
                         const MqlTradeRequest &request,
                         const MqlTradeResult &result)
 {
-    // ما فقط به رویدادهایی که یک معامله (deal) به تاریخچه اضافه می‌کنند علاقه داریم
-    // این رویداد هم موقع باز شدن و هم بسته شدن پوزیشن رخ میده
-    if (trans.type == TRADE_TRANSACTION_DEAL_ADD)
+    // ما فقط به رویدادهایی که یک معامله به تاریخچه اضافه می‌کنند علاقه داریم
+    if (trans.type == TRADE_TRANSACTION_DEAL_ADD && trans.deal > 0)
     {
-        // اگه معامله مربوط به همین اکسپرت بود
-        
-            g_dashboard_needs_update = true;
-       
+        // اطلاعات معامله را از تاریخچه می‌گیریم
+        ulong deal_ticket = trans.deal;
+        if(HistoryDealSelect(deal_ticket))
+        {
+            // چک می‌کنیم معامله مربوط به همین اکسپرت باشه
+            if(HistoryDealGetInteger(deal_ticket, DEAL_MAGIC) == (long)g_settings.magic_number)
+            {
+                 // اگر معامله از نوع خروج از پوزیشن بود (بسته شدن)
+                 if(HistoryDealGetInteger(deal_ticket, DEAL_ENTRY) == DEAL_ENTRY_OUT)
+                 {
+                      string deal_symbol = HistoryDealGetString(deal_ticket, DEAL_SYMBOL);
+                      
+                      // مدیر استراتژی مربوط به این نماد را پیدا می‌کنیم
+                      for(int i = 0; i < ArraySize(g_symbol_managers); i++)
+                      {
+                          if(g_symbol_managers[i] != NULL && g_symbol_managers[i].GetSymbol() == deal_symbol)
+                          {
+                              // مدیر گرافیک آن را می‌گیریم
+                              CVisualManager *visual_manager = g_symbol_managers[i].GetVisualManager();
+                              if(visual_manager != NULL)
+                              {
+                                  // ایندکس نماد را در داشبورد پیدا می‌کنیم
+                                  int symbol_index = visual_manager.GetSymbolIndex(deal_symbol);
+                                  if(symbol_index != -1)
+                                  {
+                                      // اطلاعات سود و زیان را می‌گیریم
+                                      double p = HistoryDealGetDouble(deal_ticket, DEAL_PROFIT);
+                                      double c = HistoryDealGetDouble(deal_ticket, DEAL_COMMISSION);
+                                      double s = HistoryDealGetDouble(deal_ticket, DEAL_SWAP);
+                                      
+                                      // و دفترچه حسابداری را آپدیت می‌کنیم
+                                      visual_manager.UpdateDashboardCache(symbol_index, p, c, s);
+                                  }
+                              }
+                              break; // مدیر پیدا شد، از حلقه خارج شو
+                          }
+                      }
+                 }
+                 
+                 // در هر صورت (چه باز شدن و چه بسته شدن) داشبورد نیاز به آپدیت دارد
+                 g_dashboard_needs_update = true;
+            }
+        }
     }
 }
