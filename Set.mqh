@@ -2,18 +2,33 @@
 //|                                                                  |
 //|                    Project: Memento (By HipoAlgorithm)           |
 //|                    File: set.mqh (EA Settings)                   |
-//|                    Version: 3.1 (Final Fixed)                    |
+//|                    Version: 4.0 (Phase 1 Implementation)         |
 //|                    © 2025, Mohammad & Gemini                     |
 //|                                                                  |
 //+------------------------------------------------------------------+
 #property copyright "© 2025, hipoalgoritm"
 #property link      "https://www.mql5.com"
-#property version   "1.2"
+#property version   "4.0" // پیاده‌سازی کامل ورودی‌های فاز ۱
 
 //--- انواع شمارشی برای خوانایی بهتر کد
 enum E_Confirmation_Mode { MODE_CLOSE_ONLY, MODE_OPEN_AND_CLOSE };
-enum E_SL_Mode           { MODE_COMPLEX, MODE_SIMPLE };
+
+// +++ enum حد ضرر با افزودن حالت ATR +++
+enum E_SL_Mode {
+    MODE_COMPLEX,         // پیچیده (کیجون فلت، پیوت و...)
+    MODE_SIMPLE,          // ساده (بر اساس رنگ مخالف کندل)
+    MODE_ATR              // پویا (مبتنی بر ATR)
+};
+
 enum E_Signal_Mode     { MODE_REPLACE_SIGNAL, MODE_SIGNAL_CONTEST };
+
+// +++ enum جدید برای انتخاب حالت محاسبه تلاقی +++
+enum E_Talaqi_Mode {
+    TALAQI_MODE_MANUAL,     // دستی (بر اساس پوینت)
+    TALAQI_MODE_KUMO,       // هوشمند (بر اساس ضخامت کومو)
+    TALAQI_MODE_ATR         // پویا (مبتنی بر ATR)
+};
+
 //+------------------------------------------------------------------+
 //|                      تنظیمات ورودی اکسپرت                         |
 //+------------------------------------------------------------------+
@@ -34,26 +49,26 @@ input int             Inp_Chikou_Period     = 26;                     // دور�
 
 // ---=== 🎯 3. سیگنال و تاییدیه (Signal & Confirmation) 🎯 ===---
 input group           "---=== 🎯 3. سیگنال و تاییدیه (Signal & Confirmation) 🎯 ===---"
-input E_Signal_Mode   Inp_Signal_Mode         = MODE_SIGNAL_CONTEST;  // ✅ این وش مدیریت سیگنال
+input E_Signal_Mode   Inp_Signal_Mode         = MODE_SIGNAL_CONTEST;  // روش مدیریت سیگنال
 input E_Confirmation_Mode Inp_Confirmation_Type = MODE_OPEN_AND_CLOSE;  // نوع تایید قیمت نهایی
-// ... بقیه ورودی‌ها
-
 input int             Inp_Grace_Period_Candles= 5;                      // تعداد کندل مهلت برای تاییدیه
 
-// // --- زیرگروه تنظیمات تلاقی (Confluence) ---
+// --- زیرگروه تنظیمات تلاقی (Confluence) ---
 input group           "         --- تنظیمات تلاقی (Confluence) ---"
-input bool            Inp_Talaqi_Auto_Mode    = true;                   // ✅ فعالسازی حالت اتوماتیک برای فاصله تلاقی
-input double          Inp_Talaqi_Distance_in_Points = 3.0;              // [MANUAL] فاصله تلاقی (بر اساس پوینت)
-input double          Inp_Talaqi_Kumo_Factor  = 0.2;                    // [AUTO] ضریب تلاقی (0.2 = 20% ضخامت ابر کومو)
+input E_Talaqi_Mode   Inp_Talaqi_Calculation_Mode = TALAQI_MODE_KUMO;   // ✅ روش محاسبه فاصله تلاقی
+input double          Inp_Talaqi_ATR_Multiplier     = 0.5;              // [ATR Mode] ضریب ATR برای تلاقی
+input double          Inp_Talaqi_Distance_in_Points = 3.0;              // [MANUAL Mode] فاصله تلاقی (بر اساس پوینت)
+input double          Inp_Talaqi_Kumo_Factor      = 0.2;              // [KUMO Mode] ضریب تلاقی (درصد ضخامت کومو)
 
 // ---=== 🛡️ 4. مدیریت حد ضرر (Stop Loss) 🛡️ ===---
 input group           "       ---=== 🛡️ 4. مدیریت حد ضرر (Stop Loss) 🛡️ ===---"
-input E_SL_Mode       Inp_StopLoss_Type       = MODE_COMPLEX;           // روش محاسبه استاپ لاس
+input E_SL_Mode       Inp_StopLoss_Type       = MODE_COMPLEX;           // ✅ روش محاسبه استاپ لاس
+input double          Inp_SL_ATR_Multiplier   = 2.5;                    // [ATR Mode] ضریب ATR برای حد ضرر
 input int             Inp_Flat_Kijun_Period   = 50;                     // [COMPLEX] تعداد کندل برای جستجوی کیجون فلت
 input int             Inp_Flat_Kijun_Min_Length = 5;                    // [COMPLEX] حداقل طول کیجون فلت
 input int             Inp_Pivot_Lookback      = 30;                     // [COMPLEX] تعداد کندل برای جستجوی پیوت
 input int             Inp_SL_Lookback_Period  = 15;                     // [SIMPLE] دوره نگاه به عقب برای یافتن سقف/کف
-input double          Inp_SL_Buffer_Multiplier = 3.0;                   // ضریب بافر برای فاصله از سقف/کف
+input double          Inp_SL_Buffer_Multiplier = 3.0;                   // [SIMPLE/COMPLEX] ضریب بافر برای فاصله از سقف/کف
 
 // ---=== 💰 5. مدیریت سرمایه (Money Management) 💰 ===---
 input group           " ---=== 💰 5. مدیریت سرمایه (Money Management) 💰 ===---"
@@ -79,25 +94,42 @@ struct SSettings
     string              symbols_list;
     int                 magic_number;
     bool                enable_logging;
+    
     // 2. Ichimoku
-    int                 tenkan_period, kijun_period, senkou_period, chikou_period;
-// 3. Signal & Confirmation
-    E_Signal_Mode       signal_mode; // ✅ این خط را اضافه کن
+    int                 tenkan_period;
+    int                 kijun_period;
+    int                 senkou_period;
+    int                 chikou_period;
+    
+    // 3. Signal & Confirmation
+    E_Signal_Mode       signal_mode;
     E_Confirmation_Mode confirmation_type;
     int                 grace_period_candles;
-    // 3.1. Talaqi
-bool                talaqi_auto_mode;
-double              talaqi_distance_in_points;
-double              talaqi_kumo_factor; // متغیرهای قدیمی حذف و متغیر جدید اضافه شد
+    
+    // 3.1. Talaqi (با ساختار جدید)
+    E_Talaqi_Mode       talaqi_calculation_mode;
+    double              talaqi_atr_multiplier;
+    double              talaqi_distance_in_points;
+    double              talaqi_kumo_factor;
 
-    // 4. Stop Loss
+    // 4. Stop Loss (با ساختار جدید)
     E_SL_Mode           stoploss_type;
-    int                 flat_kijun_period, flat_kijun_min_length, pivot_lookback, sl_lookback_period;
+    double              sl_atr_multiplier;
+    int                 flat_kijun_period;
+    int                 flat_kijun_min_length;
+    int                 pivot_lookback;
+    int                 sl_lookback_period;
     double              sl_buffer_multiplier;
+    
     // 5. Money Management
-    double              risk_percent_per_trade, take_profit_ratio;
-    int                 max_trades_per_symbol, max_total_trades;
+    double              risk_percent_per_trade;
+    double              take_profit_ratio;
+    int                 max_trades_per_symbol;
+    int                 max_total_trades;
+    
     // 6. Visuals
     double              object_size_multiplier;
-    color               bullish_color, bearish_color;
+    color               bullish_color;
+    color               bearish_color;
 };
+
