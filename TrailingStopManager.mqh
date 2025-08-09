@@ -2,13 +2,13 @@
 //|                                                                  |
 //|         Project: Universal Trailing Stop Loss Library            |
 //|                  File: TrailingStopManager.mqh                   |
-//|                  Version: 4.0 (Final & Feature-Rich)             |
+//|                  Version: 4.1 (Bug Fix Edition)                  |
 //|                  © 2025, Mohammad & Gemini                       |
 //|                                                                  |
 //+------------------------------------------------------------------+
 #property copyright "© 2025, hipoalgoritm"
 #property link      "https://www.mql5.com"
-#property version   "4.0"
+#property version   "4.1" // ✅✅✅ رفع باگ حیاتی در تشخیص حد ضرر اولیه
 
 #include <Trade\Trade.mqh>
 
@@ -73,7 +73,15 @@ input E_TSL_Mode Inp_TSL_Mode      = TSL_MODE_TENKAN; // روش اجرای حد 
 //| ساختارهای داخلی برای مدیریت بهینه هندل‌ها و وضعیت تریدها          |
 //+------------------------------------------------------------------+
 struct SIndicatorHandle { string symbol; int handle; };
-struct STradeState { long ticket; bool be_applied; };
+
+// ✅✅✅ ساختار حالت معامله اصلاح شد ✅✅✅
+struct STradeState 
+{ 
+    long    ticket; 
+    bool    be_applied; 
+    double  initial_sl; // <--- این متغیر برای ذخیره SL اولیه اضافه شد
+};
+
 
 //+------------------------------------------------------------------+
 //|           کلاس اصلی مدیریت حد ضرر متحرک                          |
@@ -121,7 +129,7 @@ private:
     double  CalculatePriceChannelSL(string symbol, ENUM_POSITION_TYPE type);
     double  CalculateChandelierAtrSL(string symbol, ENUM_POSITION_TYPE type);
     
-    void    ManageBreakeven(long ticket);
+    void    ManageBreakeven(long ticket, int state_idx); // <-- ورودی جدید
     int     GetTradeStateIndex(long ticket);
 
 public:
@@ -175,21 +183,26 @@ void CTrailingStopManager::Init(long magic_number)
     m_is_initialized = true;
 }
 
-// --- تابع اصلی پردازش ---
+// --- ✅✅✅ تابع اصلی پردازش (منطق اصلاح شده) ✅✅✅ ---
 void CTrailingStopManager::Process()
 {
     if(!m_is_initialized || (!m_tsl_enabled && !m_be_enabled)) return;
 
     for(int i = PositionsTotal() - 1; i >= 0; i--)
     {
-         ulong ticket= PositionGetTicket(i);
+        ulong ticket = PositionGetTicket(i);
         if(!PositionSelect(ticket)) continue;
         if(PositionGetInteger(POSITION_MAGIC) != m_magic_number) continue;
 
-    //    ulong ticket = PositionGetInteger(POSITION_TICKET);
+        // --- پیدا کردن یا ایجاد حالت برای معامله ---
+        int state_idx = GetTradeStateIndex(ticket);
+        
+        // --- دریافت حد ضرر اولیه از حافظه ---
+        double initial_sl = m_trade_states[state_idx].initial_sl;
+        if(initial_sl == 0) continue; // اگر به هر دلیلی SL اولیه صفر بود، ادامه نده
 
         // --- بخش ۱: مدیریت Breakeven (همیشه اول اجرا می‌شود) ---
-        if(m_be_enabled) ManageBreakeven(ticket);
+        if(m_be_enabled) ManageBreakeven(ticket, state_idx);
 
         // --- بخش ۲: مدیریت Trailing Stop ---
         if(!m_tsl_enabled) continue;
@@ -197,21 +210,16 @@ void CTrailingStopManager::Process()
         string symbol = PositionGetString(POSITION_SYMBOL);
         ENUM_POSITION_TYPE type = (ENUM_POSITION_TYPE)PositionGetInteger(POSITION_TYPE);
         
-        double initial_sl = 0;
-        if(HistorySelectByPosition(ticket) && HistoryDealsTotal() > 0) {
-           ulong deal_ticket = HistoryDealGetTicket(0);
-           if(deal_ticket > 0) initial_sl = HistoryDealGetDouble(deal_ticket, DEAL_SL);
-        }
-        if(initial_sl == 0) continue;
-
         double open_price = PositionGetDouble(POSITION_PRICE_OPEN);
         double initial_risk = MathAbs(open_price - initial_sl);
-        double required_profit_pips = initial_risk * m_activation_rr;
+        if(initial_risk == 0) continue; // جلوگیری از تقسیم بر صفر
+        
+        double required_profit_for_tsl = initial_risk * m_activation_rr;
 
         double current_price = (type == POSITION_TYPE_BUY) ? SymbolInfoDouble(symbol, SYMBOL_BID) : SymbolInfoDouble(symbol, SYMBOL_ASK);
-        double current_profit_pips = (type == POSITION_TYPE_BUY) ? (current_price - open_price) : (open_price - current_price);
+        double current_profit = (type == POSITION_TYPE_BUY) ? (current_price - open_price) : (open_price - current_price);
         
-        if(current_profit_pips < required_profit_pips) continue;
+        if(current_profit < required_profit_for_tsl) continue;
 
         double new_sl_level = 0;
         switch(m_tsl_mode)
@@ -257,30 +265,28 @@ void CTrailingStopManager::Process()
     }
 }
 
-// --- مدیریت Breakeven ---
-void CTrailingStopManager::ManageBreakeven(long ticket)
+// --- ✅✅✅ مدیریت Breakeven (منطق اصلاح شده) ✅✅✅ ---
+void CTrailingStopManager::ManageBreakeven(long ticket, int state_idx)
 {
-    int state_idx = GetTradeStateIndex(ticket);
     if(m_trade_states[state_idx].be_applied) return; // اگر قبلا اعمال شده، خارج شو
 
     string symbol = PositionGetString(POSITION_SYMBOL);
     ENUM_POSITION_TYPE type = (ENUM_POSITION_TYPE)PositionGetInteger(POSITION_TYPE);
     
-    double initial_sl = 0;
-    if(HistorySelectByPosition(ticket) && HistoryDealsTotal() > 0) {
-       ulong deal_ticket = HistoryDealGetTicket(0);
-       if(deal_ticket > 0) initial_sl = HistoryDealGetDouble(deal_ticket, DEAL_SL);
-    }
+    // --- استفاده از SL اولیه ذخیره شده ---
+    double initial_sl = m_trade_states[state_idx].initial_sl;
     if(initial_sl == 0) return;
 
     double open_price = PositionGetDouble(POSITION_PRICE_OPEN);
     double initial_risk = MathAbs(open_price - initial_sl);
-    double required_profit_pips = initial_risk * m_be_activation_rr;
+    if(initial_risk == 0) return;
+    
+    double required_profit_for_be = initial_risk * m_be_activation_rr;
 
     double current_price = (type == POSITION_TYPE_BUY) ? SymbolInfoDouble(symbol, SYMBOL_BID) : SymbolInfoDouble(symbol, SYMBOL_ASK);
-    double current_profit_pips = (type == POSITION_TYPE_BUY) ? (current_price - open_price) : (open_price - current_price);
+    double current_profit = (type == POSITION_TYPE_BUY) ? (current_price - open_price) : (open_price - current_price);
 
-    if(current_profit_pips >= required_profit_pips)
+    if(current_profit >= required_profit_for_be)
     {
         double point = SymbolInfoDouble(symbol, SYMBOL_POINT);
         double pips_to_points_multiplier = (SymbolInfoInteger(symbol, SYMBOL_DIGITS) == 3 || SymbolInfoInteger(symbol, SYMBOL_DIGITS) == 5) ? 10.0 : 1.0;
@@ -302,7 +308,7 @@ void CTrailingStopManager::ManageBreakeven(long ticket)
     }
 }
 
-// --- مدیریت حالت ترید (برای جلوگیری از تکرار Breakeven) ---
+// --- ✅✅✅ مدیریت حالت ترید (منطق اصلاح شده و کلیدی) ✅✅✅ ---
 int CTrailingStopManager::GetTradeStateIndex(long ticket)
 {
     for(int i = 0; i < ArraySize(m_trade_states); i++) {
@@ -313,6 +319,17 @@ int CTrailingStopManager::GetTradeStateIndex(long ticket)
     ArrayResize(m_trade_states, new_idx + 1);
     m_trade_states[new_idx].ticket = ticket;
     m_trade_states[new_idx].be_applied = false;
+    
+    // --- نکته کلیدی اینجاست: SL اولیه را همینجا ذخیره می‌کنیم ---
+    if(PositionSelect(ticket)) // فقط برای اطمینان
+    {
+        m_trade_states[new_idx].initial_sl = PositionGetDouble(POSITION_SL);
+    }
+    else
+    {
+        m_trade_states[new_idx].initial_sl = 0; // اگر پوزیشن پیدا نشد
+    }
+
     return new_idx;
 }
 
