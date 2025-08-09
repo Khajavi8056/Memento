@@ -1,4 +1,4 @@
-//+------------------------------------------------------------------+
+حرف//+------------------------------------------------------------------+
 //|                                     IchimokuLogic.mqh            |
 //|                          © 2025, hipoalgoritm              |
 //+------------------------------------------------------------------+
@@ -87,9 +87,6 @@ private:
     SPotentialSignal    m_potential_signals[];
     CVisualManager* m_visual_manager;
     
-    // +++ این تابع جدید را اینجا اضافه کن +++
-    CVisualManager* GetVisualManager() { return m_visual_manager; }
-    // +++ پایان بخش اضافه شده +++
     
 
 
@@ -122,6 +119,10 @@ public:
     string GetSymbol() const { return m_symbol; }
     void UpdateMyDashboard() { if (m_visual_manager != NULL) m_visual_manager.UpdateDashboard(); }
     ~CStrategyManager();
+// +++ این تابع جدید را اینجا اضافه کن +++
+    CVisualManager* GetVisualManager() { return m_visual_manager; }
+    // +++ پایان بخش اضافه شده +++
+    
 };
 
 //+------------------------------------------------------------------+
