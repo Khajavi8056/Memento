@@ -2,13 +2,13 @@
 //|                                                                  |
 //|                    Project: Memento (By HipoAlgorithm)           |
 //|                    File: VisualManager.mqh (Graphics Engine)     |
-//|                    Version: 3.4 (Final & Polished & Fixed)       |
+//|                    Version: 3.5 (Polished & Final)               |
 //|                    © 2025, Mohammad & Gemini                     |
 //|                                                                  |
 //+------------------------------------------------------------------+
 #property copyright "© 2025, hipoalgoritm"
 #property link      "https://www.mql5.com"
-#property version   "3.4" 
+#property version   "3.5" 
 
 #include "set.mqh" 
 
@@ -350,7 +350,12 @@ void CVisualManager::UpdateDashboard()
 // ✅✅✅ تابع بازنویسی شده برای رسم مستطیل و فلش کراس اولیه (ثابت) ✅✅✅
 void CVisualManager::DrawTripleCrossRectangle(bool is_buy, int shift)
 {
-    string obj_name = MEMENTO_OBJ_PREFIX + m_symbol + "_SignalRect_" + (string)iTime(m_symbol, _Period, shift);
+    string obj_name_rect = MEMENTO_OBJ_PREFIX + m_symbol + "_SignalRect_" + (string)iTime(m_symbol, _Period, shift);
+    string obj_name_arrow = MEMENTO_OBJ_PREFIX + m_symbol + "_SignalArrow_" + (string)iTime(m_symbol, _Period, shift);
+    
+    ObjectDelete(0, obj_name_rect);
+    ObjectDelete(0, obj_name_arrow);
+
     datetime time1 = iTime(m_symbol, _Period, shift + 1);
     datetime time2 = iTime(m_symbol, _Period, shift);
     double high = iHigh(m_symbol, _Period, shift); 
@@ -358,34 +363,29 @@ void CVisualManager::DrawTripleCrossRectangle(bool is_buy, int shift)
     double point = SymbolInfoDouble(m_symbol, SYMBOL_POINT);
     double buffer = 10 * point * m_settings.object_size_multiplier;
     
-    // اگر قبلاً رسم شده، پاکش کن
-    ObjectDelete(0, obj_name);
-    
     // رسم مستطیل کراس
-    if(ObjectCreate(0, obj_name, OBJ_RECTANGLE, 0, time1, low - buffer, time2, high + buffer))
+    if(ObjectCreate(0, obj_name_rect, OBJ_RECTANGLE, 0, time1, low - buffer, time2, high + buffer))
     {
-        ObjectSetInteger(0, obj_name, OBJPROP_COLOR, is_buy ? m_settings.bullish_color : m_settings.bearish_color);
-        ObjectSetInteger(0, obj_name, OBJPROP_STYLE, STYLE_SOLID); 
-        ObjectSetInteger(0, obj_name, OBJPROP_WIDTH, 1); 
-        ObjectSetInteger(0, obj_name, OBJPROP_BACK, true);
-        ObjectSetInteger(0, obj_name, OBJPROP_FILL, false);
-        CreateManagedObject(obj_name, (long)iBars(m_symbol, _Period));
+        ObjectSetInteger(0, obj_name_rect, OBJPROP_COLOR, is_buy ? m_settings.bullish_color : m_settings.bearish_color);
+        ObjectSetInteger(0, obj_name_rect, OBJPROP_STYLE, STYLE_SOLID); 
+        ObjectSetInteger(0, obj_name_rect, OBJPROP_WIDTH, 1); 
+        ObjectSetInteger(0, obj_name_rect, OBJPROP_BACK, true);
+        ObjectSetInteger(0, obj_name_rect, OBJPROP_FILL, false);
+        CreateManagedObject(obj_name_rect, (long)iBars(m_symbol, _Period));
     }
     
-    // رسم فلش یا پرچم کوچک زیر/بالای مستطیل کراس
-    string arrow_name = MEMENTO_OBJ_PREFIX + m_symbol + "_SignalArrow_" + (string)iTime(m_symbol, _Period, shift);
-    ObjectDelete(0, arrow_name);
-    double offset = 15 * point * m_settings.object_size_multiplier;
-    double price = is_buy ? low - offset : high + offset;
-    uchar code = is_buy ? 233 : 234;
+    // رسم فلش کراس (26 کندل قبل) با کدهای جدید و فاصله مناسب
+    double arrow_offset = 5 * point * m_settings.object_size_multiplier;
+    double price = is_buy ? low - arrow_offset : high + arrow_offset;
+    uchar code = is_buy ? 211 : 212;
     
-    if(ObjectCreate(0, arrow_name, OBJ_ARROW, 0, iTime(m_symbol, _Period, shift), price))
+    if(ObjectCreate(0, obj_name_arrow, OBJ_ARROW, 0, iTime(m_symbol, _Period, shift), price))
     {
-        ObjectSetInteger(0, arrow_name, OBJPROP_ARROWCODE, code);
-        ObjectSetString(0, arrow_name, OBJPROP_FONT, "Wingdings");
-        ObjectSetInteger(0, arrow_name, OBJPROP_COLOR, is_buy ? m_settings.bullish_color : m_settings.bearish_color);
-        ObjectSetInteger(0, arrow_name, OBJPROP_WIDTH, (int)(2 * m_settings.object_size_multiplier)); // ✅ اصلاح اندازه فلش
-        CreateManagedObject(arrow_name, (long)iBars(m_symbol, _Period));
+        ObjectSetInteger(0, obj_name_arrow, OBJPROP_ARROWCODE, code);
+        ObjectSetString(0, obj_name_arrow, OBJPROP_FONT, "Wingdings");
+        ObjectSetInteger(0, obj_name_arrow, OBJPROP_COLOR, is_buy ? clrGreen : clrRed); // ✅ رنگ‌های جدید
+        ObjectSetInteger(0, obj_name_arrow, OBJPROP_WIDTH, (int)(2 * m_settings.object_size_multiplier)); 
+        CreateManagedObject(obj_name_arrow, (long)iBars(m_symbol, _Period));
     }
 }
 
@@ -394,17 +394,26 @@ void CVisualManager::DrawConfirmationArrow(bool is_buy, int shift)
 {
     string obj_name = MEMENTO_OBJ_PREFIX + m_symbol + "_ConfirmArrow_" + (string)iTime(m_symbol, _Period, shift);
     ObjectDelete(0, obj_name);
-    double point = SymbolInfoDouble(m_symbol, SYMBOL_POINT);
-    double offset = 15 * point * m_settings.object_size_multiplier;
-    double price = is_buy ? iLow(m_symbol, _Period, shift) - offset : iHigh(m_symbol, _Period, shift) + offset;
-    uchar code = is_buy ? 233 : 234;
     
+    double point = SymbolInfoDouble(m_symbol, SYMBOL_POINT);
+    double offset = 15 * point * m_settings.object_size_multiplier; // فاصله اولیه
+    double price = is_buy ? iLow(m_symbol, _Period, shift) - offset : iHigh(m_symbol, _Period, shift) + offset;
+    
+    // ✅ فاصله معقول از کندل رو محاسبه می‌کنیم
+    double candle_range = MathAbs(iHigh(m_symbol, _Period, shift) - iLow(m_symbol, _Period, shift));
+    double final_offset = candle_range * 0.5; // مثلا نصف کندل فاصله بده
+    price = is_buy ? iLow(m_symbol, _Period, shift) - final_offset : iHigh(m_symbol, _Period, shift) + final_offset;
+    
+    // ✅ استفاده از کد جدید ۱۸۱
+    uchar code = 181;
+    color arrow_color = is_buy ? m_settings.bullish_color : m_settings.bearish_color;
+
     if(ObjectCreate(0, obj_name, OBJ_ARROW, 0, iTime(m_symbol, _Period, shift), price))
     {
         ObjectSetInteger(0, obj_name, OBJPROP_ARROWCODE, code);
         ObjectSetString(0, obj_name, OBJPROP_FONT, "Wingdings");
-        ObjectSetInteger(0, obj_name, OBJPROP_COLOR, is_buy ? m_settings.bullish_color : m_settings.bearish_color);
-        ObjectSetInteger(0, obj_name, OBJPROP_WIDTH, (int)(5 * m_settings.object_size_multiplier)); // ✅ اصلاح اندازه فلش
+        ObjectSetInteger(0, obj_name, OBJPROP_COLOR, arrow_color);
+        ObjectSetInteger(0, obj_name, OBJPROP_WIDTH, (int)(5 * m_settings.object_size_multiplier));
         CreateManagedObject(obj_name, (long)iBars(m_symbol, _Period));
     }
 }
@@ -439,7 +448,6 @@ void CVisualManager::DrawScanningArea(bool is_buy, int start_shift, int current_
         
         if(ObjectCreate(0, rect_name, OBJ_RECTANGLE, 0, time_start_rect, min_low, time_end_rect, max_high))
         {
-            // از رنگ آبی یا زرد کمرنگ و شفاف استفاده می‌کنیم
             color scan_color = is_buy ? clrLightSkyBlue : clrPaleGoldenrod;
             ObjectSetInteger(0, rect_name, OBJPROP_COLOR, scan_color);
             ObjectSetInteger(0, rect_name, OBJPROP_STYLE, STYLE_SOLID); 
@@ -448,7 +456,6 @@ void CVisualManager::DrawScanningArea(bool is_buy, int start_shift, int current_
             ObjectSetInteger(0, rect_name, OBJPROP_FILL, true);
             ObjectSetInteger(0, rect_name, OBJPROP_SELECTABLE, false);
             
-            // شفافیت رو تنظیم می‌کنیم
             ObjectSetInteger(0, rect_name, OBJPROP_FILL_COLOR, scan_color);
             ObjectSetInteger(0, rect_name, OBJPROP_FILL_ALPHA, 50);
             
@@ -497,5 +504,3 @@ void CVisualManager::CreateManagedObject(string obj_name, long creation_bar)
     m_managed_objects[total].ObjectName = obj_name;
     m_managed_objects[total].CreationBar = creation_bar;
 }
-//نسخه3.4
-
