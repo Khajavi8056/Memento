@@ -1,13 +1,13 @@
 //+------------------------------------------------------------------+
 //|                                      Universal Trailing Stop Loss Library |
 //|                                      File: TrailingStopManager.mqh |
-//|                                      Version: 5.0 (Final & Independent) |
+//|                                      Version: 5.1 (Truly Final) |
 //|                                      © 2025, Mohammad & Gemini |
 //|                                                                  |
 //+------------------------------------------------------------------+
 #property copyright "© 2025, hipoalgoritm"
 #property link      "https://www.mql5.com"
-#property version   "5.0"
+#property version   "5.1"
 #include <Trade\Trade.mqh>
 
 //================================================================================//
@@ -59,14 +59,12 @@ struct SIndicatorHandle
   int    handle;
 };
 
-// ✅✅✅ ساختار حالت معامله بازنویسی شد ✅✅✅
 struct STradeState
 {
   ulong  ticket;
   double open_price;
   double initial_sl;
   bool   be_applied;
-  datetime last_update_time;
 };
 
 //+------------------------------------------------------------------+
@@ -111,6 +109,7 @@ private:
   void   ManageSingleTrade(ulong ticket);
   int    FindTradeStateIndex(ulong ticket);
   void   AddTradeState(ulong ticket, double open_price, double initial_sl);
+  void   CleanupTradeStates();
 
   double CalculateIchimokuSL(string symbol, ENUM_POSITION_TYPE type);
   double CalculateMaSL(string symbol, ENUM_POSITION_TYPE type);
@@ -170,7 +169,7 @@ void CTrailingStopManager::Process()
 {
   if(!m_is_initialized || (!m_tsl_enabled && !m_be_enabled)) return;
 
-  // گام ۱: تمام پوزیشن‌های باز را بررسی و وضعیت آن‌ها را در آرایه داخلی به‌روزرسانی می‌کنیم.
+  // گام ۱: پوزیشن‌های جدید را به لیست اضافه کن.
   int positions_total = PositionsTotal();
   for(int i = 0; i < positions_total; i++)
   {
@@ -179,7 +178,6 @@ void CTrailingStopManager::Process()
 
       int state_idx = FindTradeStateIndex(ticket);
 
-      // اگر پوزیشن جدید بود، آن را به لیست اضافه کن.
       if(state_idx == -1)
       {
           if(PositionSelectByTicket(ticket))
@@ -187,32 +185,35 @@ void CTrailingStopManager::Process()
               AddTradeState(ticket, PositionGetDouble(POSITION_PRICE_OPEN), PositionGetDouble(POSITION_SL));
           }
       }
-      else
-      {
-          // اگر پوزیشن در لیست بود، زمان آخرین به‌روزرسانی را به‌روز کن.
-          m_trade_states[state_idx].last_update_time = TimeCurrent();
-      }
   }
 
-  // گام ۲: پوزیشن‌های قدیمی که دیگر باز نیستند را از لیست پاکسازی کن.
-  for(int i = ArraySize(m_trade_states) - 1; i >= 0; i--)
+  // ✅✅✅ گام ۲: پاکسازی لیست از پوزیشن‌های بسته شده ✅✅✅
+  CleanupTradeStates();
+
+  // گام ۳: منطق تریلینگ و سربه‌سر را برای هر پوزیشن در لیست اجرا کن.
+  for(int i = 0; i < ArraySize(m_trade_states); i++)
   {
-      ulong ticket = m_trade_states[i].ticket;
-      if(!PositionSelectByTicket(ticket) || PositionGetInteger(POSITION_MAGIC) != m_magic_number)
-      {
-          // اگر تیکت پیدا نشد یا مجیک نامبر متفاوت بود، یعنی معامله بسته شده.
-          ArrayRemove(m_trade_states, i, 1);
-          Log("حالت تیکت " + (string)ticket + " از لیست تریلینگ حذف شد.");
-      }
-      else
-      {
-          // گام ۳: منطق تریلینگ و سربه‌سر را برای هر پوزیشن در لیست اجرا کن.
-          ManageSingleTrade(ticket);
-      }
+    ManageSingleTrade(m_trade_states[i].ticket);
   }
 }
 
-// ✅✅✅ تابع مدیریت یک معامله ✅✅✅
+// ✅✅✅ تابع جدید: پاکسازی حالت‌های ترید ✅✅✅
+void CTrailingStopManager::CleanupTradeStates()
+{
+    for(int i = ArraySize(m_trade_states) - 1; i >= 0; i--)
+    {
+        ulong ticket = m_trade_states[i].ticket;
+        // اگر پوزیشن با این تیکت پیدا نشد یا مجیک نامبرش فرق داشت، یعنی بسته شده.
+        if(!PositionSelectByTicket(ticket) || PositionGetInteger(POSITION_MAGIC) != m_magic_number)
+        {
+            ArrayRemove(m_trade_states, i, 1);
+            Log("حالت تیکت " + (string)ticket + " از لیست تریلینگ حذف شد.");
+        }
+    }
+}
+
+
+// ... بقیه توابع کلاس CTrailingStopManager (بدون تغییر) ...
 void CTrailingStopManager::ManageSingleTrade(ulong ticket)
 {
     if(!PositionSelectByTicket(ticket)) return;
@@ -220,15 +221,11 @@ void CTrailingStopManager::ManageSingleTrade(ulong ticket)
     int state_idx = FindTradeStateIndex(ticket);
     if (state_idx == -1) return;
 
-    // --- دریافت SL اولیه از حافظه ---
     double initial_sl = m_trade_states[state_idx].initial_sl;
     
-    // ✅ چک کردن اینکه SL اولیه معتبر است یا نه
     if (initial_sl == 0)
     {
-        // اگر هنوز 0 بود، سعی کن از پوزیشن اصلی بخونیش
         double current_sl_from_position = PositionGetDouble(POSITION_SL);
-        // اگر معتبر بود، ذخیره‌اش کن
         if (current_sl_from_position > 0)
         {
             m_trade_states[state_idx].initial_sl = current_sl_from_position;
@@ -237,15 +234,12 @@ void CTrailingStopManager::ManageSingleTrade(ulong ticket)
         }
         else
         {
-            // اگر هنوز 0 بود، بیخیال شو تا کندل بعدی.
             return;
         }
     }
     
-    // --- بخش ۱: مدیریت Breakeven (همیشه اول اجرا می‌شود) ---
     if(m_be_enabled) ManageBreakeven(state_idx);
 
-    // --- بخش ۲: مدیریت Trailing Stop ---
     if(!m_tsl_enabled) return;
 
     string symbol = PositionGetString(POSITION_SYMBOL);
@@ -260,11 +254,9 @@ void CTrailingStopManager::ManageSingleTrade(ulong ticket)
     
     if(current_profit < required_profit_for_tsl) return;
     
-    // ... ادامه منطق تریلینگ مانند نسخه قبلی ...
     double new_sl_level = 0;
     switch(m_tsl_mode)
     {
-      // ... تمام حالت‌ها ...
     case TSL_MODE_TENKAN:
     case TSL_MODE_KIJUN:
         new_sl_level = CalculateIchimokuSL(symbol, type);
@@ -323,10 +315,6 @@ void CTrailingStopManager::ManageSingleTrade(ulong ticket)
         }
     }
 }
-
-
-// ... بقیه توابع کلاس CTrailingStopManager (مانند نسخه قبلی) ...
-// ✅ تابع مدیریت Breakeven
 void CTrailingStopManager::ManageBreakeven(int state_idx)
 {
     if(m_trade_states[state_idx].be_applied) return;
@@ -364,7 +352,6 @@ void CTrailingStopManager::ManageBreakeven(int state_idx)
         }
     }
 }
-// ✅ تابع کمکی برای پیدا کردن ایندکس یک تیکت
 int CTrailingStopManager::FindTradeStateIndex(ulong ticket)
 {
     for(int i = 0; i < ArraySize(m_trade_states); i++)
@@ -373,12 +360,10 @@ int CTrailingStopManager::FindTradeStateIndex(ulong ticket)
     }
     return -1;
 }
-
-// ✅ تابع جدید: اضافه کردن حالت معامله به آرایه
 void CTrailingStopManager::AddTradeState(ulong ticket, double open_price, double initial_sl)
 {
     int idx = FindTradeStateIndex(ticket);
-    if(idx != -1) return; // اگر از قبل وجود داره، کاری نکن
+    if(idx != -1) return;
     
     int new_idx = ArraySize(m_trade_states);
     ArrayResize(m_trade_states, new_idx + 1);
@@ -386,11 +371,8 @@ void CTrailingStopManager::AddTradeState(ulong ticket, double open_price, double
     m_trade_states[new_idx].open_price = open_price;
     m_trade_states[new_idx].initial_sl = initial_sl;
     m_trade_states[new_idx].be_applied = false;
-    m_trade_states[new_idx].last_update_time = TimeCurrent();
-
     Log("حالت جدید برای تیکت " + (string)ticket + " با SL اولیه " + (string)initial_sl + " اضافه شد.");
 }
-// --- بقیه توابع کمکی ---
 int CTrailingStopManager::GetIchimokuHandle(string symbol)
 {
   for(int i=0; i<ArraySize(m_ichimoku_handles); i++) if(m_ichimoku_handles[i].symbol==symbol) return m_ichimoku_handles[i].handle;
