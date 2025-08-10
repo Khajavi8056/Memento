@@ -2,13 +2,13 @@
 //|                                                                  |
 //|                    Project: Memento (By HipoAlgorithm)           |
 //|                    File: VisualManager.mqh (Graphics Engine)     |
-//|                    Version: 3.0 (Interactive Chart Panel)        |
+//|                    Version: 3.2 (Final & Polished)               |
 //|                    © 2025, Mohammad & Gemini                     |
 //|                                                                  |
 //+------------------------------------------------------------------+
 #property copyright "© 2025, hipoalgoritm"
 #property link      "https://www.mql5.com"
-#property version   "3.0" // بازطراحی کامل UI و افزودن نمودار سود و زیان تعاملی
+#property version   "3.2" 
 
 #include "set.mqh" 
 
@@ -38,14 +38,14 @@ private:
     SManagedObject      m_managed_objects[];
     SDashboardData      m_dashboard_data[];
     
-    // +++ متغیرهای جدید برای نمودار میله‌ای +++
     bool                m_is_barchart_visible;
     string              m_chart_button_name;
     string              m_chart_panel_bg_name;
     string              m_chart_panel_title_name;
 
-    void ShowBarChart(bool show); // تابع کمکی برای نمایش/پنهان کردن نمودار
-
+    void ShowBarChart(bool show);
+    void CreateManagedObject(string obj_name, long creation_bar);
+    
 public:
     CVisualManager(string symbol, SSettings &settings);
     ~CVisualManager();
@@ -56,12 +56,14 @@ public:
     void UpdateDashboard();
     void DrawTripleCrossRectangle(bool is_buy, int shift);
     void DrawConfirmationArrow(bool is_buy, int shift);
+    
+    // ✅ تابع بازنویسی شده برای رسم ناحیه اسکن
     void DrawScanningArea(bool is_buy, int start_shift, int current_shift);
+    
     void CleanupOldObjects(const int max_age_in_bars);
     int GetSymbolIndex(string symbol);
     void UpdateDashboardCache(int symbol_index, double deal_profit, double deal_commission, double deal_swap);
     
-    // +++ تابع جدید برای مدیریت رویدادهای چارت +++
     void OnChartEvent(const int id, const long &lparam, const double &dparam, const string &sparam);
 };
 
@@ -72,7 +74,7 @@ CVisualManager::CVisualManager(string symbol, SSettings &settings)
 {
     m_symbol = symbol;
     m_settings = settings;
-    m_is_barchart_visible = false; // نمودار در ابتدا پنهان است
+    m_is_barchart_visible = false;
     m_chart_button_name = MEMENTO_OBJ_PREFIX + "ChartToggleButton";
     m_chart_panel_bg_name = MEMENTO_OBJ_PREFIX + "ChartPanelBg";
     m_chart_panel_title_name = MEMENTO_OBJ_PREFIX + "ChartPanelTitle";
@@ -190,7 +192,6 @@ void CVisualManager::InitDashboard()
         ObjectSetString(0, m_panel_boxes[i].TradesLabelName, OBJPROP_FONT, "Calibri");
         ObjectSetInteger(0, m_panel_boxes[i].TradesLabelName, OBJPROP_FONTSIZE, 8);
         ObjectSetInteger(0, m_panel_boxes[i].TradesLabelName, OBJPROP_ANCHOR, ANCHOR_LEFT);
-        ObjectSetInteger(0, m_panel_boxes[i].TradesLabelName, OBJPROP_ZORDER, 100);
         ObjectSetInteger(0, m_panel_boxes[i].TradesLabelName, OBJPROP_HIDDEN, true);
 
         ObjectCreate(0, m_panel_boxes[i].PlLabelName, OBJ_LABEL, 0, 0, 0);
@@ -201,7 +202,6 @@ void CVisualManager::InitDashboard()
         ObjectSetString(0, m_panel_boxes[i].PlLabelName, OBJPROP_FONT, "Calibri");
         ObjectSetInteger(0, m_panel_boxes[i].PlLabelName, OBJPROP_FONTSIZE, 8);
         ObjectSetInteger(0, m_panel_boxes[i].PlLabelName, OBJPROP_ANCHOR, ANCHOR_LEFT);
-        ObjectSetInteger(0, m_panel_boxes[i].PlLabelName, OBJPROP_ZORDER, 100);
         ObjectSetInteger(0, m_panel_boxes[i].PlLabelName, OBJPROP_HIDDEN, true);
         
         current_x += BOX_WIDTH + DASHBOARD_X_GAP;
@@ -343,6 +343,7 @@ void CVisualManager::UpdateDashboard()
     ChartRedraw(0);
 }
 
+// ✅✅✅ تابع بازنویسی شده برای رسم مستطیل کراس اولیه (ثابت) ✅✅✅
 void CVisualManager::DrawTripleCrossRectangle(bool is_buy, int shift)
 {
     string obj_name = MEMENTO_OBJ_PREFIX + m_symbol + "_SignalRect_" + (string)iTime(m_symbol, _Period, shift);
@@ -358,14 +359,27 @@ void CVisualManager::DrawTripleCrossRectangle(bool is_buy, int shift)
         ObjectSetInteger(0, obj_name, OBJPROP_STYLE, STYLE_SOLID); 
         ObjectSetInteger(0, obj_name, OBJPROP_WIDTH, 1); 
         ObjectSetInteger(0, obj_name, OBJPROP_BACK, true);
-        ObjectSetInteger(0, obj_name, OBJPROP_FILL, true);
-        int total = ArraySize(m_managed_objects);
-        ArrayResize(m_managed_objects, total + 1);
-        m_managed_objects[total].ObjectName = obj_name;
-        m_managed_objects[total].CreationBar = (long)iBars(m_symbol, _Period);
+        ObjectSetInteger(0, obj_name, OBJPROP_FILL, false);
+        CreateManagedObject(obj_name, (long)iBars(m_symbol, _Period));
+    }
+    
+    // ✅ رسم فلش یا پرچم کوچک زیر/بالای مستطیل کراس
+    string arrow_name = MEMENTO_OBJ_PREFIX + m_symbol + "_SignalArrow_" + (string)iTime(m_symbol, _Period, shift);
+    double offset = 15 * point * m_settings.object_size_multiplier;
+    double price = is_buy ? low - offset : high + offset;
+    uchar code = is_buy ? 233 : 234;
+    
+    if(ObjectCreate(0, arrow_name, OBJ_ARROW, 0, iTime(m_symbol, _Period, shift), price))
+    {
+        ObjectSetInteger(0, arrow_name, OBJPROP_ARROWCODE, code);
+        ObjectSetString(0, arrow_name, OBJPROP_FONT, "Wingdings");
+        ObjectSetInteger(0, arrow_name, OBJPROP_COLOR, is_buy ? m_settings.bullish_color : m_settings.bearish_color);
+        ObjectSetInteger(0, arrow_name, OBJPROP_WIDTH, (int)(10 * m_settings.object_size_multiplier));
+        CreateManagedObject(arrow_name, (long)iBars(m_symbol, _Period));
     }
 }
 
+// ✅✅✅ تابع بازنویسی شده برای رسم فلش تاییدیه نهایی ✅✅✅
 void CVisualManager::DrawConfirmationArrow(bool is_buy, int shift)
 {
     string obj_name = MEMENTO_OBJ_PREFIX + m_symbol + "_ConfirmArrow_" + (string)iTime(m_symbol, _Period, shift);
@@ -373,36 +387,38 @@ void CVisualManager::DrawConfirmationArrow(bool is_buy, int shift)
     double offset = 15 * point * m_settings.object_size_multiplier;
     double price = is_buy ? iLow(m_symbol, _Period, shift) - offset : iHigh(m_symbol, _Period, shift) + offset;
     uchar code = is_buy ? 233 : 234;
+    
+    // از فلش‌های Wingdings برای این کار استفاده می‌کنیم
     if(ObjectCreate(0, obj_name, OBJ_ARROW, 0, iTime(m_symbol, _Period, shift), price))
     {
         ObjectSetInteger(0, obj_name, OBJPROP_ARROWCODE, code);
         ObjectSetString(0, obj_name, OBJPROP_FONT, "Wingdings");
         ObjectSetInteger(0, obj_name, OBJPROP_COLOR, is_buy ? m_settings.bullish_color : m_settings.bearish_color);
         ObjectSetInteger(0, obj_name, OBJPROP_WIDTH, (int)(10 * m_settings.object_size_multiplier));
-        int total = ArraySize(m_managed_objects);
-        ArrayResize(m_managed_objects, total + 1);
-        m_managed_objects[total].ObjectName = obj_name;
-        m_managed_objects[total].CreationBar = (long)iBars(m_symbol, _Period);
+        CreateManagedObject(obj_name, (long)iBars(m_symbol, _Period));
     }
 }
 
+// ✅✅✅ تابع بازنویسی شده برای رسم ناحیه اسکن متحرک ✅✅✅
 void CVisualManager::DrawScanningArea(bool is_buy, int start_shift, int current_shift)
 {
-    string base_name = MEMENTO_OBJ_PREFIX + m_symbol + "_Scan_" + (string)iTime(m_symbol, _Period, start_shift);
-    string rect_name = base_name + "_Rect"; 
-    string vline_name = base_name + "_VLine";
+    string rect_name = MEMENTO_OBJ_PREFIX + m_symbol + "_ScanningRect";
+    string cross_name = MEMENTO_OBJ_PREFIX + m_symbol + "_ScanningCross";
     
-    ObjectDelete(0, rect_name); 
-    ObjectDelete(0, vline_name);
-    datetime time_start_rect = iTime(m_symbol, _Period, start_shift);
-    datetime time_end_rect = time_start_rect - (datetime)(m_settings.grace_period_candles + 1) * PeriodSeconds(_Period);
-    
+    // پاک کردن اشیاء قدیمی اسکن
+    ObjectDelete(0, rect_name);
+    ObjectDelete(0, cross_name);
+
+    // اگر زمان اسکن تمام شده یا شروع نشده، خارج شو
+    if (current_shift < 1 || current_shift >= start_shift) return;
+
+    // پیدا کردن بالاترین و پایین‌ترین قیمت در کل بازه اسکن
     double max_high = 0;
     double min_low = 999999;
     
     MqlRates rates[];
-    int bars_to_copy = start_shift; 
-    if(CopyRates(m_symbol, _Period, 1, bars_to_copy, rates) > 0)
+    int bars_to_copy = start_shift - current_shift + 1;
+    if(CopyRates(m_symbol, _Period, current_shift, bars_to_copy, rates) > 0)
     {
         for(int i = 0; i < ArraySize(rates); i++)
         {
@@ -410,23 +426,40 @@ void CVisualManager::DrawScanningArea(bool is_buy, int start_shift, int current_
             if(rates[i].low < min_low) min_low = rates[i].low;
         }
     }
-    
-    if(max_high > 0 && min_low < 999999 && ObjectCreate(0, rect_name, OBJ_RECTANGLE, 0, time_end_rect, min_low, time_start_rect, max_high))
+
+    if(max_high > 0 && min_low < 999999)
     {
-        ObjectSetInteger(0, rect_name, OBJPROP_COLOR, is_buy ? m_settings.bullish_color : m_settings.bearish_color);
-        ObjectSetInteger(0, rect_name, OBJPROP_STYLE, STYLE_DOT); 
-        ObjectSetInteger(0, rect_name, OBJPROP_BACK, true);
-        ObjectSetInteger(0, rect_name, OBJPROP_FILL, false);
-    }
-    
-    datetime scan_time = iTime(m_symbol, _Period, 1);
-    if(ObjectCreate(0, vline_name, OBJ_VLINE, 0, scan_time, 0))
-    {
-        ObjectSetInteger(0, vline_name, OBJPROP_COLOR, clrWhite); 
-        ObjectSetInteger(0, vline_name, OBJPROP_STYLE, STYLE_DASH);
-        ObjectSetInteger(0, vline_name, OBJPROP_WIDTH, 2);
+        // رسم مستطیل اسکن متحرک
+        datetime time_start_rect = iTime(m_symbol, _Period, start_shift);
+        datetime time_end_rect = iTime(m_symbol, _Period, current_shift);
+        
+        if(ObjectCreate(0, rect_name, OBJ_RECTANGLE, 0, time_start_rect, min_low, time_end_rect, max_high))
+        {
+            ObjectSetInteger(0, rect_name, OBJPROP_COLOR, is_buy ? m_settings.bullish_color : m_settings.bearish_color);
+            ObjectSetInteger(0, rect_name, OBJPROP_STYLE, STYLE_SOLID); 
+            ObjectSetInteger(0, rect_name, OBJPROP_WIDTH, 1); 
+            ObjectSetInteger(0, rect_name, OBJPROP_BACK, true);
+            ObjectSetInteger(0, rect_name, OBJPROP_FILL, false);
+            CreateManagedObject(rect_name, (long)iBars(m_symbol, _Period));
+        }
+
+        // رسم علامت صلیب (+) متحرک روی کندل فعلی
+        double point = SymbolInfoDouble(m_symbol, SYMBOL_POINT);
+        double cross_price = (max_high + min_low) / 2.0;
+        
+        if(ObjectCreate(0, cross_name, OBJ_TEXT, 0, iTime(m_symbol, _Period, current_shift), cross_price))
+        {
+            ObjectSetString(0, cross_name, OBJPROP_TEXT, "➕"); // استفاده از کاراکتر یونیکد صلیب
+            ObjectSetInteger(0, cross_name, OBJPROP_COLOR, clrWhite);
+            ObjectSetInteger(0, cross_name, OBJPROP_FONTSIZE, 12);
+            ObjectSetString(0, cross_name, OBJPROP_FONT, "Calibri");
+            ObjectSetInteger(0, cross_name, OBJPROP_ANCHOR, ANCHOR_CENTER);
+            ObjectSetInteger(0, cross_name, OBJPROP_BACK, true);
+            CreateManagedObject(cross_name, (long)iBars(m_symbol, _Period));
+        }
     }
 }
+
 
 void CVisualManager::CleanupOldObjects(const int max_age_in_bars)
 {
@@ -458,4 +491,12 @@ void CVisualManager::UpdateDashboardCache(int symbol_index, double deal_profit, 
         m_dashboard_data[symbol_index].trades_count++;
         m_dashboard_data[symbol_index].cumulative_pl += deal_profit + deal_commission + deal_swap;
     }
+}
+
+void CVisualManager::CreateManagedObject(string obj_name, long creation_bar)
+{
+    int total = ArraySize(m_managed_objects);
+    ArrayResize(m_managed_objects, total + 1);
+    m_managed_objects[total].ObjectName = obj_name;
+    m_managed_objects[total].CreationBar = creation_bar;
 }
