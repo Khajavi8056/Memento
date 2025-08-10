@@ -1,13 +1,13 @@
 //+------------------------------------------------------------------+
 //|                                      Universal Telegram Library  |
 //|                                      File: TelegramManager.mqh    |
-//|                                      Version: 3.0 (Standalone)   |
+//|                                      Version: 3.1 (Final & Polished) |
 //|                                      © 2025, Mohammad & Gemini   |
 //|                                                                  |
 //+------------------------------------------------------------------+
 #property copyright "© 2025, hipoalgoritm"
 #property link      "https://www.mql5.com"
-#property version   "3.0"
+#property version   "3.1"
 #include <Trade\Trade.mqh>
 #include <Graphics\Graphic.mqh>
 
@@ -33,6 +33,7 @@ input group "---=== 📧 Universal Telegram Notifier 📧 ===---";
 input bool   Inp_Telegram_Enable = false;  // ✅ فعال/غیرفعال کردن ارسال پیام به تلگرام
 input string Inp_Telegram_Token  = "";     // توکن ربات تلگرام
 input string Inp_Telegram_ChatID = "";     // آیدی چت یا کانال تلگرام
+input bool   Inp_Telegram_Screenshot = false; // ✅ ارسال اسکرین‌شات با هر پیام
 
 
 //+------------------------------------------------------------------+
@@ -51,6 +52,7 @@ class CTelegramManager
 {
 private:
     bool     m_enabled;
+    bool     m_send_screenshot;
     string   m_token;
     string   m_chat_id;
     long     m_magic_number;
@@ -113,18 +115,19 @@ private:
         if(m_is_initialized) return;
         
         m_enabled = Inp_Telegram_Enable;
+        m_send_screenshot = Inp_Telegram_Screenshot;
         m_token = Inp_Telegram_Token;
         m_chat_id = Inp_Telegram_ChatID;
         m_magic_number = Inp_Magic_Number;
         
-        if (m_enabled && m_token != "" && m_chat_id != "")
+        if (m_enabled && m_token != "" && m_chat_id != "" && m_magic_number != 0)
         {
             Log("با موفقیت راه‌اندازی شد. آماده برای ارسال پیام.");
         }
         else
         {
             m_enabled = false;
-            Log("غیرفعال است. توکن، ChatID یا MagicNumber تنظیم نشده.");
+            Log("غیرفعال است. تنظیمات تلگرام یا MagicNumber صحیح نیست.");
         }
         
         m_is_initialized = true;
@@ -136,6 +139,7 @@ public:
         m_enabled = false;
         m_is_initialized = false;
         m_magic_number = 0;
+        m_send_screenshot = false;
     }
     
     // تابع اصلی پردازش (فراخوانی در OnTimer)
@@ -182,7 +186,14 @@ public:
                     open_price
                 );
                 
+                // ارسال پیام متنی
                 SendFormattedMessage(message);
+                
+                // ✅ ارسال اسکرین‌شات در صورت فعال بودن
+                if(m_send_screenshot)
+                {
+                    SendChartScreenshot(symbol, Period());
+                }
                 
                 // ذخیره وضعیت معامله
                 int new_idx = ArraySize(m_trade_states);
@@ -202,7 +213,7 @@ public:
         }
     }
     
-    // --- توابع کمکی برای ارسال پیام (SendMessage و SendFormattedMessage) ---
+    // --- توابع کمکی برای ارسال پیام ---
     void SendMessage(string message)
     {
         if (!m_enabled) return;
@@ -225,6 +236,85 @@ public:
             Log("ارسال اسکرین‌شات غیرفعال است.");
             return;
         }
-        // ... بقیه کد تابع SendChartScreenshot ...
+
+        string filename = "screenshot_" + symbol + ".png";
+        
+        FileDelete(filename);
+        
+        if (!ChartScreenShot(0, filename))
+        {
+            Log("خطا در گرفتن اسکرین‌شات: " + (string)GetLastError());
+            return;
+        }
+        
+        int file_handle = FileOpen(filename, FILE_READ | FILE_BIN);
+        if(file_handle == INVALID_HANDLE)
+        {
+            Log("خطا در باز کردن فایل اسکرین‌شات: " + (string)GetLastError());
+            return;
+        }
+        
+        char file_data[];
+        int file_size = FileSize(file_handle);
+        ArrayResize(file_data, file_size);
+        FileReadArray(file_handle, file_data, 0, file_size);
+        FileClose(file_handle);
+        FileDelete(filename); 
+        
+        string boundary = "----MQL5-Boundary-" + (string)TimeCurrent();
+        string params_text = "--" + boundary + "\r\n";
+        params_text += "Content-Disposition: form-data; name=\"chat_id\"\r\n\r\n";
+        params_text += m_chat_id + "\r\n";
+        
+        if (caption != "")
+        {
+            params_text += "--" + boundary + "\r\n";
+            params_text += "Content-Disposition: form-data; name=\"caption\"\r\n\r\n";
+            params_text += caption + "\r\n";
+        }
+        
+        params_text += "--" + boundary + "\r\n";
+        params_text += "Content-Disposition: form-data; name=\"photo\"; filename=\"" + filename + "\"\r\n";
+        params_text += "Content-Type: image/png\r\n\r\n";
+        
+        char params_data[];
+        StringToCharArray(params_text, params_data, 0, WHOLE_ARRAY, CP_UTF8);
+        
+        char post_data[];
+        ArrayCopy(post_data, params_data);
+        ArrayCopy(post_data, file_data, ArraySize(params_data), 0, WHOLE_ARRAY);
+        
+        string end_boundary_text = "\r\n--" + boundary + "--\r\n";
+        char end_boundary[];
+        StringToCharArray(end_boundary_text, end_boundary, 0, WHOLE_ARRAY, CP_UTF8);
+        
+        int current_size = ArraySize(post_data);
+        ArrayResize(post_data, current_size + ArraySize(end_boundary));
+        ArrayCopy(post_data, end_boundary, current_size, 0, WHOLE_ARRAY);
+        
+        string headers = "Content-Type: multipart/form-data; boundary=" + boundary;
+        string url = "https://api.telegram.org/bot" + m_token + "/sendPhoto";
+        
+        char result_data[];
+        string result_headers;
+        
+        int result = WebRequest("POST", url, headers, 5000, post_data, result_data, result_headers);
+        
+        if(result == -1)
+        {
+            Log("خطا در ارسال تصویر به تلگرام. کد خطا: " + (string)GetLastError());
+        }
+        else
+        {
+            string s_result_data = CharArrayToString(result_data);
+            if (StringFind(s_result_data, "\"ok\":false") != -1)
+            {
+                Log("خطا در پاسخ سرور تلگرام: " + s_result_data);
+            }
+            else
+            {
+                Log("اسکرین‌شات با موفقیت ارسال شد.");
+            }
+        }
     }
 };
