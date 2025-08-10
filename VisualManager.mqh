@@ -2,13 +2,13 @@
 //|                                                                  |
 //|                    Project: Memento (By HipoAlgorithm)           |
 //|                    File: VisualManager.mqh (Graphics Engine)     |
-//|                    Version: 3.3 (Final, Polished, Bug-Free)      |
+//|                    Version: 3.4 (Final & Polished & Fixed)       |
 //|                    © 2025, Mohammad & Gemini                     |
 //|                                                                  |
 //+------------------------------------------------------------------+
 #property copyright "© 2025, hipoalgoritm"
 #property link      "https://www.mql5.com"
-#property version   "3.3" 
+#property version   "3.4" 
 
 #include "set.mqh" 
 
@@ -384,7 +384,7 @@ void CVisualManager::DrawTripleCrossRectangle(bool is_buy, int shift)
         ObjectSetInteger(0, arrow_name, OBJPROP_ARROWCODE, code);
         ObjectSetString(0, arrow_name, OBJPROP_FONT, "Wingdings");
         ObjectSetInteger(0, arrow_name, OBJPROP_COLOR, is_buy ? m_settings.bullish_color : m_settings.bearish_color);
-        ObjectSetInteger(0, arrow_name, OBJPROP_WIDTH, (int)(5 * m_settings.object_size_multiplier)); // اندازه کوچک
+        ObjectSetInteger(0, arrow_name, OBJPROP_WIDTH, (int)(2 * m_settings.object_size_multiplier)); // ✅ اصلاح اندازه فلش
         CreateManagedObject(arrow_name, (long)iBars(m_symbol, _Period));
     }
 }
@@ -404,7 +404,7 @@ void CVisualManager::DrawConfirmationArrow(bool is_buy, int shift)
         ObjectSetInteger(0, obj_name, OBJPROP_ARROWCODE, code);
         ObjectSetString(0, obj_name, OBJPROP_FONT, "Wingdings");
         ObjectSetInteger(0, obj_name, OBJPROP_COLOR, is_buy ? m_settings.bullish_color : m_settings.bearish_color);
-        ObjectSetInteger(0, obj_name, OBJPROP_WIDTH, (int)(10 * m_settings.object_size_multiplier));
+        ObjectSetInteger(0, obj_name, OBJPROP_WIDTH, (int)(5 * m_settings.object_size_multiplier)); // ✅ اصلاح اندازه فلش
         CreateManagedObject(obj_name, (long)iBars(m_symbol, _Period));
     }
 }
@@ -497,3 +497,5 @@ void CVisualManager::CreateManagedObject(string obj_name, long creation_bar)
     m_managed_objects[total].ObjectName = obj_name;
     m_managed_objects[total].CreationBar = creation_bar;
 }
+//نسخه3.4
+
