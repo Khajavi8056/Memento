@@ -4,7 +4,7 @@
 //+------------------------------------------------------------------+
 #property copyright "© 2025,hipoalgoritm"
 #property link      "https://www.mql5.com"
-#property version   "1.31" 
+#property version   "1.4" 
 #include "set.mqh"
 #include <Trade\Trade.mqh>
 #include <Trade\SymbolInfo.mqh>
@@ -63,6 +63,8 @@ struct SPotentialSignal
     color               bearish_color;
 };
 */
+
+//================================================================
 //+------------------------------------------------------------------+
 //| کلاس مدیریت استراتژی برای یک نماد خاص                             |
 //+------------------------------------------------------------------+
@@ -76,20 +78,19 @@ private:
     datetime            m_last_bar_time;
     
     int                 m_ichimoku_handle;
+    int                 m_atr_handle;      
+
     double              m_tenkan_buffer[];
     double              m_kijun_buffer[];
     double              m_chikou_buffer[];
-    double              m_high_buffer[]; // 
-    double              m_low_buffer[];  // 
+    double              m_high_buffer[];
+    double              m_low_buffer[];
     
     SPotentialSignal    m_signal;
     bool                m_is_waiting;
     SPotentialSignal    m_potential_signals[];
     CVisualManager* m_visual_manager;
     
-    
-
-
     //--- توابع کمکی
     void Log(string message);
     void AddOrUpdatePotentialSignal(bool is_buy);
@@ -99,10 +100,9 @@ private:
     //--- محاسبه استاپ لاس
     double CalculateStopLoss(bool is_buy, double entry_price);
     double CalculateAtrStopLoss(bool is_buy, double entry_price);
-        double GetTalaqiTolerance(int reference_shift);
+    double GetTalaqiTolerance(int reference_shift);
     double CalculateAtrTolerance(int reference_shift);
-
-    double CalculateDynamicTolerance(int reference_shift); // <<-- این خط رو هم اضافه کن
+    double CalculateDynamicTolerance(int reference_shift);
   
     double FindFlatKijun();
     double FindPivotKijun(bool is_buy);
@@ -115,46 +115,60 @@ private:
     void OpenTrade(bool is_buy);
 
 public:
-    CStrategyManager(string symbol,   SSettings &settings);
+    CStrategyManager(string symbol, SSettings &settings);
+    ~CStrategyManager(); // تخریب‌گر
     bool Init();
     void ProcessNewBar();
     string GetSymbol() const { return m_symbol; }
-    void UpdateMyDashboard() { if (m_visual_manager != NULL) m_visual_manager.UpdateDashboard(); }
-    ~CStrategyManager();
-// +++ این تابع جدید را اینجا اضافه کن +++
+    void UpdateMyDashboard(); // اعلان تابع آپدیت
     CVisualManager* GetVisualManager() { return m_visual_manager; }
-    // +++ پایان بخش اضافه شده +++
-    
 };
-
 //+------------------------------------------------------------------+
 //| کانستراکتور کلاس                                                |
 //+------------------------------------------------------------------+
 CStrategyManager::CStrategyManager(string symbol, SSettings &settings)
-
 {
     m_symbol = symbol;
     m_settings = settings;
     m_last_bar_time = 0;
     m_is_waiting = false;
-    ArrayFree(m_potential_signals); // ✅ این خط را برای اطمینان یشتر
+    ArrayFree(m_potential_signals);
     m_ichimoku_handle = INVALID_HANDLE;
+    m_atr_handle = INVALID_HANDLE;
     m_visual_manager = new CVisualManager(m_symbol, m_settings);
-
 }
 
 //+------------------------------------------------------------------+
-//| دیستراکتور کلاس                                                  |
+//| دیستراکتور کلاس (برای پاکسازی)                                   |
 //+------------------------------------------------------------------+
 CStrategyManager::~CStrategyManager()
 {
-    // اگر نیاز به پاکسازی چیزی در آینده بود، اینجا قرار میگیرد
+    // پاک کردن مدیر گرافیک
     if (m_visual_manager != NULL)
     {
         delete m_visual_manager;
         m_visual_manager = NULL;
     }
+
+    // آزاد کردن هندل‌های اندیکاتور
+    if(m_ichimoku_handle != INVALID_HANDLE)
+        IndicatorRelease(m_ichimoku_handle);
+        
+    if(m_atr_handle != INVALID_HANDLE)
+        IndicatorRelease(m_atr_handle);
 }
+
+//+------------------------------------------------------------------+
+//| آپدیت کردن داشبورد                                                |
+//+------------------------------------------------------------------+
+void CStrategyManager::UpdateMyDashboard() 
+{ 
+    if (m_visual_manager != NULL)
+    {
+        m_visual_manager.UpdateDashboard();
+    }
+}
+//================================================================
 
 
 //+------------------------------------------------------------------+
@@ -194,7 +208,14 @@ bool CStrategyManager::Init()
         Log("خطا در ایجاد اندیکاتور Ichimoku.");
         return false;
     }
-    
+          // ساخت هندل ATR
+      m_atr_handle = iATR(m_symbol, _Period, 14); // فعلا دوره ۱۴ ثابت است
+      if (m_atr_handle == INVALID_HANDLE)
+      {
+          Log("خطا در ایجاد اندیکاتور ATR.");
+          return false;
+      }
+
     ArraySetAsSeries(m_tenkan_buffer, true);
     ArraySetAsSeries(m_kijun_buffer, true);
     ArraySetAsSeries(m_chikou_buffer, true);
@@ -947,24 +968,13 @@ double CStrategyManager::CalculateAtrTolerance(int reference_shift)
 {
     if(m_settings.talaqi_atr_multiplier <= 0) return 0.0;
 
-    // تعریف هندل برای اندیکاتور ATR
-    int atr_handle = iATR(m_symbol, _Period, 14);
-    if(atr_handle == INVALID_HANDLE)
-    {
-        Log("خطا در ایجاد هندل ATR برای محاسبه تلاقی.");
-        return 0.0;
-    }
-
     double atr_buffer[];
-    // مقدار ATR رو در کندل مرجع تاریخی (مثلا 26 کندل قبل) می‌گیریم
-    if(CopyBuffer(atr_handle, 0, reference_shift, 1, atr_buffer) < 1)
+    // استفاده از هندل از پیش ساخته شده کلاس
+    if(CopyBuffer(m_atr_handle, 0, reference_shift, 1, atr_buffer) < 1)
     {
         Log("داده کافی برای محاسبه ATR در گذشته وجود ندارد.");
-        IndicatorRelease(atr_handle);
         return 0.0;
     }
-    
-    IndicatorRelease(atr_handle); // هندل را آزاد می‌کنیم
     
     double tolerance = atr_buffer[0] * m_settings.talaqi_atr_multiplier;
     return tolerance;
@@ -975,24 +985,14 @@ double CStrategyManager::CalculateAtrTolerance(int reference_shift)
 //+------------------------------------------------------------------+
 double CStrategyManager::CalculateAtrStopLoss(bool is_buy, double entry_price)
 {
-    int atr_handle = iATR(m_symbol, _Period, 14);
-    if(atr_handle == INVALID_HANDLE)
-    {
-        Log("خطا در ایجاد هندل ATR برای محاسبه حد ضرر.");
-        return 0.0;
-    }
-
     double atr_buffer[];
-    // مقدار ATR کندل قبلی (کندل شماره 1) رو می‌گیریم
-    if(CopyBuffer(atr_handle, 0, 1, 1, atr_buffer) < 1)
+    // استفاده از هندل از پیش ساخته شده کلاس
+    if(CopyBuffer(m_atr_handle, 0, 1, 1, atr_buffer) < 1)
     {
         Log("داده ATR برای محاسبه حد ضرر موجود نیست.");
-        IndicatorRelease(atr_handle);
         return 0.0;
     }
     
-    IndicatorRelease(atr_handle);
-
     double atr_value = atr_buffer[0];
     double sl_price = 0;
 
@@ -1003,5 +1003,6 @@ double CStrategyManager::CalculateAtrStopLoss(bool is_buy, double entry_price)
             
     return sl_price;
 }
+
 
 
