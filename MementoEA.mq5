@@ -87,18 +87,33 @@ int OnInit()
     }
     
     ArrayResize(g_symbol_managers, symbols_count);
-    for (int i = 0; i < symbols_count; i++)
+for (int i = 0; i < symbols_count; i++)
+{
+    string sym = g_symbols_array[i];
+    StringTrimLeft(sym);
+    StringTrimRight(sym);
+    g_symbol_managers[i] = new CStrategyManager(sym, g_settings);
+    if (g_symbol_managers[i].Init() == false)
     {
-        string sym = g_symbols_array[i];
-        StringTrimLeft(sym);
-        StringTrimRight(sym);
-        g_symbol_managers[i] = new CStrategyManager(sym, g_settings);
-        if (!g_symbol_managers[i].Init())
+        Print("مقداردهی اولیه نماد ", sym, " با خطا مواجه شد. عملیات متوقف می‌شود.");
+
+        // === بخش حیاتی پاکسازی برای جلوگیری از نشت حافظه ===
+        // تمام مدیرهایی که تا این لحظه (قبل از خطا) با موفقیت ساخته شده‌اند را حذف کن
+        for (int j = 0; j <= i; j++)
         {
-            Print("مقداردهی اولیه نماد ", sym, " با خطا مواجه شد.");
-            return INIT_FAILED;
+            if (g_symbol_managers[j] != NULL)
+            {
+                delete g_symbol_managers[j];
+                g_symbol_managers[j] = NULL;
+            }
         }
+        ArrayFree(g_symbol_managers); // آرایه سراسری را هم آزاد کن
+        // === پایان بخش پاکسازی ===
+        
+        return INIT_FAILED;
     }
+}
+//=
 
     Print("اکسپرت Memento با موفقیت برای نمادهای زیر مقداردهی اولیه شد: ", g_settings.symbols_list);
     TrailingStop.Init(Inp_Magic_Number);
