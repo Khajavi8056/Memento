@@ -4,7 +4,7 @@
 //+------------------------------------------------------------------+
 #property copyright "© 2025,hipoalgoritm"
 #property link      "https://www.mql5.com"
-#property version   "1.3" 
+#property version   "1.31" 
 #include "set.mqh"
 #include <Trade\Trade.mqh>
 #include <Trade\SymbolInfo.mqh>
@@ -298,55 +298,53 @@ void CStrategyManager::ProcessNewBar()
         {
             for (int i = ArraySize(m_potential_signals) - 1; i >= 0; i--)
             {
-                SPotentialSignal candidate = m_potential_signals[i];
-
                 // آیا مهلت این نامزد تمام شده؟
-                if (candidate.grace_candle_count >= m_settings.grace_period_candles)
+                if (m_potential_signals[i].grace_candle_count >= m_settings.grace_period_candles)
                 {
-                    Log("[حالت مسابقه‌ای] زمان نامزد " + (candidate.is_buy ? "خرید" : "فروش") + " به پایان رسید و از لیست حذف شد.");
+                    Log("[حالت مسابقه‌ای] زمان نامزد " + (m_potential_signals[i].is_buy ? "خرید" : "فروش") + " به پایان رسید و از لیست حذف شد.");
                     ArrayRemove(m_potential_signals, i, 1);
-                    continue; 
+                    continue;
                 }
             
                 // اگر مهلت تمام نشده، آیا تاییدیه نهایی را گرفته؟
-                // ... (داخل حلقه for در حالت مسابقه‌ای)
-                if (CheckFinalConfirmation(candidate.is_buy))
+                if (CheckFinalConfirmation(m_potential_signals[i].is_buy))
                 {
                     // لاگ کردن پیدا شدن برنده مسابقه
-                    Log("🏆 [حالت مسابقه‌ای] برنده پیدا شد! سیگنال " + (candidate.is_buy ? "خرید" : "فروش") + " تأیید نهایی شد!");
-                    
+                    Log("🏆 [حالت مسابقه‌ای] برنده پیدا شد! سیگنال " + (m_potential_signals[i].is_buy ? "خرید" : "فروش") + " تأیید نهایی شد!");
+            
                     // رسم فلش تایید روی چارت
-                    if(m_symbol == _Symbol && m_visual_manager != NULL) m_visual_manager.DrawConfirmationArrow(candidate.is_buy, 1);
-                    
+                    if (m_symbol == _Symbol && m_visual_manager != NULL)
+                        m_visual_manager->DrawConfirmationArrow(m_potential_signals[i].is_buy, 1);
+            
                     // باز کردن معامله بر اساس سیگنال برنده
-                    OpenTrade(candidate.is_buy);
-
+                    OpenTrade(m_potential_signals[i].is_buy);
+            
                     // ✅✅✅ منطق جدید و هوشمندانه مدیریت لیست انتظار ✅✅✅
-                    
+            
                     // جهت سیگنال برنده را ذخیره کن
-                    bool winner_is_buy = candidate.is_buy;
-                    
+                    bool winner_is_buy = m_potential_signals[i].is_buy;
+            
                     // از لیست انتظار، فقط نامزدهای هم‌جهت با برنده را حذف کن
                     Log("پاکسازی لیست انتظار: حذف تمام نامزدهای " + (winner_is_buy ? "خرید" : "فروش") + "...");
                     for (int j = ArraySize(m_potential_signals) - 1; j >= 0; j--)
                     {
-                        // اگر جهت نامزد فعلی با جهت برنده یکی بود
                         if (m_potential_signals[j].is_buy == winner_is_buy)
                         {
-                            // آن را از لیست حذف کن
                             ArrayRemove(m_potential_signals, j, 1);
                         }
                     }
                     Log("پاکسازی انجام شد. نامزدهای خلاف جهت در لیست باقی ماندند (در صورت وجود).");
-
+            
                     // از کل تابع پردازش برای این کندل خارج شو چون کارمان تمام شده
-                    return; 
+                    return;
                 }
                 // اگر نه، یک کندل به عمرش اضافه کن
                 else
                 {
-                    candidate.grace_candle_count++;
-                    if(m_symbol == _Symbol && m_visual_manager != NULL) m_visual_manager.DrawScanningArea(candidate.is_buy, m_settings.chikou_period, candidate.grace_candle_count);
+                    // آپدیت مستقیم داده اصلی در آرایه
+                    m_potential_signals[i].grace_candle_count++;
+                    if (m_symbol == _Symbol && m_visual_manager != NULL)
+                        m_visual_manager->DrawScanningArea(m_potential_signals[i].is_buy, m_settings.chikou_period, m_potential_signals[i].grace_candle_count);
                 }
             }
         }
@@ -1005,6 +1003,5 @@ double CStrategyManager::CalculateAtrStopLoss(bool is_buy, double entry_price)
             
     return sl_price;
 }
-
 
 
