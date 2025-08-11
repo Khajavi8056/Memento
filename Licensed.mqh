@@ -6,7 +6,7 @@ bool CheckLicenseExpiry()
 {
     // ▼▼▼ فقط این خط رو ویرایش کن ▼▼▼
     // تاریخ انقضای لایسنس رو به فرمت "سال.ماه.روز" اینجا وارد کن
-    string expiry_date_str = "2025.12.31";
+    string expiry_date_str = "2026.08.01";
     // ▲▲▲ ویرایش فقط در خط بالا ▲▲▲
 
 
@@ -31,7 +31,7 @@ bool CheckLicenseExpiry()
     else
     {
         // لایسنس هنوز معتبره، پس 'true' برمی‌گردونیم
-        Print("License OK. Expiry Date: ", expiry_date_str, ". Enjoy!");
+      //  Print("License OK. Expiry Date: ", expiry_date_str, ". Enjoy!");
         return(true);
     }
 }
