@@ -92,7 +92,13 @@ private:
     CVisualManager* m_visual_manager;
     
     //--- توابع کمکی
-    void Log(string message);
+        void Log(string message);
+    
+    // --- [کد جدید] توابع فیلترینگ نهایی ---
+    bool AreAllFiltersPassed(bool is_buy);
+    bool CheckKumoFilter(bool is_buy);
+    bool CheckAtrFilter();
+    
     void AddOrUpdatePotentialSignal(bool is_buy);
     bool CheckTripleCross(bool& is_buy);
     bool CheckFinalConfirmation(bool is_buy);
@@ -208,13 +214,16 @@ bool CStrategyManager::Init()
         Log("خطا در ایجاد اندیکاتور Ichimoku.");
         return false;
     }
-          // ساخت هندل ATR
-      m_atr_handle = iATR(m_symbol, _Period, 14); // فعلا دوره ۱۴ ثابت است
-      if (m_atr_handle == INVALID_HANDLE)
-      {
-          Log("خطا در ایجاد اندیکاتور ATR.");
-          return false;
-      }
+        // [کد جدید] ساخت هندل ATR برای فیلتر ورود
+    m_atr_handle = iATR(m_symbol, _Period, m_settings.atr_filter_period);
+    if (m_atr_handle == INVALID_HANDLE)
+    {
+        Log("خطا در ایجاد اندیکاتور ATR برای فیلتر ورود.");
+        return false;
+    }
+
+     
+     
 
     ArraySetAsSeries(m_tenkan_buffer, true);
     ArraySetAsSeries(m_kijun_buffer, true);
@@ -314,7 +323,7 @@ void CStrategyManager::ProcessNewBar()
             AddOrUpdatePotentialSignal(is_new_signal_buy);
         }
 
-        // فاز دوم: بررسی لیست نامزدها (شروع مسابقه)
+        // فاز دوم: بررسی لیست نامزدها (شروع مسابقه)        // فاز دوم: بررسی لیست نامزدها (شروع مسابقه)
         if (ArraySize(m_potential_signals) > 0)
         {
             for (int i = ArraySize(m_potential_signals) - 1; i >= 0; i--)
@@ -330,22 +339,25 @@ void CStrategyManager::ProcessNewBar()
                 // اگر مهلت تمام نشده، آیا تاییدیه نهایی را گرفته؟
                 if (CheckFinalConfirmation(m_potential_signals[i].is_buy))
                 {
-                    // لاگ کردن پیدا شدن برنده مسابقه
                     Log("🏆 [حالت مسابقه‌ای] برنده پیدا شد! سیگنال " + (m_potential_signals[i].is_buy ? "خرید" : "فروش") + " تأیید نهایی شد!");
-            
-                    // رسم فلش تایید روی چارت
-                    if (m_symbol == _Symbol && m_visual_manager != NULL)
-                        m_visual_manager.DrawConfirmationArrow(m_potential_signals[i].is_buy, 1);
-            
-                    // باز کردن معامله بر اساس سیگنال برنده
-                    OpenTrade(m_potential_signals[i].is_buy);
-            
-                    // ✅✅✅ منطق جدید و هوشمندانه مدیریت لیست انتظار ✅✅✅
-            
-                    // جهت سیگنال برنده را ذخیره کن
+                
+                    // 🚦 === گیت کنترل نهایی === 🚦
+                    if (AreAllFiltersPassed(m_potential_signals[i].is_buy))
+                    {
+                        // اگر تمام فیلترها پاس شدند، معامله را باز کن
+                        if (m_symbol == _Symbol && m_visual_manager != NULL)
+                            m_visual_manager.DrawConfirmationArrow(m_potential_signals[i].is_buy, 1);
+                        
+                        OpenTrade(m_potential_signals[i].is_buy);
+                    }
+                    else
+                    {
+                        // اگر فیلترها رد شدند، فقط لاگ کن و معامله‌ای باز نکن
+                        Log("❌ معامله توسط فیلترهای نهایی رد شد.");
+                    }
+                    
+                    // ✅✅✅ منطق پاکسازی لیست انتظار (بدون تغییر باقی می‌ماند) ✅✅✅
                     bool winner_is_buy = m_potential_signals[i].is_buy;
-            
-                    // از لیست انتظار، فقط نامزدهای هم‌جهت با برنده را حذف کن
                     Log("پاکسازی لیست انتظار: حذف تمام نامزدهای " + (winner_is_buy ? "خرید" : "فروش") + "...");
                     for (int j = ArraySize(m_potential_signals) - 1; j >= 0; j--)
                     {
@@ -355,20 +367,18 @@ void CStrategyManager::ProcessNewBar()
                         }
                     }
                     Log("پاکسازی انجام شد. نامزدهای خلاف جهت در لیست باقی ماندند (در صورت وجود).");
-            
-                    // از کل تابع پردازش برای این کندل خارج شو چون کارمان تمام شده
-                    return;
+                    return; // از کل تابع پردازش برای این کندل خارج شو
                 }
-                // اگر نه، یک کندل به عمرش اضافه کن
-                else
+                else // <<<< این else باید اینجا باشه
                 {
-                    // آپدیت مستقیم داده اصلی در آرایه
+                    // اگر تاییدیه نگرفت، یک کندل به عمرش اضافه کن
                     m_potential_signals[i].grace_candle_count++;
                     if (m_symbol == _Symbol && m_visual_manager != NULL)
                         m_visual_manager.DrawScanningArea(m_potential_signals[i].is_buy, m_settings.chikou_period, m_potential_signals[i].grace_candle_count);
                 }
             }
         }
+
     }
 }
 
@@ -1004,4 +1014,96 @@ double CStrategyManager::CalculateAtrStopLoss(bool is_buy, double entry_price)
     return sl_price;
 }
 
+//+------------------------------------------------------------------+
+//|                    بخش فیلترهای نهایی ورود                      |
+//+------------------------------------------------------------------+
+
+//==================================================================
+//  تابع اصلی "گیت کنترل نهایی" که تمام فیلترها را چک می‌کند
+//==================================================================
+bool CStrategyManager::AreAllFiltersPassed(bool is_buy)
+{
+    // اگر فیلتر کومو فعال بود، چکش کن
+    if (m_settings.enable_kumo_filter)
+    {
+        if (!CheckKumoFilter(is_buy))
+        {
+            Log("فیلتر کومو رد شد.");
+            return false; // از اولین فیلتری که رد بشه، سریع خارج میشیم
+        }
+    }
+
+    // اگر فیلتر ATR فعال بود، چکش کن
+    if (m_settings.enable_atr_filter)
+    {
+        if (!CheckAtrFilter())
+        {
+            Log("فیلتر ATR رد شد.");
+            return false;
+        }
+    }
+    
+    // اگه کد به اینجا برسه، یعنی همه فیلترهای فعال با موفقیت پاس شدن
+    Log("✅ تمام فیلترهای فعال با موفقیت پاس شدند.");
+    return true;
+}
+
+//==================================================================
+//  تابع کمکی برای بررسی فیلتر ابر کومو
+//==================================================================
+bool CStrategyManager::CheckKumoFilter(bool is_buy)
+{
+    double senkou_a[], senkou_b[];
+    // گرفتن مقدار سنکو A و B برای کندل فعلی (شیفت ۰)
+    // بافر 2 = Senkou Span A , بافر 3 = Senkou Span B
+    if(CopyBuffer(m_ichimoku_handle, 2, 0, 1, senkou_a) < 1 || 
+       CopyBuffer(m_ichimoku_handle, 3, 0, 1, senkou_b) < 1)
+    {
+       Log("خطا: داده کافی برای فیلتر کومو موجود نیست.");
+       return false; // اگر داده نباشه، برای امنیت رد کن
+    }
+    
+    double high_kumo = MathMax(senkou_a[0], senkou_b[0]);
+    double low_kumo = MathMin(senkou_a[0], senkou_b[0]);
+    double close_price = iClose(m_symbol, _Period, 1); // قیمت بسته شدن کندل تاییدیه
+
+    if (is_buy)
+    {
+        // برای خرید، قیمت باید بالای ابر باشه
+        return (close_price > high_kumo);
+    }
+    else // is_sell
+    {
+        // برای فروش، قیمت باید پایین ابر باشه
+        return (close_price < low_kumo);
+    }
+}
+
+//==================================================================
+//  تابع کمکی برای بررسی فیلتر حداقل نوسان ATR
+//==================================================================
+bool CStrategyManager::CheckAtrFilter()
+{
+    double atr_value_buffer[];
+    if(CopyBuffer(m_atr_handle, 0, 1, 1, atr_value_buffer) < 1)
+    {
+       Log("خطا: داده کافی برای فیلتر ATR موجود نیست.");
+       return false; // اگر داده نباشه، رد کن
+    }
+    
+    double current_atr = atr_value_buffer[0];
+    
+    // تبدیل مقدار پیپ ورودی به مقدار واقعی بر اساس پوینت
+    double point = SymbolInfoDouble(m_symbol, SYMBOL_POINT);
+    double min_atr_threshold = m_settings.atr_filter_min_value_pips * point;
+    
+    // برای جفت ارزهایی که ۳ یا ۵ رقم اعشار دارن، پیپ ۱۰ برابر پوینته
+    if(_Digits == 3 || _Digits == 5)
+    {
+        min_atr_threshold *= 10;
+    }
+
+    // شرط اصلی: آیا ATR فعلی از حداقل مورد نیاز ما بیشتر یا مساوی است؟
+    return (current_atr >= min_atr_threshold);
+}
 
