@@ -456,8 +456,7 @@ void CVisualManager::DrawScanningArea(bool is_buy, int start_shift, int current_
             ObjectSetInteger(0, rect_name, OBJPROP_FILL, true);
             ObjectSetInteger(0, rect_name, OBJPROP_SELECTABLE, false);
             
-            ObjectSetInteger(0, rect_name, OBJPROP_FILL_COLOR, scan_color);
-            ObjectSetInteger(0, rect_name, OBJPROP_FILL_ALPHA, 50);
+           
             
             CreateManagedObject(rect_name, (long)iBars(m_symbol, _Period));
         }
