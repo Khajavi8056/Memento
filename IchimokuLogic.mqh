@@ -335,7 +335,7 @@ void CStrategyManager::ProcessNewBar()
             
                     // رسم فلش تایید روی چارت
                     if (m_symbol == _Symbol && m_visual_manager != NULL)
-                        m_visual_manager->DrawConfirmationArrow(m_potential_signals[i].is_buy, 1);
+                        m_visual_manager.DrawConfirmationArrow(m_potential_signals[i].is_buy, 1);
             
                     // باز کردن معامله بر اساس سیگنال برنده
                     OpenTrade(m_potential_signals[i].is_buy);
@@ -365,7 +365,7 @@ void CStrategyManager::ProcessNewBar()
                     // آپدیت مستقیم داده اصلی در آرایه
                     m_potential_signals[i].grace_candle_count++;
                     if (m_symbol == _Symbol && m_visual_manager != NULL)
-                        m_visual_manager->DrawScanningArea(m_potential_signals[i].is_buy, m_settings.chikou_period, m_potential_signals[i].grace_candle_count);
+                        m_visual_manager.DrawScanningArea(m_potential_signals[i].is_buy, m_settings.chikou_period, m_potential_signals[i].grace_candle_count);
                 }
             }
         }
@@ -1003,6 +1003,5 @@ double CStrategyManager::CalculateAtrStopLoss(bool is_buy, double entry_price)
             
     return sl_price;
 }
-
 
 
