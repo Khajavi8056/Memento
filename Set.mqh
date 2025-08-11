@@ -2,33 +2,36 @@
 //|                                                                  |
 //|                    Project: Memento (By HipoAlgorithm)           |
 //|                    File: set.mqh (EA Settings)                   |
-//|                    Version: 5.0 (Advanced Confluence Models)     |
+//|                    Version: 5.1 (Entry Filters Integration)      |
 //|                    © 2025, Mohammad & Gemini                     |
 //|                                                                  |
 //+------------------------------------------------------------------+
 #property copyright "© 2025, hipoalgoritm"
 #property link      "https://www.mql5.com"
-#property version   "5.0"
+#property version   "5.1" // ادغام فیلترهای نهایی ورود
 
 //--- انواع شمارشی برای خوانایی بهتر کد
 enum E_Confirmation_Mode { MODE_CLOSE_ONLY, MODE_OPEN_AND_CLOSE };
 
-enum E_SL_Mode {
+enum E_SL_Mode
+{
     MODE_COMPLEX,         // پیچیده (کیجون فلت، پیوت و...)
     MODE_SIMPLE,          // ساده (بر اساس رنگ مخالف کندل)
     MODE_ATR              // پویا (مبتنی بر ATR)
 };
 
-enum E_Signal_Mode     { MODE_REPLACE_SIGNAL, MODE_SIGNAL_CONTEST };
+enum E_Signal_Mode { MODE_REPLACE_SIGNAL, MODE_SIGNAL_CONTEST };
 
 // +++ آپدیت شده: اضافه کردن دو حالت جدید برای محاسبه تلاقی +++
-enum E_Talaqi_Mode {
+enum E_Talaqi_Mode
+{
     TALAQI_MODE_MANUAL,     // دستی (بر اساس پوینت)
     TALAQI_MODE_KUMO,       // هوشمند (بر اساس ضخامت کومو)
     TALAQI_MODE_ATR,        // پویا (مبتنی بر ATR)
     TALAQI_MODE_ZSCORE,     // +++ جدید: آماری (بر اساس Z-Score)
     TALAQI_MODE_MFCI        // +++ جدید: شاخص چندعاملی (Multi-Factor Index)
 };
+
 
 //+------------------------------------------------------------------+
 //|                      تنظیمات ورودی اکسپرت                         |
@@ -58,26 +61,24 @@ input int             Inp_Grace_Period_Candles= 5;                      // تع�
 input group           "         --- تنظیمات تلاقی (Confluence) ---"
 input E_Talaqi_Mode   Inp_Talaqi_Calculation_Mode = TALAQI_MODE_ATR;    // ✅ روش محاسبه فاصله تلاقی
 
-// --- پارامترهای حالت‌های قبلی ---
-input group           "       --- پارامترهای حالت‌های ساده ---"
+// --- پارامترهای حالت‌های ساده ---
+input group           "          --- پارامترهای حالت‌های ساده تلاقی ---"
 input double          Inp_Talaqi_Distance_in_Points = 3.0;              // [MANUAL Mode] فاصله تلاقی (بر اساس پوینت)
 input double          Inp_Talaqi_Kumo_Factor      = 0.2;              // [KUMO Mode] ضریب تلاقی (درصد ضخامت کومو)
 input double          Inp_Talaqi_ATR_Multiplier     = 0.25;             // [ATR Mode] ضریب ATR برای تلاقی (آستانه)
 
-
 // +++ NEW +++ پارامترهای حالت Z-Score
-input group           "    --- [Z-SCORE Mode] تنظیمات حالت آماری ---"
+input group           "        --- [Z-SCORE Mode] تنظیمات حالت آماری ---"
 input int             Inp_Talaqi_ZScore_Period      = 50;               // دوره نگاه به عقب برای محاسبات آماری
 input double          Inp_Talaqi_ZScore_Threshold   = 1.0;              // آستانه Z-Score (مقادیر کمتر بهتر است)
 
-
 // +++ NEW +++ پارامترهای حالت MFCI
-input group           " --- [MFCI Mode] تنظیمات شاخص چندعاملی ---"
-input double          Inp_Talaqi_MFCI_Threshold          = 0.70;            // آستانه نهایی برای امتیاز MFCI (بالاتر بهتر است)
-input int             Inp_Talaqi_MFCI_KS_Stability_Period= 5;               // دوره بررسی ثبات کیجون-سن
-input int             Inp_Talaqi_MFCI_Spread_Momentum_Period = 3;           // دوره بررسی مومنتوم فاصله
-input int             Inp_Talaqi_MFCI_Vol_Regime_Short_Period = 5;          // دوره کوتاه ATR برای تشخیص رژیم نوسان
-input int             Inp_Talaqi_MFCI_Vol_Regime_Long_Period = 60;          // دوره بلند ATR برای تشخیص رژیم نوسان
+input group           "      --- [MFCI Mode] تنظیمات شاخص چندعاملی ---"
+input double          Inp_Talaqi_MFCI_Threshold              = 0.70;    // آستانه نهایی برای امتیاز MFCI (بالاتر بهتر است)
+input int             Inp_Talaqi_MFCI_KS_Stability_Period    = 5;       // دوره بررسی ثبات کیجون-سن
+input int             Inp_Talaqi_MFCI_Spread_Momentum_Period = 3;       // دوره بررسی مومنتوم فاصله
+input int             Inp_Talaqi_MFCI_Vol_Regime_Short_Period= 5;       // دوره کوتاه ATR برای تشخیص رژیم نوسان
+input int             Inp_Talaqi_MFCI_Vol_Regime_Long_Period = 60;      // دوره بلند ATR برای تشخیص رژیم نوسان
 
 
 // ---=== 🛡️ 4. مدیریت حد ضرر (Stop Loss) 🛡️ ===---
@@ -102,6 +103,13 @@ input group           "        ---=== 🎨 6. تنظیمات گرافیکی (Vis
 input double          Inp_Object_Size_Multiplier = 1.0;                 // ضریب اندازه اشیاء گرافیکی
 input color           Inp_Bullish_Color       = clrLimeGreen;           // رنگ سیگنال و اشیاء خرید
 input color           Inp_Bearish_Color       = clrRed;                 // رنگ سیگنال و اشیاء فروش
+
+// ---=== 🚦 7. فیلترهای ورود (Entry Filters) 🚦 ===---
+input group           "   ---=== 🚦 7. فیلترهای ورود (Entry Filters) 🚦 ===---"
+input bool            Inp_Enable_Kumo_Filter = true;        // ✅ [فیلتر کومو]: فعال/غیرفعال
+input bool            Inp_Enable_ATR_Filter  = true;        // ✅ [فیلتر ATR]: فعال/غیرفعال
+input int             Inp_ATR_Filter_Period  = 14;          // [فیلتر ATR]: دوره محاسبه ATR
+input double          Inp_ATR_Filter_Min_Value_pips = 10.0; // [فیلتر ATR]: حداقل مقدار ATR (به پیپ)
 
 
 //+------------------------------------------------------------------+
@@ -131,11 +139,9 @@ struct SSettings
     double              talaqi_distance_in_points;
     double              talaqi_kumo_factor;
     double              talaqi_atr_multiplier;
-
     // +++ NEW +++ پارامترهای حالت Z-Score
     int                 talaqi_zscore_period;
     double              talaqi_zscore_threshold;
-
     // +++ NEW +++ پارامترهای حالت MFCI
     double              talaqi_mfci_threshold;
     int                 talaqi_mfci_ks_stability_period;
@@ -162,4 +168,10 @@ struct SSettings
     double              object_size_multiplier;
     color               bullish_color;
     color               bearish_color;
+    
+    // 7. Entry Filters
+    bool                enable_kumo_filter;
+    bool                enable_atr_filter;
+    int                 atr_filter_period;
+    double              atr_filter_min_value_pips;
 };
