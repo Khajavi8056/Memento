@@ -456,7 +456,6 @@ struct MonthlyTrades
 
 ________________________________________________________________________________________________________________________________
 
-
 //+------------------------------------------------------------------+
 //|                                     IchimokuLogic.mqh            |
 //|                          © 2025, hipoalgoritm              |
@@ -551,7 +550,13 @@ private:
     CVisualManager* m_visual_manager;
     
     //--- توابع کمکی
-    void Log(string message);
+        void Log(string message);
+    
+    // --- [کد جدید] توابع فیلترینگ نهایی ---
+    bool AreAllFiltersPassed(bool is_buy);
+    bool CheckKumoFilter(bool is_buy);
+    bool CheckAtrFilter();
+    
     void AddOrUpdatePotentialSignal(bool is_buy);
     bool CheckTripleCross(bool& is_buy);
     bool CheckFinalConfirmation(bool is_buy);
@@ -667,13 +672,16 @@ bool CStrategyManager::Init()
         Log("خطا در ایجاد اندیکاتور Ichimoku.");
         return false;
     }
-          // ساخت هندل ATR
-      m_atr_handle = iATR(m_symbol, _Period, 14); // فعلا دوره ۱۴ ثابت است
-      if (m_atr_handle == INVALID_HANDLE)
-      {
-          Log("خطا در ایجاد اندیکاتور ATR.");
-          return false;
-      }
+        // [کد جدید] ساخت هندل ATR برای فیلتر ورود
+    m_atr_handle = iATR(m_symbol, _Period, m_settings.atr_filter_period);
+    if (m_atr_handle == INVALID_HANDLE)
+    {
+        Log("خطا در ایجاد اندیکاتور ATR برای فیلتر ورود.");
+        return false;
+    }
+
+     
+     
 
     ArraySetAsSeries(m_tenkan_buffer, true);
     ArraySetAsSeries(m_kijun_buffer, true);
@@ -773,7 +781,7 @@ void CStrategyManager::ProcessNewBar()
             AddOrUpdatePotentialSignal(is_new_signal_buy);
         }
 
-        // فاز دوم: بررسی لیست نامزدها (شروع مسابقه)
+        // فاز دوم: بررسی لیست نامزدها (شروع مسابقه)        // فاز دوم: بررسی لیست نامزدها (شروع مسابقه)
         if (ArraySize(m_potential_signals) > 0)
         {
             for (int i = ArraySize(m_potential_signals) - 1; i >= 0; i--)
@@ -789,22 +797,25 @@ void CStrategyManager::ProcessNewBar()
                 // اگر مهلت تمام نشده، آیا تاییدیه نهایی را گرفته؟
                 if (CheckFinalConfirmation(m_potential_signals[i].is_buy))
                 {
-                    // لاگ کردن پیدا شدن برنده مسابقه
                     Log("🏆 [حالت مسابقه‌ای] برنده پیدا شد! سیگنال " + (m_potential_signals[i].is_buy ? "خرید" : "فروش") + " تأیید نهایی شد!");
-            
-                    // رسم فلش تایید روی چارت
-                    if (m_symbol == _Symbol && m_visual_manager != NULL)
-                        m_visual_manager.DrawConfirmationArrow(m_potential_signals[i].is_buy, 1);
-            
-                    // باز کردن معامله بر اساس سیگنال برنده
-                    OpenTrade(m_potential_signals[i].is_buy);
-            
-                    // ✅✅✅ منطق جدید و هوشمندانه مدیریت لیست انتظار ✅✅✅
-            
-                    // جهت سیگنال برنده را ذخیره کن
+                
+                    // 🚦 === گیت کنترل نهایی === 🚦
+                    if (AreAllFiltersPassed(m_potential_signals[i].is_buy))
+                    {
+                        // اگر تمام فیلترها پاس شدند، معامله را باز کن
+                        if (m_symbol == _Symbol && m_visual_manager != NULL)
+                            m_visual_manager.DrawConfirmationArrow(m_potential_signals[i].is_buy, 1);
+                        
+                        OpenTrade(m_potential_signals[i].is_buy);
+                    }
+                    else
+                    {
+                        // اگر فیلترها رد شدند، فقط لاگ کن و معامله‌ای باز نکن
+                        Log("❌ معامله توسط فیلترهای نهایی رد شد.");
+                    }
+                    
+                    // ✅✅✅ منطق پاکسازی لیست انتظار (بدون تغییر باقی می‌ماند) ✅✅✅
                     bool winner_is_buy = m_potential_signals[i].is_buy;
-            
-                    // از لیست انتظار، فقط نامزدهای هم‌جهت با برنده را حذف کن
                     Log("پاکسازی لیست انتظار: حذف تمام نامزدهای " + (winner_is_buy ? "خرید" : "فروش") + "...");
                     for (int j = ArraySize(m_potential_signals) - 1; j >= 0; j--)
                     {
@@ -814,20 +825,18 @@ void CStrategyManager::ProcessNewBar()
                         }
                     }
                     Log("پاکسازی انجام شد. نامزدهای خلاف جهت در لیست باقی ماندند (در صورت وجود).");
-            
-                    // از کل تابع پردازش برای این کندل خارج شو چون کارمان تمام شده
-                    return;
+                    return; // از کل تابع پردازش برای این کندل خارج شو
                 }
-                // اگر نه، یک کندل به عمرش اضافه کن
-                else
+                else // <<<< این else باید اینجا باشه
                 {
-                    // آپدیت مستقیم داده اصلی در آرایه
+                    // اگر تاییدیه نگرفت، یک کندل به عمرش اضافه کن
                     m_potential_signals[i].grace_candle_count++;
                     if (m_symbol == _Symbol && m_visual_manager != NULL)
                         m_visual_manager.DrawScanningArea(m_potential_signals[i].is_buy, m_settings.chikou_period, m_potential_signals[i].grace_candle_count);
                 }
             }
         }
+
     }
 }
 
@@ -1463,151 +1472,102 @@ double CStrategyManager::CalculateAtrStopLoss(bool is_buy, double entry_price)
     return sl_price;
 }
 
+//+------------------------------------------------------------------+
+//|                    بخش فیلترهای نهایی ورود                      |
+//+------------------------------------------------------------------+
 
+//==================================================================
+//  تابع اصلی "گیت کنترل نهایی" که تمام فیلترها را چک می‌کند
+//==================================================================
+bool CStrategyManager::AreAllFiltersPassed(bool is_buy)
+{
+    // اگر فیلتر کومو فعال بود، چکش کن
+    if (m_settings.enable_kumo_filter)
+    {
+        if (!CheckKumoFilter(is_buy))
+        {
+            Log("فیلتر کومو رد شد.");
+            return false; // از اولین فیلتری که رد بشه، سریع خارج میشیم
+        }
+    }
 
+    // اگر فیلتر ATR فعال بود، چکش کن
+    if (m_settings.enable_atr_filter)
+    {
+        if (!CheckAtrFilter())
+        {
+            Log("فیلتر ATR رد شد.");
+            return false;
+        }
+    }
+    
+    // اگه کد به اینجا برسه، یعنی همه فیلترهای فعال با موفقیت پاس شدن
+    Log("✅ تمام فیلترهای فعال با موفقیت پاس شدند.");
+    return true;
+}
 
+//==================================================================
+//  تابع کمکی برای بررسی فیلتر ابر کومو
+//==================================================================
+bool CStrategyManager::CheckKumoFilter(bool is_buy)
+{
+    double senkou_a[], senkou_b[];
+    // گرفتن مقدار سنکو A و B برای کندل فعلی (شیفت ۰)
+    // بافر 2 = Senkou Span A , بافر 3 = Senkou Span B
+    if(CopyBuffer(m_ichimoku_handle, 2, 0, 1, senkou_a) < 1 || 
+       CopyBuffer(m_ichimoku_handle, 3, 0, 1, senkou_b) < 1)
+    {
+       Log("خطا: داده کافی برای فیلتر کومو موجود نیست.");
+       return false; // اگر داده نباشه، برای امنیت رد کن
+    }
+    
+    double high_kumo = MathMax(senkou_a[0], senkou_b[0]);
+    double low_kumo = MathMin(senkou_a[0], senkou_b[0]);
+    double close_price = iClose(m_symbol, _Period, 1); // قیمت بسته شدن کندل تاییدیه
 
+    if (is_buy)
+    {
+        // برای خرید، قیمت باید بالای ابر باشه
+        return (close_price > high_kumo);
+    }
+    else // is_sell
+    {
+        // برای فروش، قیمت باید پایین ابر باشه
+        return (close_price < low_kumo);
+    }
+}
+
+//==================================================================
+//  تابع کمکی برای بررسی فیلتر حداقل نوسان ATR
+//==================================================================
+bool CStrategyManager::CheckAtrFilter()
+{
+    double atr_value_buffer[];
+    if(CopyBuffer(m_atr_handle, 0, 1, 1, atr_value_buffer) < 1)
+    {
+       Log("خطا: داده کافی برای فیلتر ATR موجود نیست.");
+       return false; // اگر داده نباشه، رد کن
+    }
+    
+    double current_atr = atr_value_buffer[0];
+    
+    // تبدیل مقدار پیپ ورودی به مقدار واقعی بر اساس پوینت
+    double point = SymbolInfoDouble(m_symbol, SYMBOL_POINT);
+    double min_atr_threshold = m_settings.atr_filter_min_value_pips * point;
+    
+    // برای جفت ارزهایی که ۳ یا ۵ رقم اعشار دارن، پیپ ۱۰ برابر پوینته
+    if(_Digits == 3 || _Digits == 5)
+    {
+        min_atr_threshold *= 10;
+    }
+
+    // شرط اصلی: آیا ATR فعلی از حداقل مورد نیاز ما بیشتر یا مساوی است؟
+    return (current_atr >= min_atr_threshold);
+}
 
 ______________________________________________________________________________________________________________________
 
 
-
-
-
-//+------------------------------------------------------------------+
-//|                                                                  |
-//|                    Project: Memento (By HipoAlgorithm)           |
-//|                    File: set.mqh (EA Settings)                   |
-//|                    Version: 4.0 (Phase 1 Implementation)         |
-//|                    © 2025, Mohammad & Gemini                     |
-//|                                                                  |
-//+------------------------------------------------------------------+
-#property copyright "© 2025, hipoalgoritm"
-#property link      "https://www.mql5.com"
-#property version   "4.0" // پیاده‌سازی کامل ورودی‌های فاز ۱
-
-//--- انواع شمارشی برای خوانایی بهتر کد
-enum E_Confirmation_Mode { MODE_CLOSE_ONLY, MODE_OPEN_AND_CLOSE };
-
-// +++ enum حد ضرر با افزودن حالت ATR +++
-enum E_SL_Mode {
-    MODE_COMPLEX,         // پیچیده (کیجون فلت، پیوت و...)
-    MODE_SIMPLE,          // ساده (بر اساس رنگ مخالف کندل)
-    MODE_ATR              // پویا (مبتنی بر ATR)
-};
-
-enum E_Signal_Mode     { MODE_REPLACE_SIGNAL, MODE_SIGNAL_CONTEST };
-
-// +++ enum جدید برای انتخاب حالت محاسبه تلاقی +++
-enum E_Talaqi_Mode {
-    TALAQI_MODE_MANUAL,     // دستی (بر اساس پوینت)
-    TALAQI_MODE_KUMO,       // هوشمند (بر اساس ضخامت کومو)
-    TALAQI_MODE_ATR         // پویا (مبتنی بر ATR)
-};
-
-//+------------------------------------------------------------------+
-//|                      تنظیمات ورودی اکسپرت                         |
-//+------------------------------------------------------------------+
-
-// ---=== ⚙️ 1. تنظیمات عمومی (General) ⚙️ ===---
-input group           "          ---=== ⚙️ 1. تنظیمات عمومی (General) ⚙️ ===---"
-input bool            Inp_Enable_Dashboard  = true;                   // ✅ فعال/غیرفعال کردن داشبورد اطلاعاتی
-input string          Inp_Symbols_List      = "EURUSD"; // لیست نمادها (جدا شده با کاما)
-input int             Inp_Magic_Number      = 12345;                  // شماره جادویی معاملات
-input bool            Inp_Enable_Logging    = true;                   // فعال/غیرفعال کردن لاگ‌ها
-
-// ---=== 📈 2. تنظیمات ایچیموکو (Ichimoku) 📈 ===---
-input group           "      ---=== 📈 2. تنظیمات ایچیموکو (Ichimoku) 📈 ===---"
-input int             Inp_Tenkan_Period     = 9;                      // دوره تنکان-سن
-input int             Inp_Kijun_Period      = 26;                     // دوره کیجون-سن
-input int             Inp_Senkou_Period     = 52;                     // دوره سنکو اسپن بی
-input int             Inp_Chikou_Period     = 26;                     // دوره چیکو اسپن (نقطه مرجع)
-
-// ---=== 🎯 3. سیگنال و تاییدیه (Signal & Confirmation) 🎯 ===---
-input group           "---=== 🎯 3. سیگنال و تاییدیه (Signal & Confirmation) 🎯 ===---"
-input E_Signal_Mode   Inp_Signal_Mode         = MODE_SIGNAL_CONTEST;  // روش مدیریت سیگنال
-input E_Confirmation_Mode Inp_Confirmation_Type = MODE_OPEN_AND_CLOSE;  // نوع تایید قیمت نهایی
-input int             Inp_Grace_Period_Candles= 5;                      // تعداد کندل مهلت برای تاییدیه
-
-// --- زیرگروه تنظیمات تلاقی (Confluence) ---
-input group           "         --- تنظیمات تلاقی (Confluence) ---"
-input E_Talaqi_Mode   Inp_Talaqi_Calculation_Mode = TALAQI_MODE_KUMO;   // ✅ روش محاسبه فاصله تلاقی
-input double          Inp_Talaqi_ATR_Multiplier     = 0.5;              // [ATR Mode] ضریب ATR برای تلاقی
-input double          Inp_Talaqi_Distance_in_Points = 3.0;              // [MANUAL Mode] فاصله تلاقی (بر اساس پوینت)
-input double          Inp_Talaqi_Kumo_Factor      = 0.2;              // [KUMO Mode] ضریب تلاقی (درصد ضخامت کومو)
-
-// ---=== 🛡️ 4. مدیریت حد ضرر (Stop Loss) 🛡️ ===---
-input group           "       ---=== 🛡️ 4. مدیریت حد ضرر (Stop Loss) 🛡️ ===---"
-input E_SL_Mode       Inp_StopLoss_Type       = MODE_COMPLEX;           // ✅ روش محاسبه استاپ لاس
-input double          Inp_SL_ATR_Multiplier   = 2.5;                    // [ATR Mode] ضریب ATR برای حد ضرر
-input int             Inp_Flat_Kijun_Period   = 50;                     // [COMPLEX] تعداد کندل برای جستجوی کیجون فلت
-input int             Inp_Flat_Kijun_Min_Length = 5;                    // [COMPLEX] حداقل طول کیجون فلت
-input int             Inp_Pivot_Lookback      = 30;                     // [COMPLEX] تعداد کندل برای جستجوی پیوت
-input int             Inp_SL_Lookback_Period  = 15;                     // [SIMPLE] دوره نگاه به عقب برای یافتن سقف/کف
-input double          Inp_SL_Buffer_Multiplier = 3.0;                   // [SIMPLE/COMPLEX] ضریب بافر برای فاصله از سقف/کف
-
-// ---=== 💰 5. مدیریت سرمایه (Money Management) 💰 ===---
-input group           " ---=== 💰 5. مدیریت سرمایه (Money Management) 💰 ===---"
-input double          Inp_Risk_Percent_Per_Trade = 1.0;                 // درصد ریسک در هر معامله
-input double          Inp_Take_Profit_Ratio   = 1.5;                    // نسبت ریسک به ریوارد برای حد سود
-input int             Inp_Max_Trades_Per_Symbol = 1;                    // حداکثر معاملات باز برای هر نماد
-input int             Inp_Max_Total_Trades    = 5;                      // حداکثر کل معاملات باز
-
-// ---=== 🎨 6. تنظیمات گرافیکی (Visuals) 🎨 ===---
-input group           "        ---=== 🎨 6. تنظیمات گرافیکی (Visuals) 🎨 ===---"
-input double          Inp_Object_Size_Multiplier = 1.0;                 // ضریب اندازه اشیاء گرافیکی
-input color           Inp_Bullish_Color       = clrLimeGreen;           // رنگ سیگنال و اشیاء خرید
-input color           Inp_Bearish_Color       = clrRed;                 // رنگ سیگنال و اشیاء فروش
-
-
-//+------------------------------------------------------------------+
-//|     ساختار اصلی برای نگهداری تمام تنظیمات ورودی (SSettings)       |
-//+------------------------------------------------------------------+
-struct SSettings
-{
-    // 1. General
-    bool                enable_dashboard;
-    string              symbols_list;
-    int                 magic_number;
-    bool                enable_logging;
-    
-    // 2. Ichimoku
-    int                 tenkan_period;
-    int                 kijun_period;
-    int                 senkou_period;
-    int                 chikou_period;
-    
-    // 3. Signal & Confirmation
-    E_Signal_Mode       signal_mode;
-    E_Confirmation_Mode confirmation_type;
-    int                 grace_period_candles;
-    
-    // 3.1. Talaqi (با ساختار جدید)
-    E_Talaqi_Mode       talaqi_calculation_mode;
-    double              talaqi_atr_multiplier;
-    double              talaqi_distance_in_points;
-    double              talaqi_kumo_factor;
-
-    // 4. Stop Loss (با ساختار جدید)
-    E_SL_Mode           stoploss_type;
-    double              sl_atr_multiplier;
-    int                 flat_kijun_period;
-    int                 flat_kijun_min_length;
-    int                 pivot_lookback;
-    int                 sl_lookback_period;
-    double              sl_buffer_multiplier;
-    
-    // 5. Money Management
-    double              risk_percent_per_trade;
-    double              take_profit_ratio;
-    int                 max_trades_per_symbol;
-    int                 max_total_trades;
-    
-    // 6. Visuals
-    double              object_size_multiplier;
-    color               bullish_color;
-    color               bearish_color;
-};
 
 
 
