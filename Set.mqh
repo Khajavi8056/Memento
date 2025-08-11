@@ -2,18 +2,17 @@
 //|                                                                  |
 //|                    Project: Memento (By HipoAlgorithm)           |
 //|                    File: set.mqh (EA Settings)                   |
-//|                    Version: 4.0 (Phase 1 Implementation)         |
+//|                    Version: 5.0 (Advanced Confluence Models)     |
 //|                    © 2025, Mohammad & Gemini                     |
 //|                                                                  |
 //+------------------------------------------------------------------+
 #property copyright "© 2025, hipoalgoritm"
 #property link      "https://www.mql5.com"
-#property version   "4.0" // پیاده‌سازی کامل ورودی‌های فاز ۱
+#property version   "5.0"
 
 //--- انواع شمارشی برای خوانایی بهتر کد
 enum E_Confirmation_Mode { MODE_CLOSE_ONLY, MODE_OPEN_AND_CLOSE };
 
-// +++ enum حد ضرر با افزودن حالت ATR +++
 enum E_SL_Mode {
     MODE_COMPLEX,         // پیچیده (کیجون فلت، پیوت و...)
     MODE_SIMPLE,          // ساده (بر اساس رنگ مخالف کندل)
@@ -22,11 +21,13 @@ enum E_SL_Mode {
 
 enum E_Signal_Mode     { MODE_REPLACE_SIGNAL, MODE_SIGNAL_CONTEST };
 
-// +++ enum جدید برای انتخاب حالت محاسبه تلاقی +++
+// +++ آپدیت شده: اضافه کردن دو حالت جدید برای محاسبه تلاقی +++
 enum E_Talaqi_Mode {
     TALAQI_MODE_MANUAL,     // دستی (بر اساس پوینت)
     TALAQI_MODE_KUMO,       // هوشمند (بر اساس ضخامت کومو)
-    TALAQI_MODE_ATR         // پویا (مبتنی بر ATR)
+    TALAQI_MODE_ATR,        // پویا (مبتنی بر ATR)
+    TALAQI_MODE_ZSCORE,     // +++ جدید: آماری (بر اساس Z-Score)
+    TALAQI_MODE_MFCI        // +++ جدید: شاخص چندعاملی (Multi-Factor Index)
 };
 
 //+------------------------------------------------------------------+
@@ -55,10 +56,29 @@ input int             Inp_Grace_Period_Candles= 5;                      // تع�
 
 // --- زیرگروه تنظیمات تلاقی (Confluence) ---
 input group           "         --- تنظیمات تلاقی (Confluence) ---"
-input E_Talaqi_Mode   Inp_Talaqi_Calculation_Mode = TALAQI_MODE_KUMO;   // ✅ روش محاسبه فاصله تلاقی
-input double          Inp_Talaqi_ATR_Multiplier     = 0.5;              // [ATR Mode] ضریب ATR برای تلاقی
+input E_Talaqi_Mode   Inp_Talaqi_Calculation_Mode = TALAQI_MODE_ATR;    // ✅ روش محاسبه فاصله تلاقی
+
+// --- پارامترهای حالت‌های قبلی ---
+input group           "       --- پارامترهای حالت‌های ساده ---"
 input double          Inp_Talaqi_Distance_in_Points = 3.0;              // [MANUAL Mode] فاصله تلاقی (بر اساس پوینت)
 input double          Inp_Talaqi_Kumo_Factor      = 0.2;              // [KUMO Mode] ضریب تلاقی (درصد ضخامت کومو)
+input double          Inp_Talaqi_ATR_Multiplier     = 0.25;             // [ATR Mode] ضریب ATR برای تلاقی (آستانه)
+
+
+// +++ NEW +++ پارامترهای حالت Z-Score
+input group           "    --- [Z-SCORE Mode] تنظیمات حالت آماری ---"
+input int             Inp_Talaqi_ZScore_Period      = 50;               // دوره نگاه به عقب برای محاسبات آماری
+input double          Inp_Talaqi_ZScore_Threshold   = 1.0;              // آستانه Z-Score (مقادیر کمتر بهتر است)
+
+
+// +++ NEW +++ پارامترهای حالت MFCI
+input group           " --- [MFCI Mode] تنظیمات شاخص چندعاملی ---"
+input double          Inp_Talaqi_MFCI_Threshold          = 0.70;            // آستانه نهایی برای امتیاز MFCI (بالاتر بهتر است)
+input int             Inp_Talaqi_MFCI_KS_Stability_Period= 5;               // دوره بررسی ثبات کیجون-سن
+input int             Inp_Talaqi_MFCI_Spread_Momentum_Period = 3;           // دوره بررسی مومنتوم فاصله
+input int             Inp_Talaqi_MFCI_Vol_Regime_Short_Period = 5;          // دوره کوتاه ATR برای تشخیص رژیم نوسان
+input int             Inp_Talaqi_MFCI_Vol_Regime_Long_Period = 60;          // دوره بلند ATR برای تشخیص رژیم نوسان
+
 
 // ---=== 🛡️ 4. مدیریت حد ضرر (Stop Loss) 🛡️ ===---
 input group           "       ---=== 🛡️ 4. مدیریت حد ضرر (Stop Loss) 🛡️ ===---"
@@ -106,12 +126,23 @@ struct SSettings
     E_Confirmation_Mode confirmation_type;
     int                 grace_period_candles;
     
-    // 3.1. Talaqi (با ساختار جدید)
+    // 3.1. Talaqi (با ساختار جدید و آپدیت شده)
     E_Talaqi_Mode       talaqi_calculation_mode;
-    double              talaqi_atr_multiplier;
     double              talaqi_distance_in_points;
     double              talaqi_kumo_factor;
+    double              talaqi_atr_multiplier;
 
+    // +++ NEW +++ پارامترهای حالت Z-Score
+    int                 talaqi_zscore_period;
+    double              talaqi_zscore_threshold;
+
+    // +++ NEW +++ پارامترهای حالت MFCI
+    double              talaqi_mfci_threshold;
+    int                 talaqi_mfci_ks_stability_period;
+    int                 talaqi_mfci_spread_momentum_period;
+    int                 talaqi_mfci_vol_regime_short_period;
+    int                 talaqi_mfci_vol_regime_long_period;
+    
     // 4. Stop Loss (با ساختار جدید)
     E_SL_Mode           stoploss_type;
     double              sl_atr_multiplier;
@@ -132,4 +163,3 @@ struct SSettings
     color               bullish_color;
     color               bearish_color;
 };
-
