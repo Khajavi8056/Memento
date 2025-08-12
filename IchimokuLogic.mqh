@@ -4,12 +4,14 @@
 //+------------------------------------------------------------------+
 #property copyright "© 2025,hipoalgoritm"
 #property link      "https://www.mql5.com"
-#property version   "1.4" 
+#property version   "2.0" 
 #include "set.mqh"
 #include <Trade\Trade.mqh>
 #include <Trade\SymbolInfo.mqh>
 #include <Object.mqh>
 #include "VisualManager.mqh"
+#include <Indicators\MovingAverages.mqh>
+
 //--- تعریف ساختار سیگنال
 struct SPotentialSignal
 {
@@ -77,45 +79,55 @@ private:
    
     datetime            m_last_bar_time;
     
+    // --- هندل های اندیکاتور ---
     int                 m_ichimoku_handle;
     int                 m_atr_handle;      
+    int                 m_adx_handle;       // +++ NEW: هندل برای فیلتر ADX
+    int                 m_rsi_exit_handle;  // +++ NEW: هندل برای خروج با RSI
 
+    // --- بافرهای داده ---
     double              m_tenkan_buffer[];
     double              m_kijun_buffer[];
     double              m_chikou_buffer[];
     double              m_high_buffer[];
     double              m_low_buffer[];
     
+    // --- مدیریت سیگنال ---
     SPotentialSignal    m_signal;
     bool                m_is_waiting;
     SPotentialSignal    m_potential_signals[];
     CVisualManager* m_visual_manager;
     
-    //--- توابع کمکی
-        void Log(string message);
+    //--- توابع کمکی ---
+    void Log(string message);
     
-    // --- [کد جدید] توابع فیلترینگ نهایی ---
-    bool AreAllFiltersPassed(bool is_buy);
-    bool CheckKumoFilter(bool is_buy);
-    bool CheckAtrFilter();
-    
+    // --- منطق اصلی سیگنال ---
     void AddOrUpdatePotentialSignal(bool is_buy);
     bool CheckTripleCross(bool& is_buy);
     bool CheckFinalConfirmation(bool is_buy);
     
-    //--- محاسبه استاپ لاس
+    // --- فیلترهای ورود ---
+    bool AreAllFiltersPassed(bool is_buy);
+    bool CheckKumoFilter(bool is_buy);
+    bool CheckAtrFilter();
+    bool CheckAdxFilter(bool is_buy); // +++ NEW: تابع برای فیلتر ADX
+
+    // --- منطق خروج ---
+    void CheckForEarlyExit();         // +++ NEW: تابع اصلی برای بررسی خروج زودرس
+    bool CheckChikouRsiExit(bool is_buy); // +++ NEW: تابع کمکی برای منطق خروج چیکو+RSI
+
+    //--- محاسبه استاپ لاس ---
     double CalculateStopLoss(bool is_buy, double entry_price);
-    double CalculateAtrStopLoss(bool is_buy, double entry_price);
+    double CalculateAtrStopLoss(bool is_buy, double entry_price); // این تابع اصلاح خواهد شد
     double GetTalaqiTolerance(int reference_shift);
     double CalculateAtrTolerance(int reference_shift);
     double CalculateDynamicTolerance(int reference_shift);
-  
     double FindFlatKijun();
     double FindPivotKijun(bool is_buy);
     double FindPivotTenkan(bool is_buy);
     double FindBackupStopLoss(bool is_buy, double buffer);
     
-    //--- مدیریت معاملات
+    //--- مدیریت معاملات ---
     int CountSymbolTrades();
     int CountTotalTrades();
     void OpenTrade(bool is_buy);
@@ -145,7 +157,7 @@ CStrategyManager::CStrategyManager(string symbol, SSettings &settings)
 }
 
 //+------------------------------------------------------------------+
-//| دیستراکتور کلاس (برای پاکسازی)                                   |
+//| دیستراکتور کلاس (نسخه نهایی و اصلاح شده)                           |
 //+------------------------------------------------------------------+
 CStrategyManager::~CStrategyManager()
 {
@@ -156,12 +168,18 @@ CStrategyManager::~CStrategyManager()
         m_visual_manager = NULL;
     }
 
-    // آزاد کردن هندل‌های اندیکاتور
+    // آزاد کردن هندل‌های اندیکاتور (هر کدام فقط یک بار)
     if(m_ichimoku_handle != INVALID_HANDLE)
         IndicatorRelease(m_ichimoku_handle);
         
     if(m_atr_handle != INVALID_HANDLE)
         IndicatorRelease(m_atr_handle);
+        
+    if(m_adx_handle != INVALID_HANDLE)
+        IndicatorRelease(m_adx_handle);
+
+    if(m_rsi_exit_handle != INVALID_HANDLE)
+        IndicatorRelease(m_rsi_exit_handle);
 }
 
 //+------------------------------------------------------------------+
@@ -214,13 +232,30 @@ bool CStrategyManager::Init()
         Log("خطا در ایجاد اندیکاتور Ichimoku.");
         return false;
     }
-        // [کد جدید] ساخت هندل ATR برای فیلتر ورود
+    // [کد جدید] ساخت هندل ATR برای فیلتر ورود
     m_atr_handle = iATR(m_symbol, _Period, m_settings.atr_filter_period);
     if (m_atr_handle == INVALID_HANDLE)
     {
         Log("خطا در ایجاد اندیکاتور ATR برای فیلتر ورود.");
         return false;
     }
+
+    // +++ NEW: ساخت هندل برای فیلتر ADX +++
+    m_adx_handle = iADX(m_symbol, _Period, m_settings.adx_period);
+    if (m_adx_handle == INVALID_HANDLE)
+    {
+        Log("خطا در ایجاد اندیکاتور ADX.");
+        return false;
+    }
+
+    // +++ NEW: ساخت هندل برای خروج زودرس با RSI +++
+    m_rsi_exit_handle = iRSI(m_symbol, _Period, m_settings.early_exit_rsi_period, PRICE_CLOSE);
+    if (m_rsi_exit_handle == INVALID_HANDLE)
+    {
+        Log("خطا در ایجاد اندیکاتور RSI برای خروج زودرس.");
+        return false;
+    }
+
 
      
      
@@ -263,6 +298,12 @@ void CStrategyManager::ProcessNewBar()
     
     // اگر کندل جدید بود، زمان آن را در متغیر m_last_bar_time ذخیره می‌کنیم تا در تیک‌های بعدی دوباره پردازش نشود
     m_last_bar_time = current_bar_time;
+  
+    // +++ NEW: چک کردن شرایط خروج زودرس برای پوزیشن های باز +++
+    if(m_settings.enable_early_exit)
+    {
+        CheckForEarlyExit();
+    }
 
     // اگر این نمونه از کلاس، مسئول چارت اصلی است، اشیاء گرافیکی قدیمی را پاکسازی می‌کند تا چارت شلوغ نشود
     if(m_symbol == _Symbol && m_visual_manager != NULL)
@@ -1046,35 +1087,59 @@ double CStrategyManager::CalculateAtrTolerance(int reference_shift)
 }
 
 //+------------------------------------------------------------------+
-//| (جدید) محاسبه حد ضرر اولیه بر اساس ATR                           |
+//| (بهبود یافته) محاسبه حد ضرر ATR با استفاده از کتابخانه استاندارد
 //+------------------------------------------------------------------+
 double CStrategyManager::CalculateAtrStopLoss(bool is_buy, double entry_price)
 {
-    double atr_buffer[];
-    // استفاده از هندل از پیش ساخته شده کلاس
-    if(CopyBuffer(m_atr_handle, 0, 1, 1, atr_buffer) < 1)
+    // اگر حالت پویای SL غیرفعال باشد، از منطق ساده قبلی استفاده کن
+    if (!m_settings.enable_sl_vol_regime)
     {
-        Log("داده ATR برای محاسبه حد ضرر موجود نیست.");
+        double atr_buffer[];
+        if(CopyBuffer(m_atr_handle, 0, 1, 1, atr_buffer) < 1)
+        {
+            Log("داده ATR برای محاسبه حد ضرر ساده موجود نیست.");
+            return 0.0;
+        }
+        double atr_value = atr_buffer[0];
+        return is_buy ? entry_price - (atr_value * m_settings.sl_atr_multiplier) : entry_price + (atr_value * m_settings.sl_atr_multiplier);
+    }
+
+    // --- منطق جدید: SL پویا بر اساس رژیم نوسان (نسخه بهینه) ---
+    int history_size = m_settings.sl_vol_regime_ema_period + 5;
+    double atr_values[], ema_values[];
+
+    int atr_sl_handle = iATR(m_symbol, _Period, m_settings.sl_vol_regime_atr_period);
+    if (atr_sl_handle == INVALID_HANDLE || CopyBuffer(atr_sl_handle, 0, 0, history_size, atr_values) < history_size)
+    {
+        Log("داده کافی برای محاسبه SL پویا موجود نیست.");
+        if(atr_sl_handle != INVALID_HANDLE) IndicatorRelease(atr_sl_handle);
         return 0.0;
     }
-    
-    double atr_value = atr_buffer[0];
-    double sl_price = 0;
+    IndicatorRelease(atr_sl_handle);
+    ArraySetAsSeries(atr_values, true); // برای iMAOnArray باید سری باشه
 
-    if(is_buy)
-        sl_price = entry_price - (atr_value * m_settings.sl_atr_multiplier);
-    else
-        sl_price = entry_price + (atr_value * m_settings.sl_atr_multiplier);
-            
-    return sl_price;
+    // محاسبه EMA روی آرایه مقادیر ATR با استفاده از کتابخانه استاندارد
+    if(SimpleMAOnBuffer(history_size, 0, m_settings.sl_vol_regime_ema_period, MODE_EMA, atr_values, ema_values) < 1)
+    {
+         Log("خطا در محاسبه EMA روی ATR.");
+         return 0.0;
+    }
+
+    double current_atr = atr_values[1]; // کندل شماره ۱
+    double ema_atr = ema_values[1];     // کندل شماره ۱
+
+    bool is_high_volatility = (current_atr > ema_atr);
+    double final_multiplier = is_high_volatility ? m_settings.sl_high_vol_multiplier : m_settings.sl_low_vol_multiplier;
+
+    Log("رژیم نوسان: " + (is_high_volatility ? "بالا" : "پایین") + ". ضریب SL نهایی: " + (string)final_multiplier);
+
+    return is_buy ? entry_price - (current_atr * final_multiplier) : entry_price + (current_atr * final_multiplier);
 }
 
-//+------------------------------------------------------------------+
-//|                    بخش فیلترهای نهایی ورود                      |
-//+------------------------------------------------------------------+
+
 
 //==================================================================
-//  تابع اصلی "گیت کنترل نهایی" که تمام فیلترها را چک می‌کند
+//  تابع اصلی "گیت کنترل نهایی" که تمام فیلترها را چک می‌کند (نسخه آپگرید شده)
 //==================================================================
 bool CStrategyManager::AreAllFiltersPassed(bool is_buy)
 {
@@ -1098,10 +1163,21 @@ bool CStrategyManager::AreAllFiltersPassed(bool is_buy)
         }
     }
     
+    // +++ NEW: اگر فیلتر ADX فعال بود، چکش کن +++
+    if (m_settings.enable_adx_filter)
+    {
+        if (!CheckAdxFilter(is_buy))
+        {
+            Log("فیلتر ADX رد شد.");
+            return false;
+        }
+    }
+    
     // اگه کد به اینجا برسه، یعنی همه فیلترهای فعال با موفقیت پاس شدن
     Log("✅ تمام فیلترهای فعال با موفقیت پاس شدند.");
     return true;
 }
+
 
 //==================================================================
 //  تابع کمکی برای بررسی فیلتر ابر کومو
@@ -1161,4 +1237,102 @@ bool CStrategyManager::CheckAtrFilter()
     // شرط اصلی: آیا ATR فعلی از حداقل مورد نیاز ما بیشتر یا مساوی است؟
     return (current_atr >= min_atr_threshold);
 }
+//==================================================================
+//  (جدید) تابع کمکی برای بررسی فیلتر قدرت و جهت روند ADX
+//==================================================================
+bool CStrategyManager::CheckAdxFilter(bool is_buy) 
+{  
+    double adx_buffer[1], di_plus_buffer[1], di_minus_buffer[1];  
+    
+    // از هندل از پیش ساخته شده کلاس استفاده می‌کنیم (بهینه)
+    if (CopyBuffer(m_adx_handle, 0, 1, 1, adx_buffer) < 1 || 
+        CopyBuffer(m_adx_handle, 1, 1, 1, di_plus_buffer) < 1 || 
+        CopyBuffer(m_adx_handle, 2, 1, 1, di_minus_buffer) < 1)
+    {
+        Log("داده کافی برای فیلتر ADX موجود نیست.");
+        return false; // برای امنیت، اگر داده نباشد فیلتر رد می‌شود
+    }
+    
+    // شرط ۱: آیا قدرت روند از حد آستانه ما بیشتر است؟
+    if (adx_buffer[0] <= m_settings.adx_threshold) 
+    {
+        return false;
+    }
+    
+    // شرط ۲: آیا جهت روند با جهت سیگنال ما یکی است؟
+    if (is_buy)
+    {
+        return (di_plus_buffer[0] > di_minus_buffer[0]); // برای خرید، DI+ باید بالای DI- باشد
+    }
+    else // is_sell
+    {
+        return (di_minus_buffer[0] > di_plus_buffer[0]); // برای فروش، DI- باید بالای DI+ باشد
+    }
+}
+//+------------------------------------------------------------------+
+//| (جدید) تابع اصلی برای مدیریت خروج زودرس
+//+------------------------------------------------------------------+
+void CStrategyManager::CheckForEarlyExit()
+{
+    // از آخر به اول روی پوزیشن ها حلقه میزنیم چون ممکن است یکی بسته شود
+    for (int i = PositionsTotal() - 1; i >= 0; i--) 
+    {
+        ulong ticket = PositionGetTicket(i);
+        // فقط پوزیشن های مربوط به همین اکسپرت و همین نماد را بررسی میکنیم
+        if (PositionGetString(POSITION_SYMBOL) == m_symbol && PositionGetInteger(POSITION_MAGIC) == (long)m_settings.magic_number)
+        {
+            if (PositionSelectByTicket(ticket))
+            {
+                bool is_buy = (PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY);
+                // آیا شرایط خروج زودرس فراهم است؟
+                if (CheckChikouRsiExit(is_buy)) 
+                { 
+                    Log("🚨 سیگنال خروج زودرس برای تیکت " + (string)ticket + " صادر شد. بستن معامله...");
+                    m_trade.PositionClose(ticket); 
+                }
+            }
+        }
+    }
+}
 
+//+------------------------------------------------------------------+
+//| (جدید) تابع کمکی برای بررسی منطق خروج چیکو + RSI
+//+------------------------------------------------------------------+
+bool CStrategyManager::CheckChikouRsiExit(bool is_buy)
+{
+    // گرفتن داده های لازم از کندل تایید (کندل شماره ۱)
+    double chikou_price = iClose(m_symbol, _Period, 1);
+    
+    double tenkan_buffer[1], kijun_buffer[1], rsi_buffer[1];
+    if(CopyBuffer(m_ichimoku_handle, 0, 1, 1, tenkan_buffer) < 1 ||
+       CopyBuffer(m_ichimoku_handle, 1, 1, 1, kijun_buffer) < 1 ||
+       CopyBuffer(m_rsi_exit_handle, 0, 1, 1, rsi_buffer) < 1)
+    {
+        return false; // اگر داده نباشد، خروجی در کار نیست
+    }
+    
+    double tenkan = tenkan_buffer[0];
+    double kijun = kijun_buffer[0];
+    double rsi = rsi_buffer[0];
+    
+    bool chikou_cross_confirms_exit = false;
+    bool rsi_confirms_exit = false;
+
+    if (is_buy) // برای یک معامله خرید، به دنبال سیگنال خروج نزولی هستیم
+    {
+        // شرط ۱: آیا قیمت (چیکو) به زیر خطوط تنکان و کیجون کراس کرده؟
+        chikou_cross_confirms_exit = (chikou_price < MathMin(tenkan, kijun));
+        // شرط ۲: آیا RSI هم از دست رفتن مومنتوم صعودی را تایید میکند؟
+        rsi_confirms_exit = (rsi < m_settings.early_exit_rsi_oversold);
+    }
+    else // برای یک معامله فروش، به دنبال سیگنال خروج صعودی هستیم
+    {
+        // شرط ۱: آیا قیمت (چیکو) به بالای خطوط تنکان و کیجون کراس کرده؟
+        chikou_cross_confirms_exit = (chikou_price > MathMax(tenkan, kijun));
+        // شرط ۲: آیا RSI هم از دست رفتن مومنتوم نزولی را تایید میکند؟
+        rsi_confirms_exit = (rsi > m_settings.early_exit_rsi_overbought);
+    }
+    
+    // اگر هر دو شرط برقرار باشند، سیگنال خروج صادر میشود
+    return (chikou_cross_confirms_exit && rsi_confirms_exit);
+}
