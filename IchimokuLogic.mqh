@@ -4,13 +4,13 @@
 //+------------------------------------------------------------------+
 #property copyright "© 2025,hipoalgoritm"
 #property link      "https://www.mql5.com"
-#property version   "2.0" 
+#property version   "2.1" 
 #include "set.mqh"
 #include <Trade\Trade.mqh>
 #include <Trade\SymbolInfo.mqh>
 #include <Object.mqh>
 #include "VisualManager.mqh"
-#include <Indicators\MovingAverages.mqh>
+#include <MovingAverages.mqh>
 
 //--- تعریف ساختار سیگنال
 struct SPotentialSignal
@@ -1068,14 +1068,20 @@ void CStrategyManager::AddOrUpdatePotentialSignal(bool is_buy)
 }
 
 //+------------------------------------------------------------------+
-//| (جدید) محاسبه حد مجاز تلاقی بر اساس ATR                          |
+//| (نسخه نهایی و ضد ضربه) محاسبه حد مجاز تلاقی بر اساس ATR
 //+------------------------------------------------------------------+
 double CStrategyManager::CalculateAtrTolerance(int reference_shift)
 {
     if(m_settings.talaqi_atr_multiplier <= 0) return 0.0;
+    
+    // ✅✅✅ بادیگARD شماره ۳: بررسی اعتبار هندل ✅✅✅
+    if (m_atr_handle == INVALID_HANDLE)
+    {
+        Log("محاسبه تلورانس ATR ممکن نیست چون هندل آن نامعتبر است. پریود ATR در تنظیمات ورودی را بررسی کنید.");
+        return 0.0; // بازگشت امن
+    }
 
     double atr_buffer[];
-    // استفاده از هندل از پیش ساخته شده کلاس
     if(CopyBuffer(m_atr_handle, 0, reference_shift, 1, atr_buffer) < 1)
     {
         Log("داده کافی برای محاسبه ATR در گذشته وجود ندارد.");
@@ -1086,25 +1092,34 @@ double CStrategyManager::CalculateAtrTolerance(int reference_shift)
     return tolerance;
 }
 
+
 //+------------------------------------------------------------------+
-//| (بهبود یافته) محاسبه حد ضرر ATR با استفاده از کتابخانه استاندارد
+//| (نسخه نهایی و ضد ضربه) محاسبه حد ضرر ATR 
 //+------------------------------------------------------------------+
 double CStrategyManager::CalculateAtrStopLoss(bool is_buy, double entry_price)
 {
-    // اگر حالت پویای SL غیرفعال باشد، از منطق ساده قبلی استفاده کن
+    // اگر حالت پویای SL (رژیم نوسان) غیرفعال باشد، از منطق ساده قبلی استفاده کن
     if (!m_settings.enable_sl_vol_regime)
     {
+        // ✅✅✅ بادیگARD شماره ۱: بررسی اعتبار هندل ✅✅✅
+        if (m_atr_handle == INVALID_HANDLE)
+        {
+            Log("خطای بحرانی در CalculateAtrStopLoss: هندل ATR نامعتبر است! پریود ATR در تنظیمات ورودی را بررسی کنید.");
+            return 0.0; // بازگشت امن برای جلوگیری از باز شدن معامله
+        }
+        
         double atr_buffer[];
         if(CopyBuffer(m_atr_handle, 0, 1, 1, atr_buffer) < 1)
         {
-            Log("داده ATR برای محاسبه حد ضرر ساده موجود نیست.");
+            Log("داده ATR برای محاسبه حد ضرر ساده موجود نیست. (تابع CopyBuffer شکست خورد)");
             return 0.0;
         }
+        
         double atr_value = atr_buffer[0];
         return is_buy ? entry_price - (atr_value * m_settings.sl_atr_multiplier) : entry_price + (atr_value * m_settings.sl_atr_multiplier);
     }
 
-    // --- منطق جدید: SL پویا بر اساس رژیم نوسان (نسخه بهینه) ---
+    // --- منطق جدید: SL پویا بر اساس رژیم نوسان (این بخش هندل جداگانه خود را دارد و ایمن است) ---
     int history_size = m_settings.sl_vol_regime_ema_period + 5;
     double atr_values[], ema_values[];
 
@@ -1112,21 +1127,22 @@ double CStrategyManager::CalculateAtrStopLoss(bool is_buy, double entry_price)
     if (atr_sl_handle == INVALID_HANDLE || CopyBuffer(atr_sl_handle, 0, 0, history_size, atr_values) < history_size)
     {
         Log("داده کافی برای محاسبه SL پویا موجود نیست.");
-        if(atr_sl_handle != INVALID_HANDLE) IndicatorRelease(atr_sl_handle);
+        if(atr_sl_handle != INVALID_HANDLE) 
+            IndicatorRelease(atr_sl_handle);
         return 0.0;
     }
+    
     IndicatorRelease(atr_sl_handle);
-    ArraySetAsSeries(atr_values, true); // برای iMAOnArray باید سری باشه
+    ArraySetAsSeries(atr_values, true); 
 
-    // محاسبه EMA روی آرایه مقادیر ATR با استفاده از کتابخانه استاندارد
     if(SimpleMAOnBuffer(history_size, 0, m_settings.sl_vol_regime_ema_period, MODE_EMA, atr_values, ema_values) < 1)
     {
          Log("خطا در محاسبه EMA روی ATR.");
          return 0.0;
     }
 
-    double current_atr = atr_values[1]; // کندل شماره ۱
-    double ema_atr = ema_values[1];     // کندل شماره ۱
+    double current_atr = atr_values[1]; 
+    double ema_atr = ema_values[1];     
 
     bool is_high_volatility = (current_atr > ema_atr);
     double final_multiplier = is_high_volatility ? m_settings.sl_high_vol_multiplier : m_settings.sl_low_vol_multiplier;
@@ -1135,8 +1151,6 @@ double CStrategyManager::CalculateAtrStopLoss(bool is_buy, double entry_price)
 
     return is_buy ? entry_price - (current_atr * final_multiplier) : entry_price + (current_atr * final_multiplier);
 }
-
-
 
 //==================================================================
 //  تابع اصلی "گیت کنترل نهایی" که تمام فیلترها را چک می‌کند (نسخه آپگرید شده)
@@ -1211,32 +1225,37 @@ bool CStrategyManager::CheckKumoFilter(bool is_buy)
 }
 
 //==================================================================
-//  تابع کمکی برای بررسی فیلتر حداقل نوسان ATR
+//  (نسخه نهایی و ضد ضربه) تابع کمکی برای بررسی فیلتر ATR
 //==================================================================
 bool CStrategyManager::CheckAtrFilter()
 {
+    // ✅✅✅ بادیگARD شماره ۲: بررسی اعتبار هندل ✅✅✅
+    if (m_atr_handle == INVALID_HANDLE)
+    {
+        Log("فیلتر ATR رد شد چون هندل آن نامعتبر است. پریود ATR در تنظیمات ورودی را بررسی کنید.");
+        return false; // بازگشت امن، فیلتر رد می‌شود
+    }
+    
     double atr_value_buffer[];
     if(CopyBuffer(m_atr_handle, 0, 1, 1, atr_value_buffer) < 1)
     {
        Log("خطا: داده کافی برای فیلتر ATR موجود نیست.");
-       return false; // اگر داده نباشه، رد کن
+       return false;
     }
     
     double current_atr = atr_value_buffer[0];
     
-    // تبدیل مقدار پیپ ورودی به مقدار واقعی بر اساس پوینت
     double point = SymbolInfoDouble(m_symbol, SYMBOL_POINT);
     double min_atr_threshold = m_settings.atr_filter_min_value_pips * point;
     
-    // برای جفت ارزهایی که ۳ یا ۵ رقم اعشار دارن، پیپ ۱۰ برابر پوینته
     if(_Digits == 3 || _Digits == 5)
     {
         min_atr_threshold *= 10;
     }
 
-    // شرط اصلی: آیا ATR فعلی از حداقل مورد نیاز ما بیشتر یا مساوی است؟
     return (current_atr >= min_atr_threshold);
 }
+
 //==================================================================
 //  (جدید) تابع کمکی برای بررسی فیلتر قدرت و جهت روند ADX
 //==================================================================
