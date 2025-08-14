@@ -100,7 +100,7 @@ input ENUM_TIMEFRAMES Inp_Regime_Timeframe            = PERIOD_CURRENT; // تا�
 
 // --- زیرگروه: تحلیل ساختار (Structure) ---
 input group "         --- تحلیل ساختار (Structure) ---";
-input int             Inp_Regime_Fractal_N            = 3;         // تعداد کندل برای تشخیص فرکتال
+input int             Inp_Regime_Fractal_N            = 2;         // تعداد کندل برای تشخیص فرکتال
 input double          Inp_Regime_Consolidation_Factor = 4.0;       // ضریب ATR برای تشخیص رنج
 input int             Inp_Regime_Atr_Period_Consol    = 50;        // دوره ATR برای تشخیص رنج
 
@@ -260,10 +260,10 @@ public:
         if(highs_count < 2 || lows_count < 2) return STRUCTURE_UNDEFINED;
 
         // چون نقاط از جدید به قدیم پیدا شدند، اندیس 0 جدیدترین و اندیس 1 ماقبل آخر است
-        SwingPoint last_h = m_swing_highs[highs_count - 0]; // جدیدترین سقف
-        SwingPoint prev_h = m_swing_highs[highs_count - 1]; // سقف ماقبل آخر
-        SwingPoint last_l = m_swing_lows[lows_count - 0];   // جدیدترین کف
-        SwingPoint prev_l = m_swing_lows[lows_count - 1];   // کف ماقبل آخر
+        SwingPoint last_h = m_swing_highs[highs_count - 1]; // جدیدترین سقف
+        SwingPoint prev_h = m_swing_highs[highs_count - 2]; // سقف ماقبل آخر
+        SwingPoint last_l = m_swing_lows[lows_count - 1];   // جدیدترین کف
+        SwingPoint prev_l = m_swing_lows[lows_count - 2];   // کف ماقبل آخر
 
         double last_swing_range = MathAbs(last_h.price - last_l.price);
         double atr = atr_buf[1]; // ATR کندل قبلی (بسته شده)
@@ -385,10 +385,10 @@ private:
         if(highs_count < 2 || lows_count < 2) return false;
 
         // جدیدترین نقاط چرخش در اندیس 0 و 1 قرار دارند
-        SwingPoint h1 = highs[highs_count - 0];//1
-        SwingPoint h2 = highs[highs_count - 1];//2
-        SwingPoint l1 = lows[lows_count - 0];//1
-        SwingPoint l2 = lows[lows_count - 1];//2
+        SwingPoint h1 = highs[highs_count - 1];
+        SwingPoint h2 = highs[highs_count - 2];
+        SwingPoint l1 = lows[lows_count - 1];
+        SwingPoint l2 = lows[lows_count - 2];
                 // اندیس‌های bar_index الان مستقیم با اندیس آرایه RSI (که سریالی است) مطابقت دارند
         int h1_idx = h1.bar_index;
         int h2_idx = h2.bar_index;
@@ -1149,13 +1149,13 @@ public:
             return false;
         }
 
-        datetime current_bar_time = (datetime)SeriesInfoInteger(_Symbol, m_period, SERIES_LASTBAR_DATE);
+        datetime current_bar_time = (datetime)SeriesInfoInteger(m_symbol, m_period, SERIES_LASTBAR_DATE);
         if(current_bar_time == m_last_analysis_time) return false;
           
               // بارگذاری داده‌ها به بافرهای مرکزی (نسخه اصلاح شده با اندیس‌گذاری استاندارد)
             const int bars_to_process = 500;
             ArraySetAsSeries(m_rates_buf, true); // ✅ اصلاح: استانداردسازی اندیس‌گذاری
-            if(CopyRates(_Symbol, m_period, 0, bars_to_process, m_rates_buf) < bars_to_process)
+            if(CopyRates(m_symbol, m_period, 0, bars_to_process, m_rates_buf) < bars_to_process)
             {
                 m_logger.Log("خطا: داده کافی برای کندل‌ها موجود نیست");
                 return false;
