@@ -22,7 +22,7 @@
 //--- متغیرهای سراسری ---
 SSettings               g_settings;
 string                  g_symbols_array[];
-CStrategyManager* g_symbol_managers[];
+CStrategyManager*       g_symbol_managers[];
 CTrailingStopManager    g_trailing_stop;
 CMarketRegimeEngine     g_regime_engine;
 bool                    g_dashboard_needs_update = true;
@@ -96,6 +96,21 @@ void OnTimer()
     if (g_settings.enable_regime_filter)
     {
         g_regime_engine.ProcessNewBar();
+
+        // --- ✅ بخش جدید برای آپدیت پنل رژیم ---
+        for (int i = 0; i < ArraySize(g_symbol_managers); i++)
+        {
+            if (g_symbol_managers[i] != NULL && g_symbol_managers[i].GetSymbol() == _Symbol)
+            {
+                RegimeResult result = g_regime_engine.GetLastResult();
+                string regime_text;
+                color regime_color;
+                GetRegimeTextAndColor(result.regime, regime_text, regime_color);
+
+                g_symbol_managers[i].GetVisualManager().UpdateRegimeStatus(regime_text, regime_color);
+                break;
+            }
+        }
     }
 
     // --- فاز ۲: مدیریت معاملات باز ---
@@ -449,4 +464,23 @@ void CalculateAdvancedMetrics(double &r_squared, double &downside_consistency)
    double downside_variance = sum_of_squared_downside_dev / total_months;
    double downside_deviation = sqrt(downside_variance);
    downside_consistency = 1.0 / (1.0 + downside_deviation);
+}
+
+// --- تابع کمکی برای تبدیل نوع رژیم به متن و رنگ ---
+void GetRegimeTextAndColor(const ENUM_MARKET_REGIME regime, string &text, color &clr)
+{
+    switch(regime)
+    {
+        case REGIME_STRONG_BULL_TREND:         text = "Strong Bull Trend";   clr = clrLimeGreen; break;
+        case REGIME_AVERAGE_BULL_TREND:        text = "Average Bull Trend";  clr = clrGreen; break;
+        case REGIME_BULL_TREND_EXHAUSTION:     text = "Bull Exhaustion";     clr = clrDarkGreen; break;
+        case REGIME_STRONG_BEAR_TREND:         text = "Strong Bear Trend";   clr = clrRed; break;
+        case REGIME_AVERAGE_BEAR_TREND:        text = "Average Bear Trend";  clr = clrOrangeRed; break;
+        case REGIME_BEAR_TREND_EXHAUSTION:     text = "Bear Exhaustion";     clr = clrDarkRed; break;
+        case REGIME_RANGE_CONSOLIDATION:       text = "Consolidation";       clr = clrYellow; break;
+        case REGIME_VOLATILITY_SQUEEZE:        text = "Volatility Squeeze";  clr = clrOrange; break;
+        case REGIME_BULLISH_BREAKOUT_CONFIRMED:text = "Bullish Breakout";    clr = clrDodgerBlue; break;
+        case REGIME_BEARISH_BREAKOUT_CONFIRMED:text = "Bearish Breakout";    clr = clrViolet; break;
+        default:                               text = "Undefined";          clr = clrGray; break;
+    }
 }
