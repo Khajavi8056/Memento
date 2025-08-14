@@ -85,6 +85,48 @@ struct MomentumResult
     bool   is_conflicting;      // تضاد بین ADX و Hurst
 };
 
+
+
+
+
+
+
+// ================================================================== //
+//  بخش تنظیمات ورودی (Inputs) - کاملا مستقل و Plug & Play
+// ================================================================== //
+input group "---=== 🚦 8. فیلتر رژیم بازار (Regime Filter) 🚦 ===---";
+input bool            Inp_Regime_Enable_Visualizer    = true;      // نمایش رژیم فعلی روی چارت
+input ENUM_TIMEFRAMES Inp_Regime_Timeframe            = PERIOD_CURRENT; // تایم فریم تحلیل رژیم
+
+// --- زیرگروه: تحلیل ساختار (Structure) ---
+input group "         --- تحلیل ساختار (Structure) ---";
+input int             Inp_Regime_Fractal_N            = 2;         // تعداد کندل برای تشخیص فرکتال
+input double          Inp_Regime_Consolidation_Factor = 4.0;       // ضریب ATR برای تشخیص رنج
+input int             Inp_Regime_Atr_Period_Consol    = 50;        // دوره ATR برای تشخیص رنج
+
+// --- زیرگروه: تحلیل مومنتوم (Momentum) ---
+input group "         --- تحلیل مومنتوم (Momentum) ---";
+input int             Inp_Regime_Adx_Period           = 14;        // دوره ADX
+input int             Inp_Regime_Rsi_Period           = 14;        // دوره RSI
+input int             Inp_Regime_Hurst_Window         = 252;       // دوره زمانی برای محاسبه توان هرست
+
+// --- زیرگروه: تحلیل نوسانات (Volatility) ---
+input group "        --- تحلیل نوسانات (Volatility) ---";
+input int             Inp_Regime_Bb_Period            = 20;        // دوره Bollinger Bands
+input double          Inp_Regime_Bb_Deviation         = 2.0;       // انحراف معیار Bollinger Bands
+input int             Inp_Regime_Squeeze_Lookback     = 252;       // دوره نگاه به عقب برای تشخیص فشردگی
+
+// --- زیرگروه: اعتبارسنجی شکست (Breakout) ---
+input group "      --- اعتبارسنجی شکست (Breakout) ---";
+input int             Inp_Regime_Ema_Period_Mtf       = 50;        // دوره EMA در تایم فریم بالاتر
+
+// --- زیرگروه: آستانه‌های تصمیم‌گیری (Thresholds) ---
+input group "      --- آستانه‌های تصمیم‌گیری (Thresholds) ---";
+input double          Inp_Regime_Momentum_Strong      = 70.0;      // آستانه مومنتوم قوی
+input double          Inp_Regime_Momentum_Average     = 40.0;      // آستانه مومنتوم متوسط
+input double          Inp_Regime_BVS_High_Prob        = 7.0;       // حداقل امتیاز BVS برای شکست معتبر
+input double          Inp_Regime_BVS_Fakeout          = 4.0;       // حداکثر امتیاز BVS برای شکست فیک
+
 //+------------------------------------------------------------------+
 //| بخش ۲: تعریف کلاس‌ها                                            |
 //+------------------------------------------------------------------+
@@ -218,10 +260,10 @@ public:
         if(highs_count < 2 || lows_count < 2) return STRUCTURE_UNDEFINED;
 
         // چون نقاط از جدید به قدیم پیدا شدند، اندیس 0 جدیدترین و اندیس 1 ماقبل آخر است
-        SwingPoint last_h = m_swing_highs[0];
-        SwingPoint prev_h = m_swing_highs[1];
-        SwingPoint last_l = m_swing_lows[0];
-        SwingPoint prev_l = m_swing_lows[1];
+        SwingPoint last_h = m_swing_highs[highs_count - 1]; // جدیدترین سقف
+        SwingPoint prev_h = m_swing_highs[highs_count - 2]; // سقف ماقبل آخر
+        SwingPoint last_l = m_swing_lows[lows_count - 1];   // جدیدترین کف
+        SwingPoint prev_l = m_swing_lows[lows_count - 2];   // کف ماقبل آخر
 
         double last_swing_range = MathAbs(last_h.price - last_l.price);
         double atr = atr_buf[1]; // ATR کندل قبلی (بسته شده)
@@ -343,12 +385,11 @@ private:
         if(highs_count < 2 || lows_count < 2) return false;
 
         // جدیدترین نقاط چرخش در اندیس 0 و 1 قرار دارند
-        SwingPoint h1 = highs[0]; // جدیدترین سقف
-        SwingPoint h2 = highs[1]; // سقف ماقبل آخر
-        SwingPoint l1 = lows[0];  // جدیدترین کف
-        SwingPoint l2 = lows[1];  // کف ماقبل آخر
-
-        // اندیس‌های bar_index الان مستقیم با اندیس آرایه RSI (که سریالی است) مطابقت دارند
+        SwingPoint h1 = highs[highs_count - 1];
+        SwingPoint h2 = highs[highs_count - 2];
+        SwingPoint l1 = lows[lows_count - 1];
+        SwingPoint l2 = lows[lows_count - 2];
+                // اندیس‌های bar_index الان مستقیم با اندیس آرایه RSI (که سریالی است) مطابقت دارند
         int h1_idx = h1.bar_index;
         int h2_idx = h2.bar_index;
         int l1_idx = l1.bar_index;
