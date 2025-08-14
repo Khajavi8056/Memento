@@ -100,7 +100,7 @@ input ENUM_TIMEFRAMES Inp_Regime_Timeframe            = PERIOD_CURRENT; // تا�
 
 // --- زیرگروه: تحلیل ساختار (Structure) ---
 input group "         --- تحلیل ساختار (Structure) ---";
-input int             Inp_Regime_Fractal_N            = 2;         // تعداد کندل برای تشخیص فرکتال
+input int             Inp_Regime_Fractal_N            = 3;         // تعداد کندل برای تشخیص فرکتال
 input double          Inp_Regime_Consolidation_Factor = 4.0;       // ضریب ATR برای تشخیص رنج
 input int             Inp_Regime_Atr_Period_Consol    = 50;        // دوره ATR برای تشخیص رنج
 
