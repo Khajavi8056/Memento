@@ -11,9 +11,11 @@
 #include <Object.mqh>
 #include "VisualManager.mqh"
 #include <MovingAverages.mqh>
+// این خط رو در بالای فایل اضافه کن
+#include "MarketRegimeDetector.mqh"
 
 //+++ NEW: تعریف موتور رژیم بازار +++
-extern CMarketRegimeEngine g_regime_engine;
+//extern CMarketRegimeEngine g_regime_engine;
 
 //--- تعریف ساختار سیگنال
 struct SPotentialSignal
@@ -63,7 +65,9 @@ private:
     bool                m_is_waiting;
     SPotentialSignal    m_potential_signals[];
     CVisualManager*     m_visual_manager;
-    
+    // این خط جدید رو اضافه کن
+    CMarketRegimeEngine* m_regime_engine;
+
     //--- توابع کمکی ---
     void Log(string message);
     
@@ -115,6 +119,9 @@ CStrategyManager::CStrategyManager(string symbol, SSettings &settings)
     m_ichimoku_handle = INVALID_HANDLE;
     m_atr_handle = INVALID_HANDLE;
     m_visual_manager = new CVisualManager(m_symbol, m_settings);
+    // این خط جدید رو اضافه کن
+    m_regime_engine = NULL;
+
 }
 
 //+------------------------------------------------------------------+
@@ -122,6 +129,13 @@ CStrategyManager::CStrategyManager(string symbol, SSettings &settings)
 //+------------------------------------------------------------------+
 CStrategyManager::~CStrategyManager()
 {
+// این قطعه کد رو در ابتدای این تابع اضافه کن
+if (m_regime_engine != NULL)
+{
+    delete m_regime_engine;
+    m_regime_engine = NULL;
+}
+
     if (m_visual_manager != NULL)
     {
         delete m_visual_manager;
@@ -185,6 +199,22 @@ bool CStrategyManager::Init()
         Log("خطا در ایجاد اندیکاتور ATR برای محاسبات SL و تلاقی.");
         return false;
     }
+    // این قطعه کد جدید رو اینجا اضافه کن
+if (m_settings.enable_regime_filter)
+{
+    m_regime_engine = new CMarketRegimeEngine();
+    if (m_regime_engine == NULL || !m_regime_engine.Initialize(m_symbol, m_settings.ichimoku_timeframe, m_settings.enable_logging))
+    {
+        Log("خطا در راه اندازی موتور رژیم برای نماد " + m_symbol + ". فیلتر برای این نماد غیرفعال می‌شود.");
+        m_settings.enable_regime_filter = false; 
+        if(m_regime_engine != NULL) delete m_regime_engine;
+        m_regime_engine = NULL;
+    }
+    else
+    {
+        Log("موتور تحلیل رژیم بازار برای نماد " + m_symbol + " با موفقیت راه‌اندازی شد.");
+    }
+}
 
     ArraySetAsSeries(m_tenkan_buffer, true);
     ArraySetAsSeries(m_kijun_buffer, true);
@@ -218,16 +248,25 @@ void CStrategyManager::ProcessNewBar()
         return; 
     
     m_last_bar_time = current_bar_time;
+    
+    // این قطعه کد جدید رو اینجا اضافه کن
+if (m_settings.enable_regime_filter && m_regime_engine != NULL)
+{
+    m_regime_engine.ProcessNewBar();
+}
+
   
-    // گیت کنترل اصلی - فیلتر رژیم بازار
-    if(m_settings.enable_regime_filter)
+// با این قطعه کد جایگزین کن
+if(m_settings.enable_regime_filter && m_regime_engine != NULL)
+{
+    RegimeResult regime = m_regime_engine.GetLastResult();
+    if(regime.regime == REGIME_RANGE_CONSOLIDATION || regime.regime == REGIME_VOLATILITY_SQUEEZE)
     {
-        RegimeResult regime = g_regime_engine.GetLastResult();
-        if(regime.regime == REGIME_RANGE_CONSOLIDATION || regime.regime == REGIME_VOLATILITY_SQUEEZE)
-        {
-            return; // از پردازش این کندل خارج شو، چون بازار رنج است
-        }
+        Log("معامله فیلتر شد. دلیل برای نماد " + m_symbol + ": رژیم بازار " + EnumToString(regime.regime));
+        return; // از پردازش این کندل خارج شو، چون بازار رنج است
     }
+}
+
 
     if(m_symbol == _Symbol && m_visual_manager != NULL)
     {
