@@ -2,15 +2,15 @@
 //|                                                                  |
 //|                    Project: Memento (By HipoAlgorithm)           |
 //|                    File: VisualManager.mqh (Graphics Engine)     |
-//|                    Version: 3.5 (Polished & Final)               |
-//|                    © 2025, Mohammad & Gemini                     |
+//|                    Version: 3.6 (Polished & Multi-Timeframe)     |
+//|                    © 2025, Mohammad & Grok                      |
 //|                                                                  |
 //+------------------------------------------------------------------+
 #property copyright "© 2025, hipoalgoritm"
 #property link      "https://www.mql5.com"
-#property version   "3.5" 
+#property version   "3.6"
 
-#include "set.mqh" 
+#include "set.mqh"
 
 // ---===== ثابت‌های طراحی =====---
 #define DASHBOARD_Y_POS 30      
@@ -22,7 +22,7 @@
 
 // --- ساختارهای داده ---
 struct SPanelBox { string MainBoxName, SymbolLabelName, SubPanelName, TradesLabelName, PlLabelName; };
-struct SManagedObject { string ObjectName; long CreationBar; };
+struct SManagedObject { string ObjectName; long CreationBar; ENUM_TIMEFRAMES Timeframe; };
 struct SDashboardData { int trades_count; double cumulative_pl; };
 
 //+------------------------------------------------------------------+
@@ -44,7 +44,7 @@ private:
     string              m_chart_panel_title_name;
 
     void ShowBarChart(bool show);
-    void CreateManagedObject(string obj_name, long creation_bar);
+    void CreateManagedObject(string obj_name, long creation_bar, ENUM_TIMEFRAMES timeframe);
     
 public:
     CVisualManager(string symbol, SSettings &settings);
@@ -55,16 +55,16 @@ public:
     void InitDashboard();
     void UpdateDashboard();
     
-    // ✅ تابع بازنویسی شده برای رسم مستطیل و فلش کراس اولیه (ثابت)
-    void DrawTripleCrossRectangle(bool is_buy, int shift);
+    // تابع رسم مستطیل و فلش کراس اولیه با پشتیبانی از تایم‌فریم
+    void DrawTripleCrossRectangle(bool is_buy, int shift, ENUM_TIMEFRAMES timeframe);
     
-    // ✅ تابع بازنویسی شده برای رسم فلش تاییدیه نهایی (روی کندل 1)
-    void DrawConfirmationArrow(bool is_buy, int shift);
+    // تابع رسم فلش تأییدیه نهایی با پشتیبانی از تایم‌فریم
+    void DrawConfirmationArrow(bool is_buy, int shift, ENUM_TIMEFRAMES timeframe);
     
-    // ✅ تابع بازنویسی شده برای رسم ناحیه اسکن متحرک (رنگی و شفاف)
-    void DrawScanningArea(bool is_buy, int start_shift, int current_shift);
+    // تابع رسم ناحیه اسکن متحرک با پشتیبانی از تایم‌فریم
+    void DrawScanningArea(bool is_buy, int start_shift, int current_shift, ENUM_TIMEFRAMES timeframe);
     
-    void CleanupOldObjects(const int max_age_in_bars);
+    void CleanupOldObjects(const int max_age_in_bars, ENUM_TIMEFRAMES timeframe);
     int GetSymbolIndex(string symbol);
     void UpdateDashboardCache(int symbol_index, double deal_profit, double deal_commission, double deal_swap);
     
@@ -85,8 +85,19 @@ CVisualManager::CVisualManager(string symbol, SSettings &settings)
 }
 
 CVisualManager::~CVisualManager() { Deinit(); }
-bool CVisualManager::Init() { ChartSetInteger(0, CHART_SHIFT, 1); ChartSetInteger(0, CHART_SHOW_GRID, false); return true; }
-void CVisualManager::Deinit() { ObjectsDeleteAll(0, MEMENTO_OBJ_PREFIX); ChartRedraw(0); }
+
+bool CVisualManager::Init()
+{
+    ChartSetInteger(0, CHART_SHIFT, 1);
+    ChartSetInteger(0, CHART_SHOW_GRID, false);
+    return true;
+}
+
+void CVisualManager::Deinit()
+{
+    ObjectsDeleteAll(0, MEMENTO_OBJ_PREFIX);
+    ChartRedraw(0);
+}
 
 void CVisualManager::OnChartEvent(const int id, const long &lparam, const double &dparam, const string &sparam)
 {
@@ -95,7 +106,7 @@ void CVisualManager::OnChartEvent(const int id, const long &lparam, const double
         m_is_barchart_visible = !m_is_barchart_visible;
         ObjectSetInteger(0, m_chart_button_name, OBJPROP_STATE, m_is_barchart_visible);
         ShowBarChart(m_is_barchart_visible);
-        UpdateDashboard(); 
+        UpdateDashboard();
         ChartRedraw(0);
     }
 }
@@ -347,19 +358,19 @@ void CVisualManager::UpdateDashboard()
     ChartRedraw(0);
 }
 
-// ✅✅✅ تابع بازنویسی شده برای رسم مستطیل و فلش کراس اولیه (ثابت) ✅✅✅
-void CVisualManager::DrawTripleCrossRectangle(bool is_buy, int shift)
+// تابع رسم مستطیل و فلش کراس اولیه با پشتیبانی از تایم‌فریم
+void CVisualManager::DrawTripleCrossRectangle(bool is_buy, int shift, ENUM_TIMEFRAMES timeframe)
 {
-    string obj_name_rect = MEMENTO_OBJ_PREFIX + m_symbol + "_SignalRect_" + (string)iTime(m_symbol, _Period, shift);
-    string obj_name_arrow = MEMENTO_OBJ_PREFIX + m_symbol + "_SignalArrow_" + (string)iTime(m_symbol, _Period, shift);
+    string obj_name_rect = MEMENTO_OBJ_PREFIX + m_symbol + "_SignalRect_" + (string)iTime(m_symbol, timeframe, shift);
+    string obj_name_arrow = MEMENTO_OBJ_PREFIX + m_symbol + "_SignalArrow_" + (string)iTime(m_symbol, timeframe, shift);
     
     ObjectDelete(0, obj_name_rect);
     ObjectDelete(0, obj_name_arrow);
 
-    datetime time1 = iTime(m_symbol, _Period, shift + 1);
-    datetime time2 = iTime(m_symbol, _Period, shift);
-    double high = iHigh(m_symbol, _Period, shift); 
-    double low = iLow(m_symbol, _Period, shift);
+    datetime time1 = iTime(m_symbol, timeframe, shift + 1);
+    datetime time2 = iTime(m_symbol, timeframe, shift);
+    double high = iHigh(m_symbol, timeframe, shift); 
+    double low = iLow(m_symbol, timeframe, shift);
     double point = SymbolInfoDouble(m_symbol, SYMBOL_POINT);
     double buffer = 10 * point * m_settings.object_size_multiplier;
     
@@ -371,55 +382,54 @@ void CVisualManager::DrawTripleCrossRectangle(bool is_buy, int shift)
         ObjectSetInteger(0, obj_name_rect, OBJPROP_WIDTH, 1); 
         ObjectSetInteger(0, obj_name_rect, OBJPROP_BACK, true);
         ObjectSetInteger(0, obj_name_rect, OBJPROP_FILL, false);
-        CreateManagedObject(obj_name_rect, (long)iBars(m_symbol, _Period));
+        CreateManagedObject(obj_name_rect, (long)iBars(m_symbol, timeframe), timeframe);
     }
     
-    // رسم فلش کراس (26 کندل قبل) با کدهای جدید و فاصله مناسب
+    // رسم فلش کراس (shift کندل قبل) با کدهای جدید و فاصله مناسب
     double arrow_offset = 5 * point * m_settings.object_size_multiplier;
     double price = is_buy ? low - arrow_offset : high + arrow_offset;
     uchar code = is_buy ? 211 : 212;
     
-    if(ObjectCreate(0, obj_name_arrow, OBJ_ARROW, 0, iTime(m_symbol, _Period, shift), price))
+    if(ObjectCreate(0, obj_name_arrow, OBJ_ARROW, 0, iTime(m_symbol, timeframe, shift), price))
     {
         ObjectSetInteger(0, obj_name_arrow, OBJPROP_ARROWCODE, code);
         ObjectSetString(0, obj_name_arrow, OBJPROP_FONT, "Wingdings");
-        ObjectSetInteger(0, obj_name_arrow, OBJPROP_COLOR, is_buy ? clrGreen : clrRed); // ✅ رنگ‌های جدید
+        ObjectSetInteger(0, obj_name_arrow, OBJPROP_COLOR, is_buy ? clrGreen : clrRed);
         ObjectSetInteger(0, obj_name_arrow, OBJPROP_WIDTH, (int)(2 * m_settings.object_size_multiplier)); 
-        CreateManagedObject(obj_name_arrow, (long)iBars(m_symbol, _Period));
+        CreateManagedObject(obj_name_arrow, (long)iBars(m_symbol, timeframe), timeframe);
     }
 }
 
-// ✅✅✅ تابع بازنویسی شده برای رسم فلش تاییدیه نهایی (روی کندل 1) ✅✅✅
-void CVisualManager::DrawConfirmationArrow(bool is_buy, int shift)
+// تابع رسم فلش تأییدیه نهایی با پشتیبانی از تایم‌فریم
+void CVisualManager::DrawConfirmationArrow(bool is_buy, int shift, ENUM_TIMEFRAMES timeframe)
 {
-    string obj_name = MEMENTO_OBJ_PREFIX + m_symbol + "_ConfirmArrow_" + (string)iTime(m_symbol, _Period, shift);
+    string obj_name = MEMENTO_OBJ_PREFIX + m_symbol + "_ConfirmArrow_" + (string)iTime(m_symbol, timeframe, shift);
     ObjectDelete(0, obj_name);
     
     double point = SymbolInfoDouble(m_symbol, SYMBOL_POINT);
-    double offset = 15 * point * m_settings.object_size_multiplier; // فاصله اولیه
-    double price = is_buy ? iLow(m_symbol, _Period, shift) - offset : iHigh(m_symbol, _Period, shift) + offset;
+    double offset = 15 * point * m_settings.object_size_multiplier;
+    double price = is_buy ? iLow(m_symbol, timeframe, shift) - offset : iHigh(m_symbol, timeframe, shift) + offset;
     
-    // ✅ فاصله معقول از کندل رو محاسبه می‌کنیم
-    double candle_range = MathAbs(iHigh(m_symbol, _Period, shift) - iLow(m_symbol, _Period, shift));
-    double final_offset = candle_range * 0.5; // مثلا نصف کندل فاصله بده
-    price = is_buy ? iLow(m_symbol, _Period, shift) - final_offset : iHigh(m_symbol, _Period, shift) + final_offset;
+    // محاسبه فاصله معقول از کندل
+    double candle_range = MathAbs(iHigh(m_symbol, timeframe, shift) - iLow(m_symbol, timeframe, shift));
+    double final_offset = candle_range * 0.5;
+    price = is_buy ? iLow(m_symbol, timeframe, shift) - final_offset : iHigh(m_symbol, timeframe, shift) + final_offset;
     
-    // ✅ استفاده از کد جدید ۱۸۱
     uchar code = 181;
     color arrow_color = is_buy ? m_settings.bullish_color : m_settings.bearish_color;
 
-    if(ObjectCreate(0, obj_name, OBJ_ARROW, 0, iTime(m_symbol, _Period, shift), price))
+    if(ObjectCreate(0, obj_name, OBJ_ARROW, 0, iTime(m_symbol, timeframe, shift), price))
     {
         ObjectSetInteger(0, obj_name, OBJPROP_ARROWCODE, code);
         ObjectSetString(0, obj_name, OBJPROP_FONT, "Wingdings");
         ObjectSetInteger(0, obj_name, OBJPROP_COLOR, arrow_color);
         ObjectSetInteger(0, obj_name, OBJPROP_WIDTH, (int)(5 * m_settings.object_size_multiplier));
-        CreateManagedObject(obj_name, (long)iBars(m_symbol, _Period));
+        CreateManagedObject(obj_name, (long)iBars(m_symbol, timeframe), timeframe);
     }
 }
 
-// ✅✅✅ تابع بازنویسی شده برای رسم ناحیه اسکن متحرک ✅✅✅
-void CVisualManager::DrawScanningArea(bool is_buy, int start_shift, int current_shift)
+// تابع رسم ناحیه اسکن متحرک با پشتیبانی از تایم‌فریم
+void CVisualManager::DrawScanningArea(bool is_buy, int start_shift, int current_shift, ENUM_TIMEFRAMES timeframe)
 {
     string rect_name = MEMENTO_OBJ_PREFIX + m_symbol + "_ScanningRect";
     
@@ -432,7 +442,7 @@ void CVisualManager::DrawScanningArea(bool is_buy, int start_shift, int current_
     
     MqlRates rates[];
     int bars_to_copy = start_shift - current_shift + 1;
-    if(CopyRates(m_symbol, _Period, current_shift, bars_to_copy, rates) > 0)
+    if(CopyRates(m_symbol, timeframe, current_shift, bars_to_copy, rates) > 0)
     {
         for(int i = 0; i < ArraySize(rates); i++)
         {
@@ -443,8 +453,8 @@ void CVisualManager::DrawScanningArea(bool is_buy, int start_shift, int current_
 
     if(max_high > 0 && min_low < 999999)
     {
-        datetime time_start_rect = iTime(m_symbol, _Period, start_shift);
-        datetime time_end_rect = iTime(m_symbol, _Period, current_shift);
+        datetime time_start_rect = iTime(m_symbol, timeframe, start_shift);
+        datetime time_end_rect = iTime(m_symbol, timeframe, current_shift);
         
         if(ObjectCreate(0, rect_name, OBJ_RECTANGLE, 0, time_start_rect, min_low, time_end_rect, max_high))
         {
@@ -455,22 +465,19 @@ void CVisualManager::DrawScanningArea(bool is_buy, int start_shift, int current_
             ObjectSetInteger(0, rect_name, OBJPROP_BACK, true);
             ObjectSetInteger(0, rect_name, OBJPROP_FILL, true);
             ObjectSetInteger(0, rect_name, OBJPROP_SELECTABLE, false);
-            
-           
-            
-            CreateManagedObject(rect_name, (long)iBars(m_symbol, _Period));
+            CreateManagedObject(rect_name, (long)iBars(m_symbol, timeframe), timeframe);
         }
     }
 }
 
-
-void CVisualManager::CleanupOldObjects(const int max_age_in_bars)
+void CVisualManager::CleanupOldObjects(const int max_age_in_bars, ENUM_TIMEFRAMES timeframe)
 {
     if (max_age_in_bars <= 0) return;
-    long current_bar_count = (long)iBars(m_symbol, _Period);
+    long current_bar_count = (long)iBars(m_symbol, timeframe);
     for (int i = ArraySize(m_managed_objects) - 1; i >= 0; i--)
     {
-        if (current_bar_count - m_managed_objects[i].CreationBar >= max_age_in_bars)
+        if (m_managed_objects[i].Timeframe == timeframe && 
+            current_bar_count - m_managed_objects[i].CreationBar >= max_age_in_bars)
         {
             ObjectDelete(0, m_managed_objects[i].ObjectName);
             ArrayRemove(m_managed_objects, i, 1);
@@ -496,10 +503,11 @@ void CVisualManager::UpdateDashboardCache(int symbol_index, double deal_profit, 
     }
 }
 
-void CVisualManager::CreateManagedObject(string obj_name, long creation_bar)
+void CVisualManager::CreateManagedObject(string obj_name, long creation_bar, ENUM_TIMEFRAMES timeframe)
 {
     int total = ArraySize(m_managed_objects);
     ArrayResize(m_managed_objects, total + 1);
     m_managed_objects[total].ObjectName = obj_name;
     m_managed_objects[total].CreationBar = creation_bar;
+    m_managed_objects[total].Timeframe = timeframe;
 }
