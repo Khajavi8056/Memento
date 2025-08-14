@@ -1,11 +1,11 @@
 //+------------------------------------------------------------------+
 //|                                                      Memento.mq5 |
-//|                                  Copyright 2025,hipoalgoritm |
-//|                                                  Final & Bulletproof |
+//|                                      Copyright 2025, hipoalgoritm |
+//|                                     Version 7.1 (Refactored Code) |
 //+------------------------------------------------------------------+
-#property copyright "Copyright 2025,hipoalgoritm"
+#property copyright "Copyright 2025, hipoalgoritm"
 #property link      "https://www.mql5.com"
-#property version   "7.0" // یکپارچه‌سازی فیلتر رژیم بازار و قابلیت MTF
+#property version   "7.1" // بازنویسی و ساده‌سازی ساختار کد
 #property description "اکسپرت معاملاتی پیشرفته ممنتو بر اساس استراتژی کراس سه گانه ایچیموکو"
 
 #include <Trade\Trade.mqh>
@@ -16,149 +16,71 @@
 #include "IchimokuLogic.mqh"
 #include "VisualManager.mqh"
 #include "TrailingStopManager.mqh"
-#include "MarketRegimeDetector.mqh" // +++ NEW: کتابخانه تشخیص رژیم بازار
+#include "MarketRegimeDetector.mqh"
 #include "licensed.mqh"
 
-//--- متغیرهای سراسری
+//--- متغیرهای سراسری ---
 SSettings               g_settings;
 string                  g_symbols_array[];
 CStrategyManager* g_symbol_managers[];
 CTrailingStopManager    g_trailing_stop;
-CMarketRegimeEngine     g_regime_engine; // +++ NEW: نمونه سراسری از موتور رژیم بازار
+CMarketRegimeEngine     g_regime_engine;
 bool                    g_dashboard_needs_update = true;
 
+//--- توابع کمکی برای مرتب‌سازی کد ---
+void LoadSettings();
+bool InitializeModules();
+
 //+------------------------------------------------------------------+
-//| تابع اصلی مقداردهی اولیه                                         |
+//| تابع اصلی راه‌اندازی اکسپرت (OnInit)                              |
 //+------------------------------------------------------------------+
 int OnInit()
 {
-    //--- ✅ بخش مقداردهی اولیه تنظیمات (بازنویسی شده برای نسخه ۷.۰) ✅ ---
+    // گام ۱: بارگذاری تمام تنظیمات ورودی در ساختار g_settings
+    LoadSettings();
 
-    // 1. تنظیمات عمومی
-    g_settings.enable_dashboard           = Inp_Enable_Dashboard;
-    g_settings.symbols_list               = Inp_Symbols_List;
-    g_settings.magic_number               = Inp_Magic_Number;
-    g_settings.enable_logging             = Inp_Enable_Logging;
-
-    // 2. تنظیمات ایچیموکو
-    g_settings.ichimoku_timeframe         = Inp_Ichimoku_Timeframe; // +++ NEW
-    g_settings.tenkan_period              = Inp_Tenkan_Period;
-    g_settings.kijun_period               = Inp_Kijun_Period;
-    g_settings.senkou_period              = Inp_Senkou_Period;
-    g_settings.chikou_period              = Inp_Chikou_Period;
-
-    // 3. تنظیمات سیگنال و تاییدیه
-    g_settings.signal_mode                = Inp_Signal_Mode;
-    g_settings.confirmation_type          = Inp_Confirmation_Type;
-    g_settings.grace_period_candles       = Inp_Grace_Period_Candles;
-    g_settings.talaqi_calculation_mode    = Inp_Talaqi_Calculation_Mode;
-    g_settings.talaqi_atr_multiplier      = Inp_Talaqi_ATR_Multiplier;
-    g_settings.talaqi_distance_in_points  = Inp_Talaqi_Distance_in_Points;
-    g_settings.talaqi_kumo_factor         = Inp_Talaqi_Kumo_Factor;
-
-    // 4. تنظیمات حد ضرر
-    g_settings.stoploss_type              = Inp_StopLoss_Type;
-    g_settings.sl_atr_multiplier          = Inp_SL_ATR_Multiplier;
-    g_settings.sl_lookback_period         = Inp_SL_Lookback_Period;
-    g_settings.sl_buffer_multiplier       = Inp_SL_Buffer_Multiplier;
-    g_settings.flat_kijun_period          = Inp_Flat_Kijun_Period;
-    g_settings.flat_kijun_min_length      = Inp_Flat_Kijun_Min_Length;
-    g_settings.pivot_lookback             = Inp_Pivot_Lookback;
-    g_settings.enable_sl_vol_regime       = Inp_Enable_SL_Vol_Regime;
-    g_settings.sl_vol_regime_atr_period   = Inp_SL_Vol_Regime_ATR_Period;
-    g_settings.sl_vol_regime_ema_period   = Inp_SL_Vol_Regime_EMA_Period;
-    g_settings.sl_high_vol_multiplier     = Inp_SL_High_Vol_Multiplier;
-    g_settings.sl_low_vol_multiplier      = Inp_SL_Low_Vol_Multiplier;
-
-    // 5. تنظیمات مدیریت سرمایه
-    g_settings.risk_percent_per_trade     = Inp_Risk_Percent_Per_Trade;
-    g_settings.take_profit_ratio          = Inp_Take_Profit_Ratio;
-    g_settings.max_trades_per_symbol      = Inp_Max_Trades_Per_Symbol;
-    g_settings.max_total_trades           = Inp_Max_Total_Trades;
-
-    // 6. تنظیمات گرافیکی
-    g_settings.object_size_multiplier     = Inp_Object_Size_Multiplier;
-    g_settings.bullish_color              = Inp_Bullish_Color;
-    g_settings.bearish_color              = Inp_Bearish_Color;
-    
-    // 7. فیلترهای ورود (نسخه جدید و ساده شده)
-    g_settings.enable_regime_filter       = Inp_Enable_Regime_Filter; // +++ NEW
-    g_settings.enable_kumo_filter         = Inp_Enable_Kumo_Filter;
-
-    // --- بخش ۸ (منطق خروج پیچیده) حذف شد ---
-
-    //------------------------------------------------------------------
-    //--- راه‌اندازی ماژول‌ها ---
-
-    int symbols_count = StringSplit(g_settings.symbols_list, ',', g_symbols_array);
-    if (symbols_count == 0) {
-        Print("خطا: هیچ نمادی برای معامله مشخص نشده است.");
+    // گام ۲: راه‌اندازی تمام ماژول‌های اصلی (مدیرهای نماد، فیلتر رژیم و...)
+    if (!InitializeModules())
+    {
         return INIT_FAILED;
     }
 
-    ArrayResize(g_symbol_managers, symbols_count);
-    for (int i = 0; i < symbols_count; i++) {
-        string sym = g_symbols_array[i];
-        StringTrimLeft(sym);
-        StringTrimRight(sym);
-        g_symbol_managers[i] = new CStrategyManager(sym, g_settings);
-        if (g_symbol_managers[i].Init() == false) {
-            Print("مقداردهی اولیه مدیر استراتژی برای نماد ", sym, " با خطا مواجه شد. عملیات متوقف می‌شود.");
-            // پاکسازی در صورت خطا
-             for (int j = 0; j <= i; j++) {
-                if(CheckPointer(g_symbol_managers[j])==POINTER_DYNAMIC) delete g_symbol_managers[j];
-            }
-            ArrayFree(g_symbol_managers);
-            return INIT_FAILED;
-        }
-    }
-    Print("اکسپرت Memento با موفقیت برای نمادهای زیر مقداردهی اولیه شد: ", g_settings.symbols_list);
-
-    // +++ NEW: راه‌اندازی موتور رژیم بازار +++
-    // این موتور روی چارت اصلی اجرا می‌شود و نتایجش برای تمام مدیرهای استراتژی قابل استفاده است.
-    if(g_settings.enable_regime_filter)
-    {
-       if(!g_regime_engine.Initialize(_Symbol, _Period, g_settings.enable_logging))
-       {
-          Print("خطا: راه‌اندازی موتور تشخیص رژیم بازار ناموفق بود! فیلتر غیرفعال می‌شود.");
-          g_settings.enable_regime_filter = false; // در صورت خطا، فیلتر را غیرفعال کن
-       }
-    }
-    
-    g_trailing_stop.Init(g_settings.magic_number);
+    // گام ۳: فعال‌سازی تایمر اصلی برای اجرای منطق در OnTimer
     EventSetTimer(1);
+    
+    Print("اکسپرت Memento با موفقیت راه‌اندازی شد.");
     return(INIT_SUCCEEDED);
 }
 
 //+------------------------------------------------------------------+
-//| تابع پایان اکسپرت (پاکسازی)                                      |
+//| تابع پایان کار اکسپرت (OnDeinit)                                 |
 //+------------------------------------------------------------------+
 void OnDeinit(const int reason)
 {
     EventKillTimer();
-    //--- پاکسازی مدیرهای استراتژی
+    
+    // پاکسازی مدیرهای استراتژی
     for (int i = 0; i < ArraySize(g_symbol_managers); i++)
     {
-        if(CheckPointer(g_symbol_managers[i])==POINTER_DYNAMIC)
+        if (CheckPointer(g_symbol_managers[i]) == POINTER_DYNAMIC)
         {
             delete g_symbol_managers[i];
         }
     }
     ArrayFree(g_symbol_managers);
 
-    //--- پاک کردن تمام اشیاء گرافیکی با پیشوند صحیح
+    // پاک کردن تمام اشیاء گرافیکی با پیشوند صحیح
     ObjectsDeleteAll(0, "MEMENTO_UI_");
-    // موتور رژیم بازار و تریلینگ استاپ به صورت خودکار در دیستراکتور خود پاکسازی می‌شوند.
     ChartRedraw();
     Print("اکسپرت Memento با موفقیت غیرفعال شد. Reason: ", reason);
 }
 
 //+------------------------------------------------------------------+
-//| تابع تیک (برای چک کردن لایسنس)                                    |
+//| تابع تیک - فقط برای چک کردن لایسنس                                |
 //+------------------------------------------------------------------+
 void OnTick(void)
 {
-    if(CheckLicenseExpiry() == false)
+    if (CheckLicenseExpiry() == false)
     {
         ExpertRemove();
         return;
@@ -166,21 +88,20 @@ void OnTick(void)
 }
 
 //+------------------------------------------------------------------+
-//| تابع تایمر (حلقه اصلی منطق اکسپرت)                               |
+//| تابع تایمر - حلقه اصلی منطق اکسپرت                                |
 //+------------------------------------------------------------------+
 void OnTimer()
 {
-    // +++ NEW: گام اول - تحلیل وضعیت کلی بازار +++
-    // قبل از هر کاری، موتور رژیم بازار را آپدیت می‌کنیم.
-    if(g_settings.enable_regime_filter)
+    // --- فاز ۱: تحلیل کلی بازار ---
+    if (g_settings.enable_regime_filter)
     {
         g_regime_engine.ProcessNewBar();
     }
 
-    //--- اجرای منطق تریلینگ استاپ برای تمام پوزیشن‌های باز
+    // --- فاز ۲: مدیریت معاملات باز ---
     g_trailing_stop.Process();
     
-    //--- اجرای منطق سیگنال‌یابی برای تمام نمادهای تحت مدیریت
+    // --- فاز ۳: جستجوی سیگنال‌های جدید ---
     for (int i = 0; i < ArraySize(g_symbol_managers); i++)
     {
         if (g_symbol_managers[i] != NULL)
@@ -189,82 +110,78 @@ void OnTimer()
         }
     }
 
-    //--- آپدیت هوشمند داشبورد فقط در صورت نیاز
+    // --- فاز ۴: به‌روزرسانی داشبورد (فقط در صورت نیاز) ---
     if (g_dashboard_needs_update)
     {
-        // پیدا کردن نمونه‌ای از منیجر که مسئول چارت اصلی است
         for (int i = 0; i < ArraySize(g_symbol_managers); i++)
         {
             if (g_symbol_managers[i] != NULL && g_symbol_managers[i].GetSymbol() == _Symbol)
             {
                 g_symbol_managers[i].UpdateMyDashboard();
-                if(g_settings.enable_logging) Print("داشبورد به دلیل رویداد معاملاتی آپدیت شد.");
-                break; // بعد از آپدیت از حلقه خارج شو
+                if (g_settings.enable_logging) Print("داشبورد به دلیل رویداد معاملاتی آپدیت شد.");
+                break;
             }
         }
-        g_dashboard_needs_update = false; // پرچم را برای آپدیت بعدی ریست کن
+        g_dashboard_needs_update = false;
     }
 }
 
 //+------------------------------------------------------------------+
-//| تابع رویدادهای معاملاتی                                           |
+//| تابع رویدادهای معاملاتی (OnTradeTransaction)                     |
 //+------------------------------------------------------------------+
 void OnTradeTransaction(const MqlTradeTransaction &trans,
                         const MqlTradeRequest &request,
                         const MqlTradeResult &result)
 {
-    // ما فقط به رویدادهایی که یک معامله به تاریخچه اضافه می‌کنند علاقه داریم
-    if (trans.type == TRADE_TRANSACTION_DEAL_ADD && trans.deal > 0)
+    // فقط به رویداد اضافه شدن یک معامله به تاریخچه (deal) اهمیت می‌دهیم
+    if (trans.type != TRADE_TRANSACTION_DEAL_ADD || trans.deal <= 0)
     {
-        // چک می‌کنیم معامله مربوط به همین اکسپرت باشه
-        if (HistoryDealSelect(trans.deal) && HistoryDealGetInteger(trans.deal, DEAL_MAGIC) == (long)g_settings.magic_number)
+        return;
+    }
+
+    // اطمینان از اینکه معامله مربوط به همین اکسپرت است
+    if (HistoryDealSelect(trans.deal) && HistoryDealGetInteger(trans.deal, DEAL_MAGIC) == (long)g_settings.magic_number)
+    {
+        // اگر معامله از نوع خروج از پوزیشن (بسته شدن) بود، کش داشبورد را آپدیت می‌کنیم
+        if (HistoryDealGetInteger(trans.deal, DEAL_ENTRY) == DEAL_ENTRY_OUT)
         {
-            // اگر معامله از نوع خروج از پوزیشن بود (بسته شدن)
-            if(HistoryDealGetInteger(trans.deal, DEAL_ENTRY) == DEAL_ENTRY_OUT)
+            string deal_symbol = HistoryDealGetString(trans.deal, DEAL_SYMBOL);
+            for (int i = 0; i < ArraySize(g_symbol_managers); i++)
             {
-                string deal_symbol = HistoryDealGetString(trans.deal, DEAL_SYMBOL);
-                for(int i = 0; i < ArraySize(g_symbol_managers); i++)
+                if (g_symbol_managers[i] != NULL && g_symbol_managers[i].GetSymbol() == deal_symbol)
                 {
-                    if(g_symbol_managers[i] != NULL && g_symbol_managers[i].GetSymbol() == deal_symbol)
+                    CVisualManager *visual_manager = g_symbol_managers[i].GetVisualManager();
+                    if (visual_manager != NULL)
                     {
-                        CVisualManager *visual_manager = g_symbol_managers[i].GetVisualManager();
-                        if(visual_manager != NULL)
+                        int symbol_index = visual_manager.GetSymbolIndex(deal_symbol);
+                        if (symbol_index != -1)
                         {
-                            int symbol_index = visual_manager.GetSymbolIndex(deal_symbol);
-                            if(symbol_index != -1)
-                            {
-                                // و دفترچه حسابداری را آپدیت می‌کنیم
-                                visual_manager.UpdateDashboardCache(symbol_index, 
-                                                                    HistoryDealGetDouble(trans.deal, DEAL_PROFIT),
-                                                                    HistoryDealGetDouble(trans.deal, DEAL_COMMISSION),
-                                                                    HistoryDealGetDouble(trans.deal, DEAL_SWAP));
-                            }
+                            visual_manager.UpdateDashboardCache(symbol_index, 
+                                                                HistoryDealGetDouble(trans.deal, DEAL_PROFIT),
+                                                                HistoryDealGetDouble(trans.deal, DEAL_COMMISSION),
+                                                                HistoryDealGetDouble(trans.deal, DEAL_SWAP));
                         }
-                        break;
                     }
+                    break;
                 }
             }
-            // در هر صورت (چه باز شدن و چه بسته شدن) داشبورد نیاز به آپدیت دارد
-            g_dashboard_needs_update = true;
         }
+        // در هر صورت (چه باز شدن و چه بسته شدن) پرچم آپدیت داشبورد را فعال می‌کنیم
+        g_dashboard_needs_update = true;
     }
 }
 
 //+------------------------------------------------------------------+
-//| تابع مدیریت رویدادهای چارت (برای کلیک روی دکمه)                   |
+//| تابع رویدادهای چارت (OnChartEvent)                               |
 //+------------------------------------------------------------------+
-void OnChartEvent(const int id,
-                  const long &lparam,
-                  const double &dparam,
-                  const string &sparam)
+void OnChartEvent(const int id, const long &lparam, const double &dparam, const string &sparam)
 {
-    if(id == CHARTEVENT_OBJECT_CLICK)
+    if (id == CHARTEVENT_OBJECT_CLICK)
     {
-        for(int i = 0; i < ArraySize(g_symbol_managers); i++)
+        for (int i = 0; i < ArraySize(g_symbol_managers); i++)
         {
-            if(g_symbol_managers[i] != NULL && g_symbol_managers[i].GetSymbol() == _Symbol)
+            if (g_symbol_managers[i] != NULL && g_symbol_managers[i].GetSymbol() == _Symbol)
             {
-                // رویداد را برای پردازش به مدیر گرافیک ارسال کن
                 g_symbol_managers[i].GetVisualManager().OnChartEvent(id, lparam, dparam, sparam);
                 break;
             }
@@ -273,16 +190,113 @@ void OnChartEvent(const int id,
 }
 
 //+------------------------------------------------------------------+
-//| تابع بهینه‌سازی سفارشی (بدون تغییر)                                |
+//| توابع کمکی (Helper Functions)                                   |
 //+------------------------------------------------------------------+
-//--- گروه: تنظیمات بهینه‌سازی سفارشی ---
+
+// این تابع تمام تنظیمات ورودی را در ساختار g_settings بارگذاری می‌کند
+void LoadSettings()
+{
+    // 1. عمومی
+    g_settings.enable_dashboard = Inp_Enable_Dashboard;
+    g_settings.symbols_list = Inp_Symbols_List;
+    g_settings.magic_number = Inp_Magic_Number;
+    g_settings.enable_logging = Inp_Enable_Logging;
+    // 2. ایچیموکو
+    g_settings.ichimoku_timeframe = Inp_Ichimoku_Timeframe;
+    g_settings.tenkan_period = Inp_Tenkan_Period;
+    g_settings.kijun_period = Inp_Kijun_Period;
+    g_settings.senkou_period = Inp_Senkou_Period;
+    g_settings.chikou_period = Inp_Chikou_Period;
+    // 3. سیگنال و تاییدیه
+    g_settings.signal_mode = Inp_Signal_Mode;
+    g_settings.confirmation_type = Inp_Confirmation_Type;
+    g_settings.grace_period_candles = Inp_Grace_Period_Candles;
+    g_settings.talaqi_calculation_mode = Inp_Talaqi_Calculation_Mode;
+    g_settings.talaqi_atr_multiplier = Inp_Talaqi_ATR_Multiplier;
+    g_settings.talaqi_distance_in_points = Inp_Talaqi_Distance_in_Points;
+    g_settings.talaqi_kumo_factor = Inp_Talaqi_Kumo_Factor;
+    // 4. حد ضرر
+    g_settings.stoploss_type = Inp_StopLoss_Type;
+    g_settings.sl_atr_multiplier = Inp_SL_ATR_Multiplier;
+    g_settings.sl_lookback_period = Inp_SL_Lookback_Period;
+    g_settings.sl_buffer_multiplier = Inp_SL_Buffer_Multiplier;
+    g_settings.flat_kijun_period = Inp_Flat_Kijun_Period;
+    g_settings.flat_kijun_min_length = Inp_Flat_Kijun_Min_Length;
+    g_settings.pivot_lookback = Inp_Pivot_Lookback;
+    g_settings.enable_sl_vol_regime = Inp_Enable_SL_Vol_Regime;
+    g_settings.sl_vol_regime_atr_period = Inp_SL_Vol_Regime_ATR_Period;
+    g_settings.sl_vol_regime_ema_period = Inp_SL_Vol_Regime_EMA_Period;
+    g_settings.sl_high_vol_multiplier = Inp_SL_High_Vol_Multiplier;
+    g_settings.sl_low_vol_multiplier = Inp_SL_Low_Vol_Multiplier;
+    // 5. مدیریت سرمایه
+    g_settings.risk_percent_per_trade = Inp_Risk_Percent_Per_Trade;
+    g_settings.take_profit_ratio = Inp_Take_Profit_Ratio;
+    g_settings.max_trades_per_symbol = Inp_Max_Trades_Per_Symbol;
+    g_settings.max_total_trades = Inp_Max_Total_Trades;
+    // 6. گرافیکی
+    g_settings.object_size_multiplier = Inp_Object_Size_Multiplier;
+    g_settings.bullish_color = Inp_Bullish_Color;
+    g_settings.bearish_color = Inp_Bearish_Color;
+    // 7. فیلترهای ورود
+    g_settings.enable_regime_filter = Inp_Enable_Regime_Filter;
+    g_settings.enable_kumo_filter = Inp_Enable_Kumo_Filter;
+}
+
+// این تابع تمام ماژول‌ها را راه‌اندازی می‌کند و در صورت بروز خطا، false برمی‌گرداند
+bool InitializeModules()
+{
+    // راه‌اندازی مدیرهای استراتژی برای هر نماد
+    int symbols_count = StringSplit(g_settings.symbols_list, ',', g_symbols_array);
+    if (symbols_count == 0)
+    {
+        Print("خطا: هیچ نمادی برای معامله مشخص نشده است.");
+        return false;
+    }
+    ArrayResize(g_symbol_managers, symbols_count);
+    for (int i = 0; i < symbols_count; i++)
+    {
+        string sym = g_symbols_array[i];
+        StringTrimLeft(sym);
+        StringTrimRight(sym);
+        g_symbol_managers[i] = new CStrategyManager(sym, g_settings);
+        if (!g_symbol_managers[i].Init())
+        {
+            Print("مقداردهی اولیه مدیر استراتژی برای نماد ", sym, " با خطا مواجه شد.");
+            // پاکسازی در صورت خطا
+            for (int j = 0; j <= i; j++)
+            {
+                if (CheckPointer(g_symbol_managers[j]) == POINTER_DYNAMIC) delete g_symbol_managers[j];
+            }
+            ArrayFree(g_symbol_managers);
+            return false;
+        }
+    }
+    Print("مدیرهای استراتژی برای نمادهای زیر با موفقیت راه‌اندازی شدند: ", g_settings.symbols_list);
+
+    // راه‌اندازی موتور رژیم بازار
+    if (g_settings.enable_regime_filter)
+    {
+        if (!g_regime_engine.Initialize(_Symbol, g_settings.enable_logging))
+        {
+            Print("هشدار: راه‌اندازی موتور تشخیص رژیم بازار ناموفق بود! فیلتر غیرفعال می‌شود.");
+            g_settings.enable_regime_filter = false;
+        }
+    }
+
+    // راه‌اندازی مدیر تریلینگ استاپ
+    g_trailing_stop.Init(g_settings.magic_number);
+
+    return true;
+}
+
+//+------------------------------------------------------------------+
+//| توابع بهینه‌سازی (Optimization Functions)                        |
+//| این بخش برای حفظ کارکرد بدون تغییر باقی مانده است                 |
+//+------------------------------------------------------------------+
 input group "  تنظیمات بهینه‌سازی سفارشی";
-input int InpMinTradesPerYear = 30; // حداقل تعداد معاملات قابل قبول در یک سال
+input int InpMinTradesPerYear = 30;
 input int InpMaxAcceptableDrawdown = 15;
 
-// توابع OnTester و CalculateAdvancedMetrics بدون هیچ تغییری باقی می‌مانند
-// ... (کد این دو تابع همانند نسخه قبلی است و برای خلاصه شدن اینجا تکرار نشده)
-// ...
 double OnTester()
 {
    // --- 1. گرفتن تمام آمارهای استاندارد مورد نیاز ---
@@ -317,24 +331,18 @@ double OnTester()
    double drawdown_penalty_factor = 0.0;
    if (max_balance_drawdown_percent < InpMaxAcceptableDrawdown && InpMaxAcceptableDrawdown > 0)
    {
-      // دراودان رو به یک زاویه بین 0 تا 90 درجه (π/2 رادیان) تبدیل می‌کنیم
       double angle = (max_balance_drawdown_percent / InpMaxAcceptableDrawdown) * (M_PI / 2.0);
-
-      // ضریب مجازات، کسینوس اون زاویه است. هرچی زاویه (دراودان) بیشتر، کسینوس (امتیاز) کمتر
       drawdown_penalty_factor = cos(angle);
    }
-   // اگر دراودان بیشتر از حد مجاز باشه، ضریب صفر می‌مونه و کل پاس رد میشه
-
+   
    // --- 6. محاسبه امتیاز نهایی جامع با فرمول جدید و پیوسته ---
    double final_score = 0.0;
    if(drawdown_penalty_factor > 0)
    {
-      // استفاده از log برای نرمال‌سازی و جلوگیری از تاثیر بیش از حد اعداد بزرگ
-      double trades_factor = log(total_trades + 1); // +1 برای جلوگیری از log(0)
+      double trades_factor = log(total_trades + 1);
       double net_profit_factor = log(net_profit + 1);
-
       final_score = (profit_factor * sharpe_ratio * r_squared * downside_consistency * trades_factor * net_profit_factor)
-                     * drawdown_penalty_factor; // ضرب در ضریب مجازات جدید و هوشمند
+                     * drawdown_penalty_factor;
    }
 
    // --- 7. چاپ نتیجه برای دیباگ ---
