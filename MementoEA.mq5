@@ -5,96 +5,91 @@
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2025,hipoalgoritm"
 #property link      "https://www.mql5.com"
-#property version   "1.7" // نسخه نهایی و کاملا اصلاح شده
+#property version   "7.0" // یکپارچه‌سازی فیلتر رژیم بازار و قابلیت MTF
 #property description "اکسپرت معاملاتی پیشرفته ممنتو بر اساس استراتژی کراس سه گانه ایچیموکو"
-
 
 #include <Trade\Trade.mqh>
 #include <Object.mqh>
+
+// --- کتابخانه‌های اصلی پروژه ---
+#include "set.mqh"
 #include "IchimokuLogic.mqh"
 #include "VisualManager.mqh"
 #include "TrailingStopManager.mqh"
-
-#include  "licensed.mqh"
+#include "MarketRegimeDetector.mqh" // +++ NEW: کتابخانه تشخیص رژیم بازار
+#include "licensed.mqh"
 
 //--- متغیرهای سراسری
-SSettings            g_settings;
-string               g_symbols_array[];
+SSettings               g_settings;
+string                  g_symbols_array[];
 CStrategyManager* g_symbol_managers[];
-bool              g_dashboard_needs_update = true; // پرچم برای آپدیت هوشمند داشبورد
-CTrailingStopManager TrailingStop;
+CTrailingStopManager    g_trailing_stop;
+CMarketRegimeEngine     g_regime_engine; // +++ NEW: نمونه سراسری از موتور رژیم بازار
+bool                    g_dashboard_needs_update = true;
 
-
-
-
-int OnInit() {
-    //--- ✅✅✅ بخش مقداردهی اولیه تنظیمات (نسخه کامل و اصلاح شده) ✅✅✅ ---
+//+------------------------------------------------------------------+
+//| تابع اصلی مقداردهی اولیه                                         |
+//+------------------------------------------------------------------+
+int OnInit()
+{
+    //--- ✅ بخش مقداردهی اولیه تنظیمات (بازنویسی شده برای نسخه ۷.۰) ✅ ---
 
     // 1. تنظیمات عمومی
     g_settings.enable_dashboard           = Inp_Enable_Dashboard;
-    g_settings.symbols_list                 = Inp_Symbols_List;
-    g_settings.magic_number                 = Inp_Magic_Number;
-    g_settings.enable_logging               = Inp_Enable_Logging;
+    g_settings.symbols_list               = Inp_Symbols_List;
+    g_settings.magic_number               = Inp_Magic_Number;
+    g_settings.enable_logging             = Inp_Enable_Logging;
 
     // 2. تنظیمات ایچیموکو
-    g_settings.tenkan_period                = Inp_Tenkan_Period;
-    g_settings.kijun_period                 = Inp_Kijun_Period;
-    g_settings.senkou_period                = Inp_Senkou_Period;
-    g_settings.chikou_period                = Inp_Chikou_Period;
+    g_settings.ichimoku_timeframe         = Inp_Ichimoku_Timeframe; // +++ NEW
+    g_settings.tenkan_period              = Inp_Tenkan_Period;
+    g_settings.kijun_period               = Inp_Kijun_Period;
+    g_settings.senkou_period              = Inp_Senkou_Period;
+    g_settings.chikou_period              = Inp_Chikou_Period;
 
     // 3. تنظیمات سیگنال و تاییدیه
-    g_settings.signal_mode                  = Inp_Signal_Mode;
-    g_settings.confirmation_type            = Inp_Confirmation_Type;
-    g_settings.grace_period_candles         = Inp_Grace_Period_Candles;
-    g_settings.talaqi_calculation_mode      = Inp_Talaqi_Calculation_Mode;
-    g_settings.talaqi_atr_multiplier        = Inp_Talaqi_ATR_Multiplier;
-    g_settings.talaqi_distance_in_points    = Inp_Talaqi_Distance_in_Points;
-    g_settings.talaqi_kumo_factor           = Inp_Talaqi_Kumo_Factor;
+    g_settings.signal_mode                = Inp_Signal_Mode;
+    g_settings.confirmation_type          = Inp_Confirmation_Type;
+    g_settings.grace_period_candles       = Inp_Grace_Period_Candles;
+    g_settings.talaqi_calculation_mode    = Inp_Talaqi_Calculation_Mode;
+    g_settings.talaqi_atr_multiplier      = Inp_Talaqi_ATR_Multiplier;
+    g_settings.talaqi_distance_in_points  = Inp_Talaqi_Distance_in_Points;
+    g_settings.talaqi_kumo_factor         = Inp_Talaqi_Kumo_Factor;
 
     // 4. تنظیمات حد ضرر
-    g_settings.stoploss_type                = Inp_StopLoss_Type;
-    g_settings.sl_atr_multiplier            = Inp_SL_ATR_Multiplier;
-    g_settings.flat_kijun_period            = Inp_Flat_Kijun_Period;
-    g_settings.flat_kijun_min_length        = Inp_Flat_Kijun_Min_Length;
-    g_settings.pivot_lookback               = Inp_Pivot_Lookback;
-    g_settings.sl_lookback_period           = Inp_SL_Lookback_Period;
-    g_settings.sl_buffer_multiplier         = Inp_SL_Buffer_Multiplier;
-    
-    // 4.1. <<< بخش اضافه شده برای SL پویا >>>
-    g_settings.enable_sl_vol_regime         = Inp_Enable_SL_Vol_Regime;
-    g_settings.sl_vol_regime_atr_period     = Inp_SL_Vol_Regime_ATR_Period;
-    g_settings.sl_vol_regime_ema_period     = Inp_SL_Vol_Regime_EMA_Period;
-    g_settings.sl_high_vol_multiplier       = Inp_SL_High_Vol_Multiplier;
-    g_settings.sl_low_vol_multiplier        = Inp_SL_Low_Vol_Multiplier;
+    g_settings.stoploss_type              = Inp_StopLoss_Type;
+    g_settings.sl_atr_multiplier          = Inp_SL_ATR_Multiplier;
+    g_settings.sl_lookback_period         = Inp_SL_Lookback_Period;
+    g_settings.sl_buffer_multiplier       = Inp_SL_Buffer_Multiplier;
+    g_settings.flat_kijun_period          = Inp_Flat_Kijun_Period;
+    g_settings.flat_kijun_min_length      = Inp_Flat_Kijun_Min_Length;
+    g_settings.pivot_lookback             = Inp_Pivot_Lookback;
+    g_settings.enable_sl_vol_regime       = Inp_Enable_SL_Vol_Regime;
+    g_settings.sl_vol_regime_atr_period   = Inp_SL_Vol_Regime_ATR_Period;
+    g_settings.sl_vol_regime_ema_period   = Inp_SL_Vol_Regime_EMA_Period;
+    g_settings.sl_high_vol_multiplier     = Inp_SL_High_Vol_Multiplier;
+    g_settings.sl_low_vol_multiplier      = Inp_SL_Low_Vol_Multiplier;
 
     // 5. تنظیمات مدیریت سرمایه
-    g_settings.risk_percent_per_trade       = Inp_Risk_Percent_Per_Trade;
-    g_settings.take_profit_ratio            = Inp_Take_Profit_Ratio;
-    g_settings.max_trades_per_symbol        = Inp_Max_Trades_Per_Symbol;
-    g_settings.max_total_trades             = Inp_Max_Total_Trades;
+    g_settings.risk_percent_per_trade     = Inp_Risk_Percent_Per_Trade;
+    g_settings.take_profit_ratio          = Inp_Take_Profit_Ratio;
+    g_settings.max_trades_per_symbol      = Inp_Max_Trades_Per_Symbol;
+    g_settings.max_total_trades           = Inp_Max_Total_Trades;
 
     // 6. تنظیمات گرافیکی
-    g_settings.object_size_multiplier       = Inp_Object_Size_Multiplier;
-    g_settings.bullish_color                = Inp_Bullish_Color;
-    g_settings.bearish_color                = Inp_Bearish_Color;
+    g_settings.object_size_multiplier     = Inp_Object_Size_Multiplier;
+    g_settings.bullish_color              = Inp_Bullish_Color;
+    g_settings.bearish_color              = Inp_Bearish_Color;
     
-    // 7. <<< بخش اضافه شده برای فیلترها >>>
-    g_settings.enable_kumo_filter           = Inp_Enable_Kumo_Filter;
-    g_settings.enable_atr_filter            = Inp_Enable_ATR_Filter;
-    g_settings.atr_filter_period            = Inp_ATR_Filter_Period;
-    g_settings.atr_filter_min_value_pips    = Inp_ATR_Filter_Min_Value_pips;
-    g_settings.enable_adx_filter            = Inp_Enable_ADX_Filter;
-    g_settings.adx_period                   = Inp_ADX_Period;
-    g_settings.adx_threshold                = Inp_ADX_Threshold;
+    // 7. فیلترهای ورود (نسخه جدید و ساده شده)
+    g_settings.enable_regime_filter       = Inp_Enable_Regime_Filter; // +++ NEW
+    g_settings.enable_kumo_filter         = Inp_Enable_Kumo_Filter;
 
-    // 8. <<< بخش اضافه شده برای خروج زودرس >>>
-    g_settings.enable_early_exit            = Inp_Enable_Early_Exit;
-    g_settings.early_exit_rsi_period        = Inp_Early_Exit_RSI_Period;
-    g_settings.early_exit_rsi_overbought    = Inp_Early_Exit_RSI_Overbought;
-    g_settings.early_exit_rsi_oversold      = Inp_Early_Exit_RSI_Oversold;
+    // --- بخش ۸ (منطق خروج پیچیده) حذف شد ---
 
+    //------------------------------------------------------------------
+    //--- راه‌اندازی ماژول‌ها ---
 
-    //--- بقیه تابع OnInit بدون تغییر ...
     int symbols_count = StringSplit(g_settings.symbols_list, ',', g_symbols_array);
     if (symbols_count == 0) {
         Print("خطا: هیچ نمادی برای معامله مشخص نشده است.");
@@ -107,137 +102,153 @@ int OnInit() {
         StringTrimLeft(sym);
         StringTrimRight(sym);
         g_symbol_managers[i] = new CStrategyManager(sym, g_settings);
-        if (g_symbol_managers[i]->Init() == false) { // <<< اصلاح جزئی: استفاده از ->
-            Print("مقداردهی اولیه نماد ", sym, " با خطا مواجه شد. عملیات متوقف می‌شود.");
-            for (int j = 0; j <= i; j++) {
-                if (g_symbol_managers[j] != NULL) {
-                    delete g_symbol_managers[j];
-                    g_symbol_managers[j] = NULL;
-                }
+        if (g_symbol_managers[i].Init() == false) {
+            Print("مقداردهی اولیه مدیر استراتژی برای نماد ", sym, " با خطا مواجه شد. عملیات متوقف می‌شود.");
+            // پاکسازی در صورت خطا
+             for (int j = 0; j <= i; j++) {
+                if(CheckPointer(g_symbol_managers[j])==POINTER_DYNAMIC) delete g_symbol_managers[j];
             }
             ArrayFree(g_symbol_managers);
             return INIT_FAILED;
         }
     }
-
     Print("اکسپرت Memento با موفقیت برای نمادهای زیر مقداردهی اولیه شد: ", g_settings.symbols_list);
-    TrailingStop.Init(Inp_Magic_Number);
 
+    // +++ NEW: راه‌اندازی موتور رژیم بازار +++
+    // این موتور روی چارت اصلی اجرا می‌شود و نتایجش برای تمام مدیرهای استراتژی قابل استفاده است.
+    if(g_settings.enable_regime_filter)
+    {
+       if(!g_regime_engine.Initialize(_Symbol, _Period, g_settings.enable_logging))
+       {
+          Print("خطا: راه‌اندازی موتور تشخیص رژیم بازار ناموفق بود! فیلتر غیرفعال می‌شود.");
+          g_settings.enable_regime_filter = false; // در صورت خطا، فیلتر را غیرفعال کن
+       }
+    }
+    
+    g_trailing_stop.Init(g_settings.magic_number);
     EventSetTimer(1);
     return(INIT_SUCCEEDED);
 }
 
-
 //+------------------------------------------------------------------+
 //| تابع پایان اکسپرت (پاکسازی)                                      |
 //+------------------------------------------------------------------+
-void OnDeinit(const int reason) {
-   EventKillTimer();
-//--- پاکسازی شیءها
-   for (int i = 0; i < ArraySize(g_symbol_managers); i++) {
-      if (g_symbol_managers[i] != NULL) {
-         delete g_symbol_managers[i];
-         g_symbol_managers[i] = NULL;
-      }
-   }
-   ArrayFree(g_symbol_managers);
-
-
-//--- پاک کردن تمام اشیاء گرافیکی با پیشوند صحیح
-   ObjectsDeleteAll(0, "MEMENTO_UI_");
-   ChartRedraw();
-
-}
-void OnTick(void)
-      {
-       if(CheckLicenseExpiry()==false)
+void OnDeinit(const int reason)
 {
-ExpertRemove();
-//return(INIT_FAILED);
-}
-      }
-//+------------------------------------------------------------------+
-//| تابع تایمر (بررسی مداوم کندل‌ها و سیگنال‌ها)                      |
-//+------------------------------------------------------------------+
-void OnTimer() {
+    EventKillTimer();
+    //--- پاکسازی مدیرهای استراتژی
+    for (int i = 0; i < ArraySize(g_symbol_managers); i++)
+    {
+        if(CheckPointer(g_symbol_managers[i])==POINTER_DYNAMIC)
+        {
+            delete g_symbol_managers[i];
+        }
+    }
+    ArrayFree(g_symbol_managers);
 
-
-
-   TrailingStop.Process();
-//--- اجرای منطق برای تمام نمادهای تحت مدیریت
-   for (int i = 0; i < ArraySize(g_symbol_managers); i++) {
-      if (g_symbol_managers[i] != NULL) {
-         g_symbol_managers[i].ProcessNewBar();
-      }
-   }
-
-//--- آپدیت هوشمند داشبورد فقط در صورت نیاز
-   if (g_dashboard_needs_update) {
-      // پیدا کردن نمونه‌ای از منیجر که مسئول چارت اصلی است
-      for (int i = 0; i < ArraySize(g_symbol_managers); i++) {
-         if (g_symbol_managers[i] != NULL && g_symbol_managers[i].GetSymbol() == _Symbol) {
-            g_symbol_managers[i].UpdateMyDashboard();
-            Print("داشبورد به دلیل رویداد معاملاتی آپدیت شد.");
-            break; // بعد از آپدیت از حلقه خارج شو
-         }
-      }
-      g_dashboard_needs_update = false; // پرچم را برای آپدیت بعدی ریست کن
-   }
+    //--- پاک کردن تمام اشیاء گرافیکی با پیشوند صحیح
+    ObjectsDeleteAll(0, "MEMENTO_UI_");
+    // موتور رژیم بازار و تریلینگ استاپ به صورت خودکار در دیستراکتور خود پاکسازی می‌شوند.
+    ChartRedraw();
+    Print("اکسپرت Memento با موفقیت غیرفعال شد. Reason: ", reason);
 }
 
+//+------------------------------------------------------------------+
+//| تابع تیک (برای چک کردن لایسنس)                                    |
+//+------------------------------------------------------------------+
+void OnTick(void)
+{
+    if(CheckLicenseExpiry() == false)
+    {
+        ExpertRemove();
+        return;
+    }
+}
 
+//+------------------------------------------------------------------+
+//| تابع تایمر (حلقه اصلی منطق اکسپرت)                               |
+//+------------------------------------------------------------------+
+void OnTimer()
+{
+    // +++ NEW: گام اول - تحلیل وضعیت کلی بازار +++
+    // قبل از هر کاری، موتور رژیم بازار را آپدیت می‌کنیم.
+    if(g_settings.enable_regime_filter)
+    {
+        g_regime_engine.ProcessNewBar();
+    }
 
+    //--- اجرای منطق تریلینگ استاپ برای تمام پوزیشن‌های باز
+    g_trailing_stop.Process();
+    
+    //--- اجرای منطق سیگنال‌یابی برای تمام نمادهای تحت مدیریت
+    for (int i = 0; i < ArraySize(g_symbol_managers); i++)
+    {
+        if (g_symbol_managers[i] != NULL)
+        {
+            g_symbol_managers[i].ProcessNewBar();
+        }
+    }
 
+    //--- آپدیت هوشمند داشبورد فقط در صورت نیاز
+    if (g_dashboard_needs_update)
+    {
+        // پیدا کردن نمونه‌ای از منیجر که مسئول چارت اصلی است
+        for (int i = 0; i < ArraySize(g_symbol_managers); i++)
+        {
+            if (g_symbol_managers[i] != NULL && g_symbol_managers[i].GetSymbol() == _Symbol)
+            {
+                g_symbol_managers[i].UpdateMyDashboard();
+                if(g_settings.enable_logging) Print("داشبورد به دلیل رویداد معاملاتی آپدیت شد.");
+                break; // بعد از آپدیت از حلقه خارج شو
+            }
+        }
+        g_dashboard_needs_update = false; // پرچم را برای آپدیت بعدی ریست کن
+    }
+}
 
 //+------------------------------------------------------------------+
 //| تابع رویدادهای معاملاتی                                           |
 //+------------------------------------------------------------------+
-//
 void OnTradeTransaction(const MqlTradeTransaction &trans,
                         const MqlTradeRequest &request,
-                        const MqlTradeResult &result) {
-// ما فقط به رویدادهایی که یک معامله به تاریخچه اضافه می‌کنند علاقه داریم
-   if (trans.type == TRADE_TRANSACTION_DEAL_ADD && trans.deal > 0) {
-      // اطلاعات معامله را از تاریخچه می‌گیریم
-      ulong deal_ticket = trans.deal;
-      if(HistoryDealSelect(deal_ticket)) {
-         // چک می‌کنیم معامله مربوط به همین اکسپرت باشه
-         if(HistoryDealGetInteger(deal_ticket, DEAL_MAGIC) == (long)g_settings.magic_number) {
+                        const MqlTradeResult &result)
+{
+    // ما فقط به رویدادهایی که یک معامله به تاریخچه اضافه می‌کنند علاقه داریم
+    if (trans.type == TRADE_TRANSACTION_DEAL_ADD && trans.deal > 0)
+    {
+        // چک می‌کنیم معامله مربوط به همین اکسپرت باشه
+        if (HistoryDealSelect(trans.deal) && HistoryDealGetInteger(trans.deal, DEAL_MAGIC) == (long)g_settings.magic_number)
+        {
             // اگر معامله از نوع خروج از پوزیشن بود (بسته شدن)
-            if(HistoryDealGetInteger(deal_ticket, DEAL_ENTRY) == DEAL_ENTRY_OUT) {
-               string deal_symbol = HistoryDealGetString(deal_ticket, DEAL_SYMBOL);
-
-               // مدیر استراتژی مربوط به این نماد را پیدا می‌کنیم
-               for(int i = 0; i < ArraySize(g_symbol_managers); i++) {
-                  if(g_symbol_managers[i] != NULL && g_symbol_managers[i].GetSymbol() == deal_symbol) {
-                     // مدیر گرافیک آن را می‌گیریم
-                     CVisualManager *visual_manager = g_symbol_managers[i].GetVisualManager();
-                     if(visual_manager != NULL) {
-                        // ایندکس نماد را در داشبورد پیدا می‌کنیم
-                        int symbol_index = visual_manager.GetSymbolIndex(deal_symbol);
-                        if(symbol_index != -1) {
-                           // اطلاعات سود و زیان را می‌گیریم
-                           double p = HistoryDealGetDouble(deal_ticket, DEAL_PROFIT);
-                           double c = HistoryDealGetDouble(deal_ticket, DEAL_COMMISSION);
-                           double s = HistoryDealGetDouble(deal_ticket, DEAL_SWAP);
-
-                           // و دفترچه حسابداری را آپدیت می‌کنیم
-                           visual_manager.UpdateDashboardCache(symbol_index, p, c, s);
+            if(HistoryDealGetInteger(trans.deal, DEAL_ENTRY) == DEAL_ENTRY_OUT)
+            {
+                string deal_symbol = HistoryDealGetString(trans.deal, DEAL_SYMBOL);
+                for(int i = 0; i < ArraySize(g_symbol_managers); i++)
+                {
+                    if(g_symbol_managers[i] != NULL && g_symbol_managers[i].GetSymbol() == deal_symbol)
+                    {
+                        CVisualManager *visual_manager = g_symbol_managers[i].GetVisualManager();
+                        if(visual_manager != NULL)
+                        {
+                            int symbol_index = visual_manager.GetSymbolIndex(deal_symbol);
+                            if(symbol_index != -1)
+                            {
+                                // و دفترچه حسابداری را آپدیت می‌کنیم
+                                visual_manager.UpdateDashboardCache(symbol_index, 
+                                                                    HistoryDealGetDouble(trans.deal, DEAL_PROFIT),
+                                                                    HistoryDealGetDouble(trans.deal, DEAL_COMMISSION),
+                                                                    HistoryDealGetDouble(trans.deal, DEAL_SWAP));
+                            }
                         }
-                     }
-                     break; // مدیر پیدا شد، از حلقه خارج شو
-                  }
-               }
+                        break;
+                    }
+                }
             }
-
             // در هر صورت (چه باز شدن و چه بسته شدن) داشبورد نیاز به آپدیت دارد
             g_dashboard_needs_update = true;
-         }
-      }
-   }
+        }
+    }
 }
-
-
 
 //+------------------------------------------------------------------+
 //| تابع مدیریت رویدادهای چارت (برای کلیک روی دکمه)                   |
@@ -245,32 +256,33 @@ void OnTradeTransaction(const MqlTradeTransaction &trans,
 void OnChartEvent(const int id,
                   const long &lparam,
                   const double &dparam,
-                  const string &sparam) {
-// اگر رویداد از نوع کلیک روی یک آبجکت بود
-   if(id == CHARTEVENT_OBJECT_CLICK) {
-      // مدیر استراتژی مربوط به چارت فعلی را پیدا کن
-      for(int i = 0; i < ArraySize(g_symbol_managers); i++) {
-         if(g_symbol_managers[i] != NULL && g_symbol_managers[i].GetSymbol() == _Symbol) {
-            // رویداد را برای پردازش به مدیر گرافیک ارسال کن
-            g_symbol_managers[i].GetVisualManager().OnChartEvent(id, lparam, dparam, sparam);
-            break; // کار تمام است، از حلقه خارج شو
-         }
-      }
-   }
+                  const string &sparam)
+{
+    if(id == CHARTEVENT_OBJECT_CLICK)
+    {
+        for(int i = 0; i < ArraySize(g_symbol_managers); i++)
+        {
+            if(g_symbol_managers[i] != NULL && g_symbol_managers[i].GetSymbol() == _Symbol)
+            {
+                // رویداد را برای پردازش به مدیر گرافیک ارسال کن
+                g_symbol_managers[i].GetVisualManager().OnChartEvent(id, lparam, dparam, sparam);
+                break;
+            }
+        }
+    }
 }
+
 //+------------------------------------------------------------------+
-
-
-
+//| تابع بهینه‌سازی سفارشی (بدون تغییر)                                |
+//+------------------------------------------------------------------+
 //--- گروه: تنظیمات بهینه‌سازی سفارشی ---
 input group "  تنظیمات بهینه‌سازی سفارشی";
 input int InpMinTradesPerYear = 30; // حداقل تعداد معاملات قابل قبول در یک سال
 input int InpMaxAcceptableDrawdown = 15;
 
-
-//+------------------------------------------------------------------+
-//| تابع اصلی رویداد تستر که امتیاز نهایی را محاسبه می‌کند.          |
-//+------------------------------------------------------------------+
+// توابع OnTester و CalculateAdvancedMetrics بدون هیچ تغییری باقی می‌مانند
+// ... (کد این دو تابع همانند نسخه قبلی است و برای خلاصه شدن اینجا تکرار نشده)
+// ...
 double OnTester()
 {
    // --- 1. گرفتن تمام آمارهای استاندارد مورد نیاز ---
@@ -303,11 +315,11 @@ double OnTester()
 
    // --- 5. *** مهندسی امتیاز: محاسبه "ضریب مجازات" با منحنی کسینوسی *** ---
    double drawdown_penalty_factor = 0.0;
-   if (max_balance_drawdown_percent < InpMaxAcceptableDrawdown && InpMaxAcceptableDrawdown > 0) 
+   if (max_balance_drawdown_percent < InpMaxAcceptableDrawdown && InpMaxAcceptableDrawdown > 0)
    {
       // دراودان رو به یک زاویه بین 0 تا 90 درجه (π/2 رادیان) تبدیل می‌کنیم
       double angle = (max_balance_drawdown_percent / InpMaxAcceptableDrawdown) * (M_PI / 2.0);
-      
+
       // ضریب مجازات، کسینوس اون زاویه است. هرچی زاویه (دراودان) بیشتر، کسینوس (امتیاز) کمتر
       drawdown_penalty_factor = cos(angle);
    }
@@ -321,7 +333,7 @@ double OnTester()
       double trades_factor = log(total_trades + 1); // +1 برای جلوگیری از log(0)
       double net_profit_factor = log(net_profit + 1);
 
-      final_score = (profit_factor * sharpe_ratio * r_squared * downside_consistency * trades_factor * net_profit_factor) 
+      final_score = (profit_factor * sharpe_ratio * r_squared * downside_consistency * trades_factor * net_profit_factor)
                      * drawdown_penalty_factor; // ضرب در ضریب مجازات جدید و هوشمند
    }
 
@@ -332,45 +344,37 @@ double OnTester()
    return final_score;
 }
 
-// تابع CalculateAdvancedMetrics بدون هیچ تغییری باقی می‌ماند
+struct EquityPoint { datetime time; double balance; };
+struct MonthlyTrades { int year; int month; int count; };
 void CalculateAdvancedMetrics(double &r_squared, double &downside_consistency)
 {
    r_squared = 0;
    downside_consistency = 1.0;
-
    if(!HistorySelect(0, TimeCurrent())) return;
    uint total_deals = HistoryDealsTotal();
    if(total_deals < 5) return;
-
    EquityPoint equity_curve[];
    ArrayResize(equity_curve, (int)total_deals + 2);
-
    double final_balance = AccountInfoDouble(ACCOUNT_BALANCE);
    double net_profit = TesterStatistics(STAT_PROFIT);
    double initial_balance = final_balance - net_profit;
-   
    double current_balance = initial_balance;
-   equity_curve[0].time      = (datetime)HistoryDealGetInteger(0, DEAL_TIME) - 1;
-   equity_curve[0].balance   = current_balance;
-
+   equity_curve[0].time = (datetime)HistoryDealGetInteger(0, DEAL_TIME) - 1;
+   equity_curve[0].balance = current_balance;
    int equity_points = 1;
    for(uint i = 0; i < total_deals; i++)
      {
       ulong ticket = HistoryDealGetTicket(i);
-      if(ticket > 0)
+      if(ticket > 0 && HistoryDealGetInteger(ticket, DEAL_ENTRY) == DEAL_ENTRY_OUT)
         {
-         if(HistoryDealGetInteger(ticket, DEAL_ENTRY) == DEAL_ENTRY_OUT)
-           {
-            current_balance += HistoryDealGetDouble(ticket, DEAL_PROFIT) + HistoryDealGetDouble(ticket, DEAL_COMMISSION) + HistoryDealGetDouble(ticket, DEAL_SWAP);
-            equity_curve[equity_points].time = (datetime)HistoryDealGetInteger(ticket, DEAL_TIME);
-            equity_curve[equity_points].balance = current_balance;
-            equity_points++;
-           }
+         current_balance += HistoryDealGetDouble(ticket, DEAL_PROFIT) + HistoryDealGetDouble(ticket, DEAL_COMMISSION) + HistoryDealGetDouble(ticket, DEAL_SWAP);
+         equity_curve[equity_points].time = (datetime)HistoryDealGetInteger(ticket, DEAL_TIME);
+         equity_curve[equity_points].balance = current_balance;
+         equity_points++;
         }
      }
    ArrayResize(equity_curve, equity_points);
    if(equity_points < 3) return;
-   
    double sum_x = 0, sum_y = 0, sum_xy = 0, sum_x2 = 0, sum_y2 = 0;
    for(int i = 0; i < equity_points; i++)
      {
@@ -385,10 +389,8 @@ void CalculateAdvancedMetrics(double &r_squared, double &downside_consistency)
       double r = ((n*sum_xy) - (sum_x*sum_y)) / sqrt(den_part1 * den_part2);
       r_squared = r*r;
      }
-
    MonthlyTrades monthly_counts[];
    int total_months = 0;
-   
    for(uint i=0; i<total_deals; i++)
      {
       ulong ticket = HistoryDealGetTicket(i);
@@ -397,66 +399,46 @@ void CalculateAdvancedMetrics(double &r_squared, double &downside_consistency)
          datetime deal_time = (datetime)HistoryDealGetInteger(ticket, DEAL_TIME);
          MqlDateTime dt;
          TimeToStruct(deal_time, dt);
-         
          int month_idx = -1;
-         for(int j=0; j<total_months; j++) {
-            if(monthly_counts[j].year == dt.year && monthly_counts[j].month == dt.mon) {
+         for(int j=0; j<total_months; j++)
+           {
+            if(monthly_counts[j].year == dt.year && monthly_counts[j].month == dt.mon)
+              {
                month_idx = j;
                break;
-            }
-         }
-         
-         if(month_idx == -1) {
+              }
+           }
+         if(month_idx == -1)
+           {
             ArrayResize(monthly_counts, total_months + 1);
             monthly_counts[total_months].year = dt.year;
             monthly_counts[total_months].month = dt.mon;
             monthly_counts[total_months].count = 1;
             total_months++;
-         } else {
+           }
+         else
+           {
             monthly_counts[month_idx].count++;
-         }
+           }
         }
      }
-
-   if(total_months <= 1) {
+   if(total_months <= 1)
+     {
       downside_consistency = 1.0;
       return;
-   }
-
+     }
    double target_trades_per_month = InpMinTradesPerYear / 12.0;
    if (target_trades_per_month < 1) target_trades_per_month = 1;
-
-
    double sum_of_squared_downside_dev = 0;
-   for(int i = 0; i < total_months; i++) {
-      if(monthly_counts[i].count < target_trades_per_month) {
+   for(int i = 0; i < total_months; i++)
+     {
+      if(monthly_counts[i].count < target_trades_per_month)
+        {
          double deviation = target_trades_per_month - monthly_counts[i].count;
          sum_of_squared_downside_dev += deviation * deviation;
-      }
-   }
-
+        }
+     }
    double downside_variance = sum_of_squared_downside_dev / total_months;
    double downside_deviation = sqrt(downside_variance);
-
    downside_consistency = 1.0 / (1.0 + downside_deviation);
 }
-
-
-
-//+------------------------------------------------------------------+
-//|    بخش بهینه‌سازی سفارشی (Custom Optimization) نسخه 10.0 - نهایی   |
-//|      با "منحنی مجازات دراوداون پیوسته" (Continuous Penalty Curve)     |
-//+------------------------------------------------------------------+
-
-//--- ساختارهای کمکی (بدون تغییر)
-struct EquityPoint
-{
-   datetime time;
-   double   balance;
-};
-struct MonthlyTrades
-{
-   int      year;
-   int      month;
-   int      count;
-};
