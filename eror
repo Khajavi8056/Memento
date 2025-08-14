@@ -1,0 +1,22 @@
+'MarketRegimeDetector.mqh'			0
+'const' - objects are passed by reference only	MarketRegimeDetector.mqh	928	77
+'const' - objects are passed by reference only	MarketRegimeDetector.mqh	1038	75
+'GetAtrHandle' - undeclared identifier	MarketRegimeDetector.mqh	1127	39
+')' - expression expected	MarketRegimeDetector.mqh	1127	52
+'GetAtrHandle' - undeclared identifier	MarketRegimeDetector.mqh	1134	40
+')' - expression expected	MarketRegimeDetector.mqh	1134	53
+'GetAdxHandle' - undeclared identifier	MarketRegimeDetector.mqh	1143	38
+')' - expression expected	MarketRegimeDetector.mqh	1143	51
+'GetAdxHandle' - undeclared identifier	MarketRegimeDetector.mqh	1144	38
+')' - expression expected	MarketRegimeDetector.mqh	1144	51
+'GetAdxHandle' - undeclared identifier	MarketRegimeDetector.mqh	1145	38
+')' - expression expected	MarketRegimeDetector.mqh	1145	51
+'GetRsiHandle' - undeclared identifier	MarketRegimeDetector.mqh	1152	38
+')' - expression expected	MarketRegimeDetector.mqh	1152	51
+'GetBBHandle' - undeclared identifier	MarketRegimeDetector.mqh	1161	40
+')' - expression expected	MarketRegimeDetector.mqh	1161	52
+'GetBBHandle' - undeclared identifier	MarketRegimeDetector.mqh	1162	40
+')' - expression expected	MarketRegimeDetector.mqh	1162	52
+'GetBBHandle' - undeclared identifier	MarketRegimeDetector.mqh	1163	40
+')' - expression expected	MarketRegimeDetector.mqh	1163	52
+20 errors, 0 warnings		20	0
