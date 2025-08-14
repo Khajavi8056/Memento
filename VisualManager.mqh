@@ -2,22 +2,22 @@
 //|                                                                  |
 //|                    Project: Memento (By HipoAlgorithm)           |
 //|                    File: VisualManager.mqh (Graphics Engine)     |
-//|                    Version: 3.6 (Polished & Multi-Timeframe)     |
-//|                    © 2025, Mohammad & Grok                      |
+//|                    Version: 4.0 (Responsive & Regime-Aware)      |
+//|                    © 2025, Mohammad & Gemini                     |
 //|                                                                  |
 //+------------------------------------------------------------------+
 #property copyright "© 2025, hipoalgoritm"
 #property link      "https://www.mql5.com"
-#property version   "3.6"
+#property version   "4.0"
 
 #include "set.mqh"
 
-// ---===== ثابت‌های طراحی =====---
-#define DASHBOARD_Y_POS 30      
-#define DASHBOARD_X_GAP 10      
-#define BOX_WIDTH 95           
-#define BOX_HEIGHT 28           
-#define SUB_PANEL_HEIGHT 40     
+// --- ثابت‌های طراحی پایه (قابل مقیاس‌پذیری) ---
+#define BASE_DASHBOARD_Y_POS 30
+#define BASE_DASHBOARD_X_GAP 10
+#define BASE_BOX_WIDTH 95
+#define BASE_BOX_HEIGHT 28
+#define BASE_SUB_PANEL_HEIGHT 40
 #define MEMENTO_OBJ_PREFIX "MEMENTO_UI_"
 
 // --- ساختارهای داده ---
@@ -38,6 +38,10 @@ private:
     SManagedObject      m_managed_objects[];
     SDashboardData      m_dashboard_data[];
     
+    // آبجکت‌های مربوط به نمایشگر رژیم بازار
+    string              m_regime_panel_bg_name;
+    string              m_regime_panel_label_name;
+
     bool                m_is_barchart_visible;
     string              m_chart_button_name;
     string              m_chart_panel_bg_name;
@@ -55,19 +59,15 @@ public:
     void InitDashboard();
     void UpdateDashboard();
     
-    // تابع رسم مستطیل و فلش کراس اولیه با پشتیبانی از تایم‌فریم
+    // --- تابع جدید برای آپدیت وضعیت رژیم بازار ---
+    void UpdateRegimeStatus(string text, color clr);
+
     void DrawTripleCrossRectangle(bool is_buy, int shift, ENUM_TIMEFRAMES timeframe);
-    
-    // تابع رسم فلش تأییدیه نهایی با پشتیبانی از تایم‌فریم
     void DrawConfirmationArrow(bool is_buy, int shift, ENUM_TIMEFRAMES timeframe);
-    
-    // تابع رسم ناحیه اسکن متحرک با پشتیبانی از تایم‌فریم
     void DrawScanningArea(bool is_buy, int start_shift, int current_shift, ENUM_TIMEFRAMES timeframe);
-    
     void CleanupOldObjects(const int max_age_in_bars, ENUM_TIMEFRAMES timeframe);
     int GetSymbolIndex(string symbol);
     void UpdateDashboardCache(int symbol_index, double deal_profit, double deal_commission, double deal_swap);
-    
     void OnChartEvent(const int id, const long &lparam, const double &dparam, const string &sparam);
 };
 
@@ -79,6 +79,10 @@ CVisualManager::CVisualManager(string symbol, SSettings &settings)
     m_symbol = symbol;
     m_settings = settings;
     m_is_barchart_visible = false;
+    
+    // تعریف نام آبجکت‌ها در کانستراکتور
+    m_regime_panel_bg_name = MEMENTO_OBJ_PREFIX + "RegimePanelBg";
+    m_regime_panel_label_name = MEMENTO_OBJ_PREFIX + "RegimePanelLabel";
     m_chart_button_name = MEMENTO_OBJ_PREFIX + "ChartToggleButton";
     m_chart_panel_bg_name = MEMENTO_OBJ_PREFIX + "ChartPanelBg";
     m_chart_panel_title_name = MEMENTO_OBJ_PREFIX + "ChartPanelTitle";
@@ -135,27 +139,70 @@ void CVisualManager::InitDashboard()
     ArrayResize(m_panel_boxes, total_symbols);
     ArrayResize(m_dashboard_data, total_symbols);
     
-    int current_x = DASHBOARD_X_GAP;
+    // --- بخش هوشمند و واکنش‌گرا ---
+    long chart_width = ChartGetInteger(0, CHART_WIDTH_IN_PIXELS);
+    double scale_factor = 1.0;
     
+    // محاسبه عرض مورد نیاز برای داشبورد (شامل پنل رژیم)
+    double required_width = (BASE_BOX_WIDTH + BASE_DASHBOARD_X_GAP) * total_symbols + 25 + BASE_DASHBOARD_X_GAP + 170; // 170 برای پنل رژیم
+    if (required_width > chart_width)
+    {
+        scale_factor = chart_width / required_width;
+    }
+    
+    // مقیاس‌دهی به ابعاد بر اساس اندازه چارت
+    int box_width = (int)(BASE_BOX_WIDTH * scale_factor);
+    int x_gap = (int)(BASE_DASHBOARD_X_GAP * scale_factor);
+    int box_height = BASE_BOX_HEIGHT; // ارتفاع ثابت می‌ماند
+    int sub_panel_height = BASE_SUB_PANEL_HEIGHT; // ارتفاع ساب‌پنل ثابت
+    int y_pos = BASE_DASHBOARD_Y_POS;
+    
+    int current_x = x_gap;
+    
+    // --- استایل‌های طراحی ---
     color main_bg_color = C'26,30,38';      
     color main_border_color = C'55,65,81';  
     color sub_bg_color = C'17,20,25';       
     color text_color_bright = clrWhite;     
-    color text_color_dim = clrSilver;       
+    color text_color_dim = clrSilver;  
 
+    // --- ایجاد دکمه چارت (بدون تغییر) ---
     ObjectCreate(0, m_chart_button_name, OBJ_BUTTON, 0, 0, 0);
     ObjectSetInteger(0, m_chart_button_name, OBJPROP_XDISTANCE, current_x);
-    ObjectSetInteger(0, m_chart_button_name, OBJPROP_YDISTANCE, DASHBOARD_Y_POS);
+    ObjectSetInteger(0, m_chart_button_name, OBJPROP_YDISTANCE, y_pos);
     ObjectSetInteger(0, m_chart_button_name, OBJPROP_XSIZE, 25);
-    ObjectSetInteger(0, m_chart_button_name, OBJPROP_YSIZE, BOX_HEIGHT);
+    ObjectSetInteger(0, m_chart_button_name, OBJPROP_YSIZE, box_height);
     ObjectSetString(0, m_chart_button_name, OBJPROP_TEXT, "📈");
     ObjectSetInteger(0, m_chart_button_name, OBJPROP_BGCOLOR, main_bg_color);
     ObjectSetInteger(0, m_chart_button_name, OBJPROP_BORDER_COLOR, main_border_color);
     ObjectSetInteger(0, m_chart_button_name, OBJPROP_FONTSIZE, 12);
     ObjectSetInteger(0, m_chart_button_name, OBJPROP_CORNER, CORNER_LEFT_UPPER);
     
-    current_x += 25 + DASHBOARD_X_GAP;
+    current_x += 25 + x_gap;
 
+    // --- ایجاد پنل رژیم بازار ---
+    int regime_width = (int)(170 * scale_factor);
+    ObjectCreate(0, m_regime_panel_bg_name, OBJ_RECTANGLE_LABEL, 0, 0, 0);
+    ObjectSetInteger(0, m_regime_panel_bg_name, OBJPROP_XDISTANCE, current_x);
+    ObjectSetInteger(0, m_regime_panel_bg_name, OBJPROP_YDISTANCE, y_pos);
+    ObjectSetInteger(0, m_regime_panel_bg_name, OBJPROP_XSIZE, regime_width);
+    ObjectSetInteger(0, m_regime_panel_bg_name, OBJPROP_YSIZE, box_height);
+    ObjectSetInteger(0, m_regime_panel_bg_name, OBJPROP_COLOR, main_border_color);
+    ObjectSetInteger(0, m_regime_panel_bg_name, OBJPROP_BGCOLOR, C'10,10,10');
+    ObjectSetInteger(0, m_regime_panel_bg_name, OBJPROP_CORNER, CORNER_LEFT_UPPER);
+    
+    ObjectCreate(0, m_regime_panel_label_name, OBJ_LABEL, 0, 0, 0);
+    ObjectSetString(0, m_regime_panel_label_name, OBJPROP_TEXT, "Regime: UNDEFINED");
+    ObjectSetInteger(0, m_regime_panel_label_name, OBJPROP_XDISTANCE, current_x + regime_width / 2);
+    ObjectSetInteger(0, m_regime_panel_label_name, OBJPROP_YDISTANCE, y_pos + box_height / 2);
+    ObjectSetInteger(0, m_regime_panel_label_name, OBJPROP_COLOR, clrGray);
+    ObjectSetString(0, m_regime_panel_label_name, OBJPROP_FONT, "Calibri");
+    ObjectSetInteger(0, m_regime_panel_label_name, OBJPROP_FONTSIZE, 10);
+    ObjectSetInteger(0, m_regime_panel_label_name, OBJPROP_ANCHOR, ANCHOR_CENTER);
+
+    current_x += regime_width + x_gap;
+
+    // --- ایجاد پنل نمادها (با ابعاد مقیاس‌پذیر) ---
     for(int i = 0; i < total_symbols; i++)
     {
         string sym = m_symbols_list[i];
@@ -170,9 +217,9 @@ void CVisualManager::InitDashboard()
 
         ObjectCreate(0, m_panel_boxes[i].MainBoxName, OBJ_RECTANGLE_LABEL, 0, 0, 0);
         ObjectSetInteger(0, m_panel_boxes[i].MainBoxName, OBJPROP_XDISTANCE, current_x);
-        ObjectSetInteger(0, m_panel_boxes[i].MainBoxName, OBJPROP_YDISTANCE, DASHBOARD_Y_POS);
-        ObjectSetInteger(0, m_panel_boxes[i].MainBoxName, OBJPROP_XSIZE, BOX_WIDTH);
-        ObjectSetInteger(0, m_panel_boxes[i].MainBoxName, OBJPROP_YSIZE, BOX_HEIGHT);
+        ObjectSetInteger(0, m_panel_boxes[i].MainBoxName, OBJPROP_YDISTANCE, y_pos);
+        ObjectSetInteger(0, m_panel_boxes[i].MainBoxName, OBJPROP_XSIZE, box_width);
+        ObjectSetInteger(0, m_panel_boxes[i].MainBoxName, OBJPROP_YSIZE, box_height);
         ObjectSetInteger(0, m_panel_boxes[i].MainBoxName, OBJPROP_COLOR, main_border_color);
         ObjectSetInteger(0, m_panel_boxes[i].MainBoxName, OBJPROP_BGCOLOR, main_bg_color);
         ObjectSetInteger(0, m_panel_boxes[i].MainBoxName, OBJPROP_CORNER, CORNER_LEFT_UPPER);
@@ -180,8 +227,8 @@ void CVisualManager::InitDashboard()
 
         ObjectCreate(0, m_panel_boxes[i].SymbolLabelName, OBJ_LABEL, 0, 0, 0);
         ObjectSetString(0, m_panel_boxes[i].SymbolLabelName, OBJPROP_TEXT, sym);
-        ObjectSetInteger(0, m_panel_boxes[i].SymbolLabelName, OBJPROP_XDISTANCE, current_x + BOX_WIDTH / 2);
-        ObjectSetInteger(0, m_panel_boxes[i].SymbolLabelName, OBJPROP_YDISTANCE, DASHBOARD_Y_POS + BOX_HEIGHT / 2);
+        ObjectSetInteger(0, m_panel_boxes[i].SymbolLabelName, OBJPROP_XDISTANCE, current_x + box_width / 2);
+        ObjectSetInteger(0, m_panel_boxes[i].SymbolLabelName, OBJPROP_YDISTANCE, y_pos + box_height / 2);
         ObjectSetInteger(0, m_panel_boxes[i].SymbolLabelName, OBJPROP_COLOR, text_color_bright);
         ObjectSetString(0, m_panel_boxes[i].SymbolLabelName, OBJPROP_FONT, "Calibri");
         ObjectSetInteger(0, m_panel_boxes[i].SymbolLabelName, OBJPROP_FONTSIZE, 12);
@@ -190,9 +237,9 @@ void CVisualManager::InitDashboard()
 
         ObjectCreate(0, m_panel_boxes[i].SubPanelName, OBJ_RECTANGLE_LABEL, 0, 0, 0);
         ObjectSetInteger(0, m_panel_boxes[i].SubPanelName, OBJPROP_XDISTANCE, current_x);
-        ObjectSetInteger(0, m_panel_boxes[i].SubPanelName, OBJPROP_YDISTANCE, DASHBOARD_Y_POS + BOX_HEIGHT);
-        ObjectSetInteger(0, m_panel_boxes[i].SubPanelName, OBJPROP_XSIZE, BOX_WIDTH);
-        ObjectSetInteger(0, m_panel_boxes[i].SubPanelName, OBJPROP_YSIZE, SUB_PANEL_HEIGHT);
+        ObjectSetInteger(0, m_panel_boxes[i].SubPanelName, OBJPROP_YDISTANCE, y_pos + box_height);
+        ObjectSetInteger(0, m_panel_boxes[i].SubPanelName, OBJPROP_XSIZE, box_width);
+        ObjectSetInteger(0, m_panel_boxes[i].SubPanelName, OBJPROP_YSIZE, sub_panel_height);
         ObjectSetInteger(0, m_panel_boxes[i].SubPanelName, OBJPROP_COLOR, main_border_color);
         ObjectSetInteger(0, m_panel_boxes[i].SubPanelName, OBJPROP_BGCOLOR, sub_bg_color);
         ObjectSetInteger(0, m_panel_boxes[i].SubPanelName, OBJPROP_CORNER, CORNER_LEFT_UPPER);
@@ -202,7 +249,7 @@ void CVisualManager::InitDashboard()
         ObjectCreate(0, m_panel_boxes[i].TradesLabelName, OBJ_LABEL, 0, 0, 0);
         ObjectSetString(0, m_panel_boxes[i].TradesLabelName, OBJPROP_TEXT, "Trades: 0");
         ObjectSetInteger(0, m_panel_boxes[i].TradesLabelName, OBJPROP_XDISTANCE, current_x + 5);
-        ObjectSetInteger(0, m_panel_boxes[i].TradesLabelName, OBJPROP_YDISTANCE, DASHBOARD_Y_POS + BOX_HEIGHT + 10);
+        ObjectSetInteger(0, m_panel_boxes[i].TradesLabelName, OBJPROP_YDISTANCE, y_pos + box_height + 10);
         ObjectSetInteger(0, m_panel_boxes[i].TradesLabelName, OBJPROP_COLOR, text_color_dim);
         ObjectSetString(0, m_panel_boxes[i].TradesLabelName, OBJPROP_FONT, "Calibri");
         ObjectSetInteger(0, m_panel_boxes[i].TradesLabelName, OBJPROP_FONTSIZE, 8);
@@ -212,14 +259,14 @@ void CVisualManager::InitDashboard()
         ObjectCreate(0, m_panel_boxes[i].PlLabelName, OBJ_LABEL, 0, 0, 0);
         ObjectSetString(0, m_panel_boxes[i].PlLabelName, OBJPROP_TEXT, "P/L: 0.0");
         ObjectSetInteger(0, m_panel_boxes[i].PlLabelName, OBJPROP_XDISTANCE, current_x + 5);
-        ObjectSetInteger(0, m_panel_boxes[i].PlLabelName, OBJPROP_YDISTANCE, DASHBOARD_Y_POS + BOX_HEIGHT + 22);
+        ObjectSetInteger(0, m_panel_boxes[i].PlLabelName, OBJPROP_YDISTANCE, y_pos + box_height + 22);
         ObjectSetInteger(0, m_panel_boxes[i].PlLabelName, OBJPROP_COLOR, text_color_dim);
         ObjectSetString(0, m_panel_boxes[i].PlLabelName, OBJPROP_FONT, "Calibri");
         ObjectSetInteger(0, m_panel_boxes[i].PlLabelName, OBJPROP_FONTSIZE, 8);
         ObjectSetInteger(0, m_panel_boxes[i].PlLabelName, OBJPROP_ANCHOR, ANCHOR_LEFT);
         ObjectSetInteger(0, m_panel_boxes[i].PlLabelName, OBJPROP_HIDDEN, true);
         
-        current_x += BOX_WIDTH + DASHBOARD_X_GAP;
+        current_x += box_width + x_gap;
         
         if(!HistorySelect(0, TimeCurrent())) continue;
         int trades_count = 0;
@@ -236,12 +283,12 @@ void CVisualManager::InitDashboard()
         m_dashboard_data[i].cumulative_pl = cumulative_pl;
     }
     
-    int chart_panel_y = DASHBOARD_Y_POS + BOX_HEIGHT + SUB_PANEL_HEIGHT + 10;
-    int chart_panel_width = (BOX_WIDTH + DASHBOARD_X_GAP) * total_symbols + 25;
+    int chart_panel_y = y_pos + box_height + sub_panel_height + 10;
+    int chart_panel_width = (box_width + x_gap) * total_symbols + 25;
     int chart_panel_height = 25 + (20 * total_symbols);
     
     ObjectCreate(0, m_chart_panel_bg_name, OBJ_RECTANGLE_LABEL, 0, 0, 0);
-    ObjectSetInteger(0, m_chart_panel_bg_name, OBJPROP_XDISTANCE, DASHBOARD_X_GAP);
+    ObjectSetInteger(0, m_chart_panel_bg_name, OBJPROP_XDISTANCE, x_gap);
     ObjectSetInteger(0, m_chart_panel_bg_name, OBJPROP_YDISTANCE, chart_panel_y);
     ObjectSetInteger(0, m_chart_panel_bg_name, OBJPROP_XSIZE, chart_panel_width);
     ObjectSetInteger(0, m_chart_panel_bg_name, OBJPROP_YSIZE, chart_panel_height);
@@ -252,7 +299,7 @@ void CVisualManager::InitDashboard()
 
     ObjectCreate(0, m_chart_panel_title_name, OBJ_LABEL, 0, 0, 0);
     ObjectSetString(0, m_chart_panel_title_name, OBJPROP_TEXT, "P/L Distribution");
-    ObjectSetInteger(0, m_chart_panel_title_name, OBJPROP_XDISTANCE, DASHBOARD_X_GAP + chart_panel_width/2);
+    ObjectSetInteger(0, m_chart_panel_title_name, OBJPROP_XDISTANCE, x_gap + chart_panel_width/2);
     ObjectSetInteger(0, m_chart_panel_title_name, OBJPROP_YDISTANCE, chart_panel_y + 12);
     ObjectSetInteger(0, m_chart_panel_title_name, OBJPROP_COLOR, text_color_bright);
     ObjectSetString(0, m_chart_panel_title_name, OBJPROP_FONT, "Calibri");
@@ -269,96 +316,16 @@ void CVisualManager::InitDashboard()
     ChartRedraw(0);
 }
 
-void CVisualManager::UpdateDashboard()
+void CVisualManager::UpdateRegimeStatus(string text, color clr)
 {
-    if(!m_settings.enable_dashboard || ArraySize(m_symbols_list) == 0) return;
-    
-    int total_symbols = ArraySize(m_symbols_list);
-    int current_x = DASHBOARD_X_GAP + 25 + DASHBOARD_X_GAP;
-
-    for(int i = 0; i < total_symbols; i++)
+    if (ObjectFind(0, m_regime_panel_label_name) >= 0)
     {
-        string sym = m_symbols_list[i];
-        long magic = (long)m_settings.magic_number;
-        color box_color = C'26,30,38';
-        color text_color = clrWhite;
-
-        if(PositionSelect(sym) && PositionGetInteger(POSITION_MAGIC) == magic) {
-            if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY) {
-                box_color = m_settings.bullish_color;
-                text_color = clrBlack;
-            } else if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_SELL) {
-                box_color = m_settings.bearish_color;
-                text_color = clrWhite;
-            }
-        }
-        ObjectSetInteger(0, m_panel_boxes[i].MainBoxName, OBJPROP_BGCOLOR, box_color);
-        ObjectSetInteger(0, m_panel_boxes[i].SymbolLabelName, OBJPROP_COLOR, text_color);
-        
-        int trades_count = m_dashboard_data[i].trades_count;
-        double cumulative_pl = m_dashboard_data[i].cumulative_pl;
-        bool show_sub_panel = trades_count > 0;
-        ObjectSetInteger(0, m_panel_boxes[i].SubPanelName, OBJPROP_HIDDEN, !show_sub_panel);
-        ObjectSetInteger(0, m_panel_boxes[i].TradesLabelName, OBJPROP_HIDDEN, !show_sub_panel);
-        ObjectSetInteger(0, m_panel_boxes[i].PlLabelName, OBJPROP_HIDDEN, !show_sub_panel);
-        
-        if(show_sub_panel) {
-            ObjectSetString(0, m_panel_boxes[i].TradesLabelName, OBJPROP_TEXT, "Trades: " + (string)trades_count);
-            ObjectSetString(0, m_panel_boxes[i].PlLabelName, OBJPROP_TEXT, "P/L: " + DoubleToString(cumulative_pl, 2));
-            ObjectSetInteger(0, m_panel_boxes[i].PlLabelName, OBJPROP_COLOR, cumulative_pl >= 0 ? C'4,180,95' : C'240,82,90');
-        }
-        current_x += BOX_WIDTH + DASHBOARD_X_GAP;
+        ObjectSetString(0, m_regime_panel_label_name, OBJPROP_TEXT, "Regime: " + text);
+        ObjectSetInteger(0, m_regime_panel_label_name, OBJPROP_COLOR, clr);
+        ChartRedraw(0);
     }
-    
-    if(m_is_barchart_visible)
-    {
-        double max_abs_pl = 0;
-        for(int i=0; i < ArraySize(m_dashboard_data); i++)
-        {
-            if(MathAbs(m_dashboard_data[i].cumulative_pl) > max_abs_pl)
-                max_abs_pl = MathAbs(m_dashboard_data[i].cumulative_pl);
-        }
-        if(max_abs_pl == 0) max_abs_pl = 1;
-
-        int max_bar_width = BOX_WIDTH * 2;
-        int current_y = DASHBOARD_Y_POS + BOX_HEIGHT + SUB_PANEL_HEIGHT + 10 + 30;
-
-        for(int i=0; i < total_symbols; i++)
-        {
-            string sym = m_symbols_list[i];
-            double pl = m_dashboard_data[i].cumulative_pl;
-            string bar_rect_name = MEMENTO_OBJ_PREFIX + sym + "_BarRect";
-            string bar_label_name = MEMENTO_OBJ_PREFIX + sym + "_BarLabel";
-            
-            int bar_width = (int)((MathAbs(pl) / max_abs_pl) * max_bar_width);
-            color bar_color = (pl >= 0) ? C'4,180,95' : C'240,82,90';
-
-            ObjectSetInteger(0, bar_rect_name, OBJPROP_XDISTANCE, DASHBOARD_X_GAP + 70);
-            ObjectSetInteger(0, bar_rect_name, OBJPROP_YDISTANCE, current_y);
-            ObjectSetInteger(0, bar_rect_name, OBJPROP_XSIZE, bar_width);
-            ObjectSetInteger(0, bar_rect_name, OBJPROP_YSIZE, 15);
-            ObjectSetInteger(0, bar_rect_name, OBJPROP_BGCOLOR, bar_color);
-            ObjectSetInteger(0, bar_rect_name, OBJPROP_COLOR, C'55,65,81');
-            ObjectSetInteger(0, bar_rect_name, OBJPROP_CORNER, CORNER_LEFT_UPPER);
-            ObjectSetInteger(0, bar_rect_name, OBJPROP_ZORDER, 92);
-            
-            string label_text = StringFormat("%s : %.2f", sym, pl);
-            ObjectSetString(0, bar_label_name, OBJPROP_TEXT, label_text);
-            ObjectSetInteger(0, bar_label_name, OBJPROP_XDISTANCE, DASHBOARD_X_GAP + 65);
-            ObjectSetInteger(0, bar_label_name, OBJPROP_YDISTANCE, current_y + 8);
-            ObjectSetInteger(0, bar_label_name, OBJPROP_COLOR, clrSilver);
-            ObjectSetString(0, bar_label_name, OBJPROP_FONT, "Calibri");
-            ObjectSetInteger(0, bar_label_name, OBJPROP_FONTSIZE, 9);
-            ObjectSetInteger(0, bar_label_name, OBJPROP_ANCHOR, ANCHOR_RIGHT);
-            ObjectSetInteger(0, bar_label_name, OBJPROP_ZORDER, 93);
-            
-            current_y += 20;
-        }
-    }
-    ChartRedraw(0);
 }
 
-// تابع رسم مستطیل و فلش کراس اولیه با پشتیبانی از تایم‌فریم
 void CVisualManager::DrawTripleCrossRectangle(bool is_buy, int shift, ENUM_TIMEFRAMES timeframe)
 {
     string obj_name_rect = MEMENTO_OBJ_PREFIX + m_symbol + "_SignalRect_" + (string)iTime(m_symbol, timeframe, shift);
@@ -374,7 +341,6 @@ void CVisualManager::DrawTripleCrossRectangle(bool is_buy, int shift, ENUM_TIMEF
     double point = SymbolInfoDouble(m_symbol, SYMBOL_POINT);
     double buffer = 10 * point * m_settings.object_size_multiplier;
     
-    // رسم مستطیل کراس
     if(ObjectCreate(0, obj_name_rect, OBJ_RECTANGLE, 0, time1, low - buffer, time2, high + buffer))
     {
         ObjectSetInteger(0, obj_name_rect, OBJPROP_COLOR, is_buy ? m_settings.bullish_color : m_settings.bearish_color);
@@ -385,22 +351,20 @@ void CVisualManager::DrawTripleCrossRectangle(bool is_buy, int shift, ENUM_TIMEF
         CreateManagedObject(obj_name_rect, (long)iBars(m_symbol, timeframe), timeframe);
     }
     
-    // رسم فلش کراس (shift کندل قبل) با کدهای جدید و فاصله مناسب
     double arrow_offset = 5 * point * m_settings.object_size_multiplier;
     double price = is_buy ? low - arrow_offset : high + arrow_offset;
     uchar code = is_buy ? 211 : 212;
     
-    if(ObjectCreate(0, obj_name_arrow, OBJ_ARROW, 0, iTime(m_symbol, timeframe, shift), price))
+    if(ObjectCreate(0, obj_name_arrow, OBJ_ARROW, 0, time2, price))
     {
         ObjectSetInteger(0, obj_name_arrow, OBJPROP_ARROWCODE, code);
         ObjectSetString(0, obj_name_arrow, OBJPROP_FONT, "Wingdings");
-        ObjectSetInteger(0, obj_name_arrow, OBJPROP_COLOR, is_buy ? clrGreen : clrRed);
+        ObjectSetInteger(0, obj_name_arrow, OBJPROP_COLOR, is_buy ? clrGreen : clrRed); 
         ObjectSetInteger(0, obj_name_arrow, OBJPROP_WIDTH, (int)(2 * m_settings.object_size_multiplier)); 
         CreateManagedObject(obj_name_arrow, (long)iBars(m_symbol, timeframe), timeframe);
     }
 }
 
-// تابع رسم فلش تأییدیه نهایی با پشتیبانی از تایم‌فریم
 void CVisualManager::DrawConfirmationArrow(bool is_buy, int shift, ENUM_TIMEFRAMES timeframe)
 {
     string obj_name = MEMENTO_OBJ_PREFIX + m_symbol + "_ConfirmArrow_" + (string)iTime(m_symbol, timeframe, shift);
@@ -410,7 +374,6 @@ void CVisualManager::DrawConfirmationArrow(bool is_buy, int shift, ENUM_TIMEFRAM
     double offset = 15 * point * m_settings.object_size_multiplier;
     double price = is_buy ? iLow(m_symbol, timeframe, shift) - offset : iHigh(m_symbol, timeframe, shift) + offset;
     
-    // محاسبه فاصله معقول از کندل
     double candle_range = MathAbs(iHigh(m_symbol, timeframe, shift) - iLow(m_symbol, timeframe, shift));
     double final_offset = candle_range * 0.5;
     price = is_buy ? iLow(m_symbol, timeframe, shift) - final_offset : iHigh(m_symbol, timeframe, shift) + final_offset;
@@ -428,7 +391,6 @@ void CVisualManager::DrawConfirmationArrow(bool is_buy, int shift, ENUM_TIMEFRAM
     }
 }
 
-// تابع رسم ناحیه اسکن متحرک با پشتیبانی از تایم‌فریم
 void CVisualManager::DrawScanningArea(bool is_buy, int start_shift, int current_shift, ENUM_TIMEFRAMES timeframe)
 {
     string rect_name = MEMENTO_OBJ_PREFIX + m_symbol + "_ScanningRect";
