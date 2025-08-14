@@ -1,11 +1,11 @@
 //+------------------------------------------------------------------+
 //|                                                      Memento.mq5 |
 //|                                      Copyright 2025, hipoalgoritm |
-//|                                     Version 7.1 (Refactored Code) |
+//|                                     Version 7.2 (Refactored Code) |
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2025, hipoalgoritm"
 #property link      "https://www.mql5.com"
-#property version   "7.1" // بازنویسی و ساده‌سازی ساختار کد
+#property version   "7.2" // ✅ بازنویسی برای مدیریت صحیح فیلتر رژیم در حالت چند نماده
 #property description "اکسپرت معاملاتی پیشرفته ممنتو بر اساس استراتژی کراس سه گانه ایچیموکو"
 
 #include <Trade\Trade.mqh>
@@ -16,15 +16,15 @@
 #include "IchimokuLogic.mqh"
 #include "VisualManager.mqh"
 #include "TrailingStopManager.mqh"
-#include "MarketRegimeDetector.mqh"
+// #include "MarketRegimeDetector.mqh" // ✅ این کتابخانه دیگر اینجا لازم نیست و به IchimokuLogic منتقل شد
 #include "licensed.mqh"
 
 //--- متغیرهای سراسری ---
 SSettings               g_settings;
 string                  g_symbols_array[];
-CStrategyManager*       g_symbol_managers[];
+CStrategyManager* g_symbol_managers[];
 CTrailingStopManager    g_trailing_stop;
-CMarketRegimeEngine     g_regime_engine;
+// CMarketRegimeEngine     g_regime_engine; // ✅ حذف شد! موتور رژیم دیگر سراسری نیست و به CStrategyManager منتقل شده است
 bool                    g_dashboard_needs_update = true;
 
 //--- توابع کمکی برای مرتب‌سازی کد ---
@@ -93,25 +93,8 @@ void OnTick(void)
 void OnTimer()
 {
     // --- فاز ۱: تحلیل کلی بازار ---
-    if (g_settings.enable_regime_filter)
-    {
-        g_regime_engine.ProcessNewBar();
-
-        // --- ✅ بخش جدید برای آپدیت پنل رژیم ---
-        for (int i = 0; i < ArraySize(g_symbol_managers); i++)
-        {
-            if (g_symbol_managers[i] != NULL && g_symbol_managers[i].GetSymbol() == _Symbol)
-            {
-                RegimeResult result = g_regime_engine.GetLastResult();
-                string regime_text;
-                color regime_color;
-                GetRegimeTextAndColor(result.regime, regime_text, regime_color);
-
-                g_symbol_managers[i].GetVisualManager().UpdateRegimeStatus(regime_text, regime_color);
-                break;
-            }
-        }
-    }
+    // ✅ این بخش حذف شد. پردازش موتور رژیم به داخل هر CStrategyManager منتقل شده است
+    // تا برای هر نماد به صورت مستقل انجام شود.
 
     // --- فاز ۲: مدیریت معاملات باز ---
     g_trailing_stop.Process();
@@ -121,6 +104,8 @@ void OnTimer()
     {
         if (g_symbol_managers[i] != NULL)
         {
+            // هر مدیر استراتژی، ابتدا موتور رژیم مخصوص به خود را پردازش کرده
+            // و سپس سیگنال‌ها را بر اساس آن فیلتر و بررسی می‌کند.
             g_symbol_managers[i].ProcessNewBar();
         }
     }
@@ -273,6 +258,7 @@ bool InitializeModules()
         string sym = g_symbols_array[i];
         StringTrimLeft(sym);
         StringTrimRight(sym);
+        // هر مدیر استراتژی در تابع Init خودش، موتور رژیم مخصوص به خود را می‌سازد
         g_symbol_managers[i] = new CStrategyManager(sym, g_settings);
         if (!g_symbol_managers[i].Init())
         {
@@ -288,16 +274,9 @@ bool InitializeModules()
     }
     Print("مدیرهای استراتژی برای نمادهای زیر با موفقیت راه‌اندازی شدند: ", g_settings.symbols_list);
 
-    // راه‌اندازی موتور رژیم بازار
-    if (g_settings.enable_regime_filter)
-    {
-        if (!g_regime_engine.Initialize(_Symbol, g_settings.enable_logging))
-        {
-            Print("هشدار: راه‌اندازی موتور تشخیص رژیم بازار ناموفق بود! فیلتر غیرفعال می‌شود.");
-            g_settings.enable_regime_filter = false;
-        }
-    }
-
+    // --- راه‌اندازی موتور رژیم بازار ---
+    // ✅ این بخش به طور کامل حذف شد.
+    
     // راه‌اندازی مدیر تریلینگ استاپ
     g_trailing_stop.Init(g_settings.magic_number);
 
@@ -466,7 +445,8 @@ void CalculateAdvancedMetrics(double &r_squared, double &downside_consistency)
    downside_consistency = 1.0 / (1.0 + downside_deviation);
 }
 
-// --- تابع کمکی برای تبدیل نوع رژیم به متن و رنگ ---
+// ✅ این تابع دیگر در این فایل استفاده نمی‌شود و می‌توان آن را حذف کرد یا به فایل دیگری منتقل کرد
+/*
 void GetRegimeTextAndColor(const ENUM_MARKET_REGIME regime, string &text, color &clr)
 {
     switch(regime)
@@ -484,3 +464,4 @@ void GetRegimeTextAndColor(const ENUM_MARKET_REGIME regime, string &text, color 
         default:                               text = "Undefined";          clr = clrGray; break;
     }
 }
+*/
