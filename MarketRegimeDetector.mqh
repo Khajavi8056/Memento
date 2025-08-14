@@ -260,10 +260,10 @@ public:
         if(highs_count < 2 || lows_count < 2) return STRUCTURE_UNDEFINED;
 
         // چون نقاط از جدید به قدیم پیدا شدند، اندیس 0 جدیدترین و اندیس 1 ماقبل آخر است
-        SwingPoint last_h = m_swing_highs[highs_count - 1]; // جدیدترین سقف
-        SwingPoint prev_h = m_swing_highs[highs_count - 2]; // سقف ماقبل آخر
-        SwingPoint last_l = m_swing_lows[lows_count - 1];   // جدیدترین کف
-        SwingPoint prev_l = m_swing_lows[lows_count - 2];   // کف ماقبل آخر
+        SwingPoint last_h = m_swing_highs[highs_count - 0]; // جدیدترین سقف
+        SwingPoint prev_h = m_swing_highs[highs_count - 1]; // سقف ماقبل آخر
+        SwingPoint last_l = m_swing_lows[lows_count - 0];   // جدیدترین کف
+        SwingPoint prev_l = m_swing_lows[lows_count - 1];   // کف ماقبل آخر
 
         double last_swing_range = MathAbs(last_h.price - last_l.price);
         double atr = atr_buf[1]; // ATR کندل قبلی (بسته شده)
@@ -385,10 +385,10 @@ private:
         if(highs_count < 2 || lows_count < 2) return false;
 
         // جدیدترین نقاط چرخش در اندیس 0 و 1 قرار دارند
-        SwingPoint h1 = highs[highs_count - 1];
-        SwingPoint h2 = highs[highs_count - 2];
-        SwingPoint l1 = lows[lows_count - 1];
-        SwingPoint l2 = lows[lows_count - 2];
+        SwingPoint h1 = highs[highs_count - 0];//1
+        SwingPoint h2 = highs[highs_count - 1];//2
+        SwingPoint l1 = lows[lows_count - 0];//1
+        SwingPoint l2 = lows[lows_count - 1];//2
                 // اندیس‌های bar_index الان مستقیم با اندیس آرایه RSI (که سریالی است) مطابقت دارند
         int h1_idx = h1.bar_index;
         int h2_idx = h2.bar_index;
