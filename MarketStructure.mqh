@@ -91,8 +91,10 @@ private:
     long     m_chart_id;
     string   m_obj_prefix;
     datetime m_last_bar_time;
+    
     double   m_swing_highs_array[];
     double   m_swing_lows_array[];
+    
     double   m_last_swing_h;
     double   m_last_swing_l;
     int      m_last_swing_h_index;
@@ -141,6 +143,10 @@ void CMarketStructureShift::Init(string symbol, ENUM_TIMEFRAMES period)
     m_last_swing_l = -1.0;
     m_last_swing_h_index = 0;
     m_last_swing_l_index = 0;
+    
+    ArrayResize(m_swing_highs_array, 2);
+    ArrayResize(m_swing_lows_array, 2);
+    
     Log("کتابخانه MarketStructure برای " + m_symbol + " در " + EnumToString(m_period) + " راه‌اندازی شد.");
 }
 
@@ -168,9 +174,18 @@ SMssSignal CMarketStructureShift::ProcessNewBar()
         m_last_swing_h_index = curr_bar;
         Log("سقف چرخش جدید: " + DoubleToString(m_last_swing_h, _Digits));
         if (m_enable_drawing) drawSwingPoint(m_obj_prefix + TimeToString(time(curr_bar)), time(curr_bar), m_last_swing_h, 77, clrBlue, -1);
+        
+        // منطق اکسپرت اصلی برای آرایه سقف‌ها
+        if (ArraySize(m_swing_highs_array) == 2){
+            ArrayRemove(m_swing_highs_array,0,1);
+            ArrayResize(m_swing_highs_array,ArraySize(m_swing_highs_array)+1);
+            m_swing_highs_array[ArraySize(m_swing_highs_array)-1] = m_last_swing_h;
+            if (m_enable_logging) { Print("POPULATED! New swing high prices data is as below:"); ArrayPrint(m_swing_highs_array, _Digits, " , "); }
+        } else {
+            ArrayResize(m_swing_highs_array,ArraySize(m_swing_highs_array)+1);
+            m_swing_highs_array[ArraySize(m_swing_highs_array)-1] = m_last_swing_h;
+        }
 
-        if (ArraySize(m_swing_highs_array) < 2) ArrayAdd(m_swing_highs_array, m_last_swing_h);
-        else { ArrayRemove(m_swing_highs_array, 0, 1); ArrayAdd(m_swing_highs_array, m_last_swing_h); }
     }
     if (isSwingLow)
     {
@@ -179,8 +194,16 @@ SMssSignal CMarketStructureShift::ProcessNewBar()
         Log("کف چرخش جدید: " + DoubleToString(m_last_swing_l, _Digits));
         if (m_enable_drawing) drawSwingPoint(m_obj_prefix + TimeToString(time(curr_bar)), time(curr_bar), m_last_swing_l, 77, clrRed, +1);
 
-        if (ArraySize(m_swing_lows_array) < 2) ArrayAdd(m_swing_lows_array, m_last_swing_l);
-        else { ArrayRemove(m_swing_lows_array, 0, 1); ArrayAdd(m_swing_lows_array, m_last_swing_l); }
+        // منطق اکسپرت اصلی برای آرایه کف‌ها
+        if (ArraySize(m_swing_lows_array) == 2){
+            ArrayRemove(m_swing_lows_array,0,1);
+            ArrayResize(m_swing_lows_array,ArraySize(m_swing_lows_array)+1);
+            m_swing_lows_array[ArraySize(m_swing_lows_array)-1] = m_last_swing_l;
+            if (m_enable_logging) { Print("POPULATED! New swing low prices data is as below:"); ArrayPrint(m_swing_lows_array, _Digits, " , "); }
+        } else {
+            ArrayResize(m_swing_lows_array,ArraySize(m_swing_lows_array)+1);
+            m_swing_lows_array[ArraySize(m_swing_lows_array)-1] = m_last_swing_l;
+        }
     }
 
     double Ask = SymbolInfoDouble(m_symbol, SYMBOL_ASK);
@@ -190,7 +213,8 @@ SMssSignal CMarketStructureShift::ProcessNewBar()
     {
         Log("شکست سقف در قیمت " + DoubleToString(m_last_swing_h, _Digits));
         
-        if (IsUptrend()) {
+        bool isMSS_High = IsUptrend(); // از تابع خود کلاس استفاده کن
+        if (isMSS_High) {
             result.type = MSS_SHIFT_UP;
             Log("تشخیص: تغییر ساختار به صعودی (MSS UP)");
             if (m_enable_drawing) drawBreakLevel_MSS(m_obj_prefix + "MSS_UP_" + TimeToString(time(0)), time(m_last_swing_h_index), m_last_swing_h, time(0), m_last_swing_h, clrDarkGreen, -1);
@@ -210,7 +234,8 @@ SMssSignal CMarketStructureShift::ProcessNewBar()
     {
         Log("شکست کف در قیمت " + DoubleToString(m_last_swing_l, _Digits));
         
-        if (IsDowntrend()) {
+        bool isMSS_Low = IsDowntrend(); // از تابع خود کلاس استفاده کن
+        if (isMSS_Low) {
             result.type = MSS_SHIFT_DOWN;
             Log("تشخیص: تغییر ساختار به نزولی (MSS DOWN)");
             if (m_enable_drawing) drawBreakLevel_MSS(m_obj_prefix + "MSS_DOWN_" + TimeToString(time(0)), time(m_last_swing_l_index), m_last_swing_l, time(0), m_last_swing_l, clrBlack, +1);
@@ -243,16 +268,15 @@ bool CMarketStructureShift::IsUptrend() const
 {
     if (ArraySize(m_swing_highs_array) < 2 || ArraySize(m_swing_lows_array) < 2) return false;
     // روند صعودی = سقف جدید > سقف قدیمی و کف جدید > کف قدیمی
-    return (m_swing_highs_array[1] > m_swing_highs_array[0] && m_swing_lows_array[1] > m_swing_lows_array[0]);
+    return (m_swing_highs_array[ArraySize(m_swing_highs_array)-1] > m_swing_highs_array[ArraySize(m_swing_highs_array)-2] && m_swing_lows_array[ArraySize(m_swing_lows_array)-1] > m_swing_lows_array[ArraySize(m_swing_lows_array)-2]);
 }
 
 bool CMarketStructureShift::IsDowntrend() const
 {
     if (ArraySize(m_swing_highs_array) < 2 || ArraySize(m_swing_lows_array) < 2) return false;
     // روند نزولی = سقف جدید < سقف قدیمی و کف جدید < کف قدیمی
-    return (m_swing_highs_array[1] < m_swing_highs_array[0] && m_swing_lows_array[1] < m_swing_lows_array[0]);
+    return (m_swing_highs_array[ArraySize(m_swing_highs_array)-1] < m_swing_highs_array[ArraySize(m_swing_highs_array)-2] && m_swing_lows_array[ArraySize(m_swing_lows_array)-1] < m_swing_lows_array[ArraySize(m_swing_lows_array)-2]);
 }
-
 
 // --- پیاده‌سازی کامل توابع گرافیکی (بدون تغییر در منطق) ---
 void CMarketStructureShift::drawSwingPoint(string objName,datetime time_param,double price,int arrCode, color clr,int direction)
@@ -310,4 +334,5 @@ void CMarketStructureShift::drawBreakLevel_MSS(string objName,datetime time1,dou
      }
    ChartRedraw(m_chart_id);
 }
+
 //+------------------------------------------------------------------+
