@@ -322,7 +322,7 @@ void CStrategyManager::ProcessNewBar()
     // اگر این نمونه از کلاس، مسئول چارت اصلی است، اشیاء گرافیکی قدیمی را پاکسازی می‌کند.
     if(m_symbol == _Symbol && m_visual_manager != NULL)
     {
-        m_visual_manager->CleanupOldObjects(200);
+        m_visual_manager.CleanupOldObjects(200);
     }
 
     //================================================================//
@@ -371,7 +371,7 @@ void CStrategyManager::ProcessNewBar()
                 
                 Log("سیگنال اولیه " + (m_signal.is_buy ? "خرید" : "فروش") + " پیدا شد. ورود به حالت انتظار...");
                 if(m_symbol == _Symbol && m_visual_manager != NULL) 
-                    m_visual_manager->DrawTripleCrossRectangle(m_signal.is_buy, m_settings.chikou_period);
+                    m_visual_manager.DrawTripleCrossRectangle(m_signal.is_buy, m_settings.chikou_period);
             }
         }
     
@@ -418,7 +418,7 @@ void CStrategyManager::ProcessNewBar()
                 {
                     Log("تمام فیلترها پاس شدند. ارسال دستور معامله...");
                     if(m_symbol == _Symbol && m_visual_manager != NULL) 
-                        m_visual_manager->DrawConfirmationArrow(m_signal.is_buy, 1);
+                        m_visual_manager.DrawConfirmationArrow(m_signal.is_buy, 1);
                     
                     OpenTrade(m_signal.is_buy);
                 }
@@ -439,7 +439,7 @@ void CStrategyManager::ProcessNewBar()
                 }
                 // ناحیه اسکن روی چارت را آپدیت می‌کنیم.
                 if(m_symbol == _Symbol && m_visual_manager != NULL) 
-                    m_visual_manager->DrawScanningArea(m_signal.is_buy, m_settings.chikou_period, m_signal.grace_candle_count);
+                    m_visual_manager.DrawScanningArea(m_signal.is_buy, m_settings.chikou_period, m_signal.grace_candle_count);
             }
         }
     }
@@ -471,7 +471,7 @@ void CStrategyManager::ProcessNewBar()
                     if (AreAllFiltersPassed(m_potential_signals[i].is_buy))
                     {
                         if (m_symbol == _Symbol && m_visual_manager != NULL)
-                            m_visual_manager->DrawConfirmationArrow(m_potential_signals[i].is_buy, 1);
+                            m_visual_manager.DrawConfirmationArrow(m_potential_signals[i].is_buy, 1);
                         
                         OpenTrade(m_potential_signals[i].is_buy);
                     }
@@ -496,7 +496,7 @@ void CStrategyManager::ProcessNewBar()
                 {
                     m_potential_signals[i].grace_candle_count++;
                     if (m_symbol == _Symbol && m_visual_manager != NULL)
-                        m_visual_manager->DrawScanningArea(m_potential_signals[i].is_buy, m_settings.chikou_period, m_potential_signals[i].grace_candle_count);
+                        m_visual_manager.DrawScanningArea(m_potential_signals[i].is_buy, m_settings.chikou_period, m_potential_signals[i].grace_candle_count);
                 }
             }
         }
@@ -1488,6 +1488,5 @@ bool CStrategyManager::CheckLowerTfConfirmation(bool is_buy)
     // اگر سیگنال تایم فریم پایین در جهت سیگنال اصلی ما نبود، تاییدیه رد می‌شود
     return false;
 }
-
 
 
