@@ -26,9 +26,8 @@ CTrailingStopManager TrailingStop;
 
 
 
-
 int OnInit() {
-    //--- ✅✅✅ بخش مقداردهی اولیه تنظیمات (نسخه کامل و اصلاح شده) ✅✅✅ ---
+    //--- ✅✅✅ بخش مقداردهی اولیه تنظیمات (نسخه کاملاً اصلاح شده و هماهنگ) ✅✅✅ ---
 
     // 1. تنظیمات عمومی
     g_settings.enable_dashboard           = Inp_Enable_Dashboard;
@@ -37,6 +36,7 @@ int OnInit() {
     g_settings.enable_logging               = Inp_Enable_Logging;
 
     // 2. تنظیمات ایچیموکو
+    g_settings.ichimoku_timeframe           = Inp_Ichimoku_Timeframe; // ✅ اضافه شد
     g_settings.tenkan_period                = Inp_Tenkan_Period;
     g_settings.kijun_period                 = Inp_Kijun_Period;
     g_settings.senkou_period                = Inp_Senkou_Period;
@@ -44,8 +44,11 @@ int OnInit() {
 
     // 3. تنظیمات سیگنال و تاییدیه
     g_settings.signal_mode                  = Inp_Signal_Mode;
-    g_settings.confirmation_type            = Inp_Confirmation_Type;
+    g_settings.entry_confirmation_mode      = Inp_Entry_Confirmation_Mode; // ✅ اضافه شد
+    g_settings.grace_period_mode            = Inp_Grace_Period_Mode; // ✅ اضافه شد
     g_settings.grace_period_candles         = Inp_Grace_Period_Candles;
+    g_settings.confirmation_type            = Inp_Confirmation_Type;
+    g_settings.ltf_timeframe                = Inp_LTF_Timeframe; // ✅ اضافه شد
     g_settings.talaqi_calculation_mode      = Inp_Talaqi_Calculation_Mode;
     g_settings.talaqi_atr_multiplier        = Inp_Talaqi_ATR_Multiplier;
     g_settings.talaqi_distance_in_points    = Inp_Talaqi_Distance_in_Points;
@@ -107,7 +110,7 @@ int OnInit() {
         StringTrimLeft(sym);
         StringTrimRight(sym);
         g_symbol_managers[i] = new CStrategyManager(sym, g_settings);
-        if (g_symbol_managers[i].Init() == false) { // <<< اصلاح جزئی: استفاده از ->
+        if (!g_symbol_managers[i].Init()) {
             Print("مقداردهی اولیه نماد ", sym, " با خطا مواجه شد. عملیات متوقف می‌شود.");
             for (int j = 0; j <= i; j++) {
                 if (g_symbol_managers[j] != NULL) {
@@ -126,6 +129,8 @@ int OnInit() {
     EventSetTimer(1);
     return(INIT_SUCCEEDED);
 }
+
+
 
 
 //+------------------------------------------------------------------+
