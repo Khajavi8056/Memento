@@ -2,21 +2,27 @@
 //|                                                                  |
 //|                    Project: Memento (By HipoAlgorithm)           |
 //|                    File: set.mqh (EA Settings)                   |
-//|                    Version: 7.0 (LTF Entry Integration)          |
+//|                    Version: 8.0 (HTF & Advanced Grace Period)    |
 //|                    © 2025, Mohammad & Gemini                     |
 //|                                                                  |
 //+------------------------------------------------------------------+
 #property copyright "© 2025, hipoalgoritm"
 #property link      "https://www.mql5.com"
-#property version   "7.0" // افزوده شدن حالت ورود با تاییدیه تایم فریم پایین (LTF)
+#property version   "8.0" // افزوده شدن تایم فریم اصلی قابل تنظیم و حالت‌های پیشرفته مهلت سیگنال
 
 // --- انواع شمارشی برای خوانایی بهتر کد ---
 
-// ✅✅✅ [جدید] نوع تاییدیه نهایی برای ورود به معامله ✅✅✅
 enum E_Entry_Confirmation_Mode
 {
     CONFIRM_CURRENT_TIMEFRAME, // روش فعلی: تاییدیه بر اساس کندل در تایم فریم اصلی
     CONFIRM_LOWER_TIMEFRAME    // روش جدید: تاییدیه بر اساس شکست ساختار (CHoCH) در تایم فریم پایین
+};
+
+// ✅✅✅ [جدید] نوع مهلت برای انقضای سیگنال در حالت انتظار ✅✅✅
+enum E_Grace_Period_Mode
+{
+    GRACE_BY_CANDLES,          // انقضا بر اساس تعداد کندل (روش ساده)
+    GRACE_BY_STRUCTURE         // انقضا بر اساس شکست ساختار قیمت (روش هوشمند)
 };
 
 enum E_Confirmation_Mode { MODE_CLOSE_ONLY, MODE_OPEN_AND_CLOSE };
@@ -35,8 +41,6 @@ enum E_Talaqi_Mode
     TALAQI_MODE_MANUAL,     // دستی (بر اساس پوینت)
     TALAQI_MODE_KUMO,       // هوشمند (بر اساس ضخامت کومو)
     TALAQI_MODE_ATR,        // پویا (مبتنی بر ATR)
-    TALAQI_MODE_ZSCORE,     // آماری (بر اساس Z-Score) - (برای آینده)
-    TALAQI_MODE_MFCI        // شاخص چندعاملی (Multi-Factor Index) - (برای آینده)
 };
 
 
@@ -53,6 +57,8 @@ input bool            Inp_Enable_Logging    = true;                   // فعا�
 
 // ---=== 📈 2. تنظیمات ایچیموکو (Ichimoku Baseline) 📈 ===---
 input group           "      ---=== 📈 2. تنظیمات ایچیموکو (Ichimoku) 📈 ===---";
+// ✅✅✅ [جدید] ورودی برای تایم فریم اصلی ✅✅✅
+input ENUM_TIMEFRAMES Inp_Ichimoku_Timeframe = PERIOD_H1;                // تایم فریم اصلی برای تحلیل ایچیموکو
 input int             Inp_Tenkan_Period     = 10;                     // دوره تنکان-سن (بهینه شده)
 input int             Inp_Kijun_Period      = 28;                     // دوره کیجون-سن (بهینه شده)
 input int             Inp_Senkou_Period     = 55;                     // دوره سنکو اسپن بی (بهینه شده)
@@ -62,16 +68,19 @@ input int             Inp_Chikou_Period     = 26;                     // دور�
 input group           "---=== 🎯 3. سیگنال و تاییدیه (Signal & Confirmation) 🎯 ===---";
 input E_Signal_Mode   Inp_Signal_Mode         = MODE_SIGNAL_CONTEST;  // روش مدیریت سیگنال
 
-// ✅✅✅ [بخش اصلاح شده] ورودی‌های تاییدیه نهایی ✅✅✅
 input group           "         --- تاییدیه نهایی ورود (Final Confirmation) ---";
 input E_Entry_Confirmation_Mode Inp_Entry_Confirmation_Mode = CONFIRM_CURRENT_TIMEFRAME; // نوع تاییدیه ورود
-input E_Confirmation_Mode Inp_Confirmation_Type = MODE_CLOSE_ONLY;    // [روش فعلی] نوع تایید کندل
-input int             Inp_Grace_Period_Candles= 4;                      // [روش فعلی] تعداد کندل مهلت برای تاییدیه
 
-// ✅✅✅ [بخش جدید] تنظیمات تاییدیه تایم فریم پایین ✅✅✅
+// ✅✅✅ [بخش جدید] تنظیمات مهلت سیگنال ✅✅✅
+input group           "         --- مهلت سیگنال در حالت انتظار (Grace Period) ---";
+input E_Grace_Period_Mode Inp_Grace_Period_Mode = GRACE_BY_CANDLES;   // نوع انقضای سیگنال
+input int             Inp_Grace_Period_Candles= 4;                      // [حالت کندلی] تعداد کندل مهلت برای تاییدیه
+// نکته: در حالت ساختاری، سطح ابطال به صورت خودکار پیدا می‌شود.
+
 input group           "         --- تنظیمات تاییدیه تایم فریم پایین (LTF) ---";
-input ENUM_TIMEFRAMES Inp_LTF_Timeframe = PERIOD_M5;                      // [روش جدید] تایم فریم برای تاییدیه ورود
-// توجه: تنظیمات کتابخانه MarketStructure (مثل طول سقف/کف) از ورودی‌های خود آن کتابخانه خوانده می‌شود.
+input ENUM_TIMEFRAMES Inp_LTF_Timeframe = PERIOD_M5;                      // [روش LTF] تایم فریم برای تاییدیه ورود
+input E_Confirmation_Mode Inp_Confirmation_Type = MODE_CLOSE_ONLY;    // [روش تایم فریم فعلی] نوع تایید کندل
+
 
 // --- زیرگروه تنظیمات تلاقی (Confluence) ---
 input group           "         --- تنظیمات تلاقی (Confluence) ---";
@@ -142,6 +151,8 @@ struct SSettings
     bool                enable_logging;
     
     // 2. Ichimoku
+    // ✅✅✅ [بخش اصلاح شده] متغیرهای ایچیموکو ✅✅✅
+    ENUM_TIMEFRAMES     ichimoku_timeframe;      // تایم فریم اصلی تحلیل
     int                 tenkan_period;
     int                 kijun_period;
     int                 senkou_period;
@@ -150,11 +161,12 @@ struct SSettings
     // 3. Signal & Confirmation
     E_Signal_Mode       signal_mode;
     
-    // ✅✅✅ [بخش اصلاح شده] متغیرهای تاییدیه ✅✅✅
+    // ✅✅✅ [بخش اصلاح شده] متغیرهای تاییدیه و مهلت ✅✅✅
     E_Entry_Confirmation_Mode entry_confirmation_mode; // نوع تاییدیه ورود
-    E_Confirmation_Mode confirmation_type;           // [روش فعلی] نوع تایید کندل
-    int                 grace_period_candles;        // [روش فعلی] تعداد کندل مهلت
-    ENUM_TIMEFRAMES     ltf_timeframe;               // [روش جدید] تایم فریم برای تاییدیه
+    E_Grace_Period_Mode grace_period_mode;           // نوع مهلت سیگنال
+    int                 grace_period_candles;        // [حالت کندلی] تعداد کندل مهلت
+    E_Confirmation_Mode confirmation_type;           // [حالت تایم فریم فعلی] نوع تایید کندل
+    ENUM_TIMEFRAMES     ltf_timeframe;               // [حالت LTF] تایم فریم برای تاییدیه
     
     // 3.1. Talaqi
     E_Talaqi_Mode       talaqi_calculation_mode;
@@ -204,4 +216,3 @@ struct SSettings
     int                 early_exit_rsi_overbought;
     int                 early_exit_rsi_oversold;
 };
-
