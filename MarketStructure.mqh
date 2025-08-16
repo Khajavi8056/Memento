@@ -127,6 +127,8 @@ public:
 //+------------------------------------------------------------------+
 //| پیاده‌سازی توابع کلاس                                            |
 //+------------------------------------------------------------------+
+// MarketStructure.mqh -> جایگزین تابع Init فعلی
+
 void CMarketStructureShift::Init(string symbol, ENUM_TIMEFRAMES period)
 {
     m_symbol = symbol;
@@ -144,11 +146,56 @@ void CMarketStructureShift::Init(string symbol, ENUM_TIMEFRAMES period)
     m_last_swing_h_index = 0;
     m_last_swing_l_index = 0;
     
-    ArrayResize(m_swing_highs_array, 2);
-    ArrayResize(m_swing_lows_array, 2);
+    // --- ✅ بخش حیاتی: پر کردن آرایه‌ها با داده‌های تاریخی در لحظه شروع ✅ ---
+    ArrayFree(m_swing_highs_array);
+    ArrayFree(m_swing_lows_array);
+    
+    int highs_found = 0;
+    int lows_found = 0;
+    
+    // از کندل فعلی شروع به جستجو به عقب می‌کنیم تا 200 کندل قبل
+    for(int i = m_swing_length; i < 200 && (highs_found < 2 || lows_found < 2); i++)
+    {
+        bool is_high = true;
+        bool is_low = true;
+        
+        // چک کردن شرایط سقف/کف
+        for(int j = 1; j <= m_swing_length; j++)
+        {
+            if(high(i) <= high(i-j) || high(i) < high(i+j)) is_high = false;
+            if(low(i) >= low(i-j) || low(i) > low(i+j)) is_low = false;
+        }
+        
+        if(is_high && highs_found < 2)
+        {
+            // سقف پیدا شده رو به اول آرایه اضافه می‌کنیم
+            ArrayInsert(m_swing_highs_array, 0, 1);
+            m_swing_highs_array[0] = high(i);
+            highs_found++;
+        }
+        
+        if(is_low && lows_found < 2)
+        {
+            // کف پیدا شده رو به اول آرایه اضافه می‌کنیم
+            ArrayInsert(m_swing_lows_array, 0, 1);
+            m_swing_lows_array[0] = low(i);
+            lows_found++;
+        }
+    }
+    
+    if(m_enable_logging)
+    {
+       Print("مقداردهی اولیه MarketStructure انجام شد.");
+       Print("سقف‌های اولیه پیدا شده:");
+       ArrayPrint(m_swing_highs_array);
+       Print("کف‌های اولیه پیدا شده:");
+       ArrayPrint(m_swing_lows_array);
+    }
+    // --- پایان بخش حیاتی ---
     
     Log("کتابخانه MarketStructure برای " + m_symbol + " در " + EnumToString(m_period) + " راه‌اندازی شد.");
 }
+
 
 SMssSignal CMarketStructureShift::ProcessNewBar()
 {
