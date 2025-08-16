@@ -16,140 +16,111 @@
 
 
 
-// IchimokuLogic.mqh
 
+
+//+------------------------------------------------------------------+
+//| ساختار نگهداری اطلاعات یک سیگنال بالقوه                          |
+//+------------------------------------------------------------------+
 struct SPotentialSignal
 {
-    datetime        time;
-    bool            is_buy;
-    int             grace_candle_count;
-    double          invalidation_level; // ✅✅✅ این خط جدید رو اضافه کن ✅✅✅
+    datetime        time;                   // زمان (تایم کندل) که سیگنال اولیه در آن رخ داده است
+    bool            is_buy;                 // جهت سیگنال را مشخص می‌کند (true برای خرید، false برای فروش)
+    int             grace_candle_count;     // شمارنده تعداد کندل‌هایی که از زمان ایجاد سیگنال گذشته (برای مهلت کندلی)
+    double          invalidation_level;     // سطح قیمتی که اگر شکسته شود، سیگنال منقضی می‌شود (برای مهلت ساختاری)
     
-    // سازنده کپی (Copy Constructor)
+    // سازنده کپی (Copy Constructor) برای کپی کردن آسان یک سیگنال
     SPotentialSignal(const SPotentialSignal &other)
     {
         time = other.time;
         is_buy = other.is_buy;
         grace_candle_count = other.grace_candle_count;
-        invalidation_level = other.invalidation_level; // ✅✅✅ این خط جدید رو اضافه کن ✅✅✅
+        invalidation_level = other.invalidation_level;
     }
-    // سازنده پیش‌فرض (برای اینکه کد به مشکل نخوره)
+    // سازنده پیش‌فرض برای اطمینان از مقداردهی اولیه متغیرها
     SPotentialSignal()
     {
-       invalidation_level = 0.0; // مقداردهی اولیه
+       invalidation_level = 0.0;
     }
 };
 
-
- 
-/*struct SSettings
-{
-    string              symbols_list;
-    int                 magic_number;
-    bool                enable_logging;
-
-    int                 tenkan;
-    int                 kijun;
-    int                 senkou;
-    int                 chikou;
-
-    E_Confirmation_Mode confirmation_type;
-    int                 grace_candles;
-    double              talaqi_distance_in_points;
-
-    E_SL_Mode           stoploss_type;
-    int                 sl_lookback;
-    double              sl_buffer_multiplier;
-
-    double              risk_percent_per_trade;
-    double              take_profit_ratio;
-    int                 max_trades_per_symbol;
-    int                 max_total_trades;
-
-    double              object_size_multiplier;
-    color               bullish_color;
-    color               bearish_color;
-};
-*/
-
-//================================================================
 //+------------------------------------------------------------------+
-//| کلاس مدیریت استراتژی برای یک نماد خاص (نسخه نهایی با MTF)          |
+//| کلاس اصلی مدیریت استراتژی برای یک نماد خاص                        |
 //+------------------------------------------------------------------+
 class CStrategyManager
 {
-private:
-    string              m_symbol;
-    SSettings           m_settings;
-    CTrade              m_trade;
-   
-    datetime            m_last_bar_time;
-    
-    // --- هندل های اندیکاتور ---
-    int                 m_ichimoku_handle;
-    int                 m_atr_handle;      
-    int                 m_adx_handle;
-    int                 m_rsi_exit_handle;
+private: // اعضای خصوصی کلاس که فقط از داخل کلاس قابل دسترسی هستند
+    // --- متغیرهای اصلی ---
+    string              m_symbol;                   // نام نماد معاملاتی که این نمونه از کلاس آن را مدیریت می‌کند (مثلاً "EURUSD")
+    SSettings           m_settings;                 // یک کپی از تمام تنظیمات ورودی اکسپرت برای دسترسی آسان
+    CTrade              m_trade;                    // شیء کتابخانه استاندارد CTrade برای انجام عملیات معاملاتی
+    datetime            m_last_bar_time;            // زمان آخرین کندل پردازش شده برای جلوگیری از اجرای تکراری منطق
 
-    // --- بافرهای داده ---
-    double              m_tenkan_buffer[];
-    double              m_kijun_buffer[];
-    double              m_chikou_buffer[];
-    double              m_high_buffer[];
-    double              m_low_buffer[];
+    // --- هندل های اندیکاتور ---
+    int                 m_ichimoku_handle;          // هندل (شناسه) اندیکاتور اصلی ایچیموکو
+    int                 m_atr_handle;               // هندل اندیکاتور ATR برای محاسبات
+    int                 m_adx_handle;               // هندل اندیکاتور ADX برای فیلتر روند
+    int                 m_rsi_exit_handle;          // هندل اندیکاتور RSI برای منطق خروج زودرس
+
+    // --- بافرهای داده (آرایه‌هایی برای ذخیره موقت مقادیر اندیکاتور) ---
+    double              m_tenkan_buffer[];          // بافر برای ذخیره مقادیر خط تنکان-سن
+    double              m_kijun_buffer[];           // بافر برای ذخیره مقادیر خط کیجون-سن
+    double              m_chikou_buffer[];          // بافر برای ذخیره مقادیر خط چیکو اسپن
+    double              m_high_buffer[];            // بافر برای ذخیره بالاترین قیمت کندل‌ها
+    double              m_low_buffer[];             // بافر برای ذخیره پایین‌ترین قیمت کندل‌ها
     
     // --- مدیریت سیگنال ---
-    SPotentialSignal    m_signal;
-    bool                m_is_waiting;
-    SPotentialSignal    m_potential_signals[];
-    CVisualManager* m_visual_manager;
-    CMarketStructureShift m_ltf_analyzer;
-    CMarketStructureShift m_grace_structure_analyzer;
+    SPotentialSignal    m_signal;                   // شیء برای نگهداری سیگنال فعال در حالت جایگزینی (MODE_REPLACE_SIGNAL)
+    bool                m_is_waiting;               // پرچم (Flag) که نشان می‌دهد آیا منتظر تاییدیه برای یک سیگنال هستیم یا نه
+    SPotentialSignal    m_potential_signals[];      // آرایه داینامیک برای نگهداری سیگنال‌های نامزد در حالت مسابقه‌ای (MODE_SIGNAL_CONTEST)
+    CVisualManager* m_visual_manager;           // پوینتر به کلاس مدیر گرافیکی برای رسم اشکال روی چارت
+    CMarketStructureShift m_ltf_analyzer;         // نمونه‌ای از کتابخانه تحلیل ساختار برای تاییدیه در تایم فریم پایین
+    CMarketStructureShift m_grace_structure_analyzer; // نمونه‌ای از کتابخانه تحلیل ساختار برای مهلت انقضای ساختاری
 
     //--- توابع کمکی ---
-    void Log(string message);
-    bool IsDataReady();
-    
-    // --- منطق اصلی سیگنال ---
-    bool CheckTripleCross(bool& is_buy);
-    bool CheckFinalConfirmation(bool is_buy);
-    bool CheckLowerTfConfirmation(bool is_buy);
+    void Log(string message);                       // برای چاپ پیام‌ها در لاگ متاتریدر (در صورت فعال بودن)
+    bool IsDataReady();                             // تابع واکسن: برای اطمینان از آماده بودن داده‌های تمام تایم‌فریم‌ها
 
-    // --- فیلترهای ورود (با ورودی تایم فریم) ---
-    bool AreAllFiltersPassed(bool is_buy);
-    bool CheckKumoFilter(bool is_buy, ENUM_TIMEFRAMES timeframe);
-    bool CheckAtrFilter(ENUM_TIMEFRAMES timeframe);
-    bool CheckAdxFilter(bool is_buy, ENUM_TIMEFRAMES timeframe);
+    // --- منطق اصلی سیگنال ---
+    bool CheckTripleCross(bool& is_buy);            // وظیفه: سیگنال اولیه کراس سه‌گانه ایچیموکو را بررسی می‌کند
+    bool CheckFinalConfirmation(bool is_buy);       // مدیر کل تاییدیه نهایی که بر اساس تنظیمات، یکی از دو روش زیر را انتخاب می‌کند
+    bool CheckLowerTfConfirmation(bool is_buy);     // وظیفه: تاییدیه ورود را بر اساس شکست ساختار در تایم فریم پایین بررسی می‌کند
+
+    // --- فیلترهای ورود ---
+    bool AreAllFiltersPassed(bool is_buy);          // مدیر کل فیلترها که تمام فیلترهای فعال را به ترتیب اجرا می‌کند
+    bool CheckKumoFilter(bool is_buy, ENUM_TIMEFRAMES timeframe); // فیلتر ابر کومو
+    bool CheckAtrFilter(ENUM_TIMEFRAMES timeframe);  // فیلتر حداقل نوسان با ATR
+    bool CheckAdxFilter(bool is_buy, ENUM_TIMEFRAMES timeframe); // فیلتر قدرت و جهت روند با ADX
 
     // --- منطق خروج ---
-    void CheckForEarlyExit();
-    bool CheckChikouRsiExit(bool is_buy);
+    void CheckForEarlyExit();                       // تابع اصلی برای بررسی شرایط خروج زودرس روی معاملات باز
+    bool CheckChikouRsiExit(bool is_buy);           // منطق خروج زودرس بر اساس کراس چیکو و اشباع RSI
 
-    //--- محاسبه استاپ لاس (با ورودی تایم فریم) ---
-    double CalculateStopLoss(bool is_buy, double entry_price, ENUM_TIMEFRAMES timeframe);
-    double CalculateAtrStopLoss(bool is_buy, double entry_price, ENUM_TIMEFRAMES timeframe);
-    double GetTalaqiTolerance(int reference_shift);
-    double CalculateAtrTolerance(int reference_shift);
-    double CalculateDynamicTolerance(int reference_shift);
-    double FindFlatKijun(ENUM_TIMEFRAMES timeframe);
-    double FindPivotKijun(bool is_buy, ENUM_TIMEFRAMES timeframe);
-    double FindPivotTenkan(bool is_buy, ENUM_TIMEFRAMES timeframe);
-    double FindBackupStopLoss(bool is_buy, double buffer, ENUM_TIMEFRAMES timeframe);
+    //--- محاسبه استاپ لاس ---
+    double CalculateStopLoss(bool is_buy, double entry_price, ENUM_TIMEFRAMES timeframe);      // مدیر کل محاسبه استاپ لاس که بر اساس تنظیمات یکی از روش‌ها را انتخاب می‌کند
+    double CalculateAtrStopLoss(bool is_buy, double entry_price, ENUM_TIMEFRAMES timeframe);     // محاسبه SL بر اساس ATR
+    double GetTalaqiTolerance(int reference_shift); // مدیر کل محاسبه فاصله مجاز تلاقی
+    double CalculateAtrTolerance(int reference_shift); // محاسبه فاصله تلاقی بر اساس ATR
+    double CalculateDynamicTolerance(int reference_shift); // محاسبه فاصله تلاقی بر اساس ضخامت کومو
+    double FindFlatKijun(ENUM_TIMEFRAMES timeframe);     // پیدا کردن نزدیک‌ترین سطح کیجون فلت
+    double FindPivotKijun(bool is_buy, ENUM_TIMEFRAMES timeframe);  // پیدا کردن نزدیک‌ترین پیوت روی کیجون
+    double FindPivotTenkan(bool is_buy, ENUM_TIMEFRAMES timeframe); // پیدا کردن نزدیک‌ترین پیوت روی تنکان
+    double FindBackupStopLoss(bool is_buy, double buffer, ENUM_TIMEFRAMES timeframe); // محاسبه SL به روش ساده (کندل مخالف)
     
     //--- مدیریت معاملات ---
-    int CountSymbolTrades();
-    int CountTotalTrades();
-    void OpenTrade(bool is_buy);
+    int CountSymbolTrades();                        // شمارش تعداد معاملات باز برای نماد فعلی
+    int CountTotalTrades();                         // شمارش کل معاملات باز توسط اکسپرت
+    void OpenTrade(bool is_buy);                    // تابع اصلی برای اجرای کامل فرآیند باز کردن یک معامله
 
-public:
-    CStrategyManager(string symbol, SSettings &settings);
-    ~CStrategyManager();
-    bool Init();
-    void ProcessNewBar();
-    string GetSymbol() const { return m_symbol; }
-    void UpdateMyDashboard();
-    CVisualManager* GetVisualManager() { return m_visual_manager; }
+public: // اعضای عمومی کلاس که از بیرون کلاس قابل دسترسی هستند
+    CStrategyManager(string symbol, SSettings &settings); // سازنده کلاس (Constructor)
+    ~CStrategyManager();                                  // تخریب‌گر کلاس (Destructor) برای آزادسازی حافظه
+    bool Init();                                          // تابع مقداردهی اولیه که در OnInit اکسپرت فراخوانی می‌شود
+    void ProcessNewBar();                                 // تابع اصلی پردازش منطق که در OnTimer اکسپرت فراخوانی می‌شود
+    string GetSymbol() const;                             // برای گرفتن نام نماد این نمونه از کلاس
+    void UpdateMyDashboard();                             // برای آپدیت کردن اطلاعات داشبورد
+    CVisualManager* GetVisualManager();                   // برای دسترسی به مدیر گرافیکی از فایل اصلی اکسپرت
 };
+
 
 //+------------------------------------------------------------------+
 //| کانستراکتور کلاس                                                |
