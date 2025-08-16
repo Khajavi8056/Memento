@@ -379,6 +379,19 @@ void CMarketStructureShift::drawBreakLevel_MSS(string objName,datetime time1,dou
       if(direction > 0) { ObjectSetString(m_chart_id,objName_Descr,OBJPROP_TEXT,text+"  "); ObjectSetInteger(m_chart_id,objName_Descr,OBJPROP_ANCHOR,ANCHOR_RIGHT_UPPER); }
       if(direction < 0) { ObjectSetString(m_chart_id,objName_Descr,OBJPROP_TEXT,text+"  "); ObjectSetInteger(m_chart_id,objName_Descr,OBJPROP_ANCHOR,ANCHOR_RIGHT_LOWER); }
      }
+
+
+
+
+
+دو خطا دارم در این کد 
+
+
+variable expected	MarketStructure.mqh	172	46
+   built-in: bool ArrayInsert(T&[...],const T&[...],uint,uint,uint)	MarketStructure.mqh	172	46
+variable expected	MarketStructure.mqh	180	45
+   built-in: bool ArrayInsert(T&[...],const T&[...],uint,uint,uint)	MarketStructure.mqh	180	45
+
    ChartRedraw(m_chart_id);
 }
 
