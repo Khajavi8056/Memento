@@ -1,10 +1,96 @@
-'sl_atr_period' - undeclared identifier	IchimokuLogic.mqh	1223	68
-wrong parameters count	IchimokuLogic.mqh	1223	31
-   built-in: int iATR(const string,ENUM_TIMEFRAMES,int)	IchimokuLogic.mqh	1223	31
-'stoploss_timeframe' - undeclared identifier	IchimokuLogic.mqh	370	55
-cannot convert enum	IchimokuLogic.mqh	370	55
-   void CStrategyManager::OpenTrade(bool,ENUM_TIMEFRAMES)	IchimokuLogic.mqh	107	10
-'stoploss_timeframe' - undeclared identifier	IchimokuLogic.mqh	471	73
-cannot convert enum	IchimokuLogic.mqh	471	73
-   void CStrategyManager::OpenTrade(bool,ENUM_TIMEFRAMES)	IchimokuLogic.mqh	107	10
-6 errors, 0 warnings		6	0
+//+------------------------------------------------------------------+
+//| باز کردن معامله (با مدیریت سرمایه اصلاح شده و دقیق)                |
+//+------------------------------------------------------------------+
+void CStrategyManager::OpenTrade(bool is_buy)
+{
+    // اگر تعداد معاملات باز به حد مجاز رسیده باشد، از تابع خارج می‌شویم
+    if(CountTotalTrades() >= m_settings.max_total_trades || CountSymbolTrades() >= m_settings.max_trades_per_symbol)
+    {
+        Log("رسیدن به حد مجاز معاملات. معامله جدید باز نشد.");
+        return;
+    }
+
+    // گرفتن قیمت ورود
+    double entry_price = is_buy ? SymbolInfoDouble(m_symbol, SYMBOL_ASK) : SymbolInfoDouble(m_symbol, SYMBOL_BID);
+    
+    // ✅✅✅ اصلاحیه اصلی: فراخوانی تابع CalculateStopLoss با تایم‌فریم انتخابی ✅✅✅
+    double sl = CalculateStopLoss(is_buy, entry_price, m_settings.sl_timeframe);
+
+    // اگر محاسبه استاپ لاس با خطا مواجه شد، معامله باز نمی‌شود
+    if(sl == 0)
+    {
+        Log("خطا در محاسبه استاپ لاس. معامله باز نشد.");
+        return;
+    }
+    
+    // --- گام ۱: محاسبه ریسک به ازای هر معامله به پول حساب ---
+    double balance = AccountInfoDouble(ACCOUNT_BALANCE);
+    double risk_amount = balance * (m_settings.risk_percent_per_trade / 100.0);
+
+    // --- گام ۲: محاسبه میزان ضرر برای ۱ لات معامله با این استاپ لاس ---
+    double loss_for_one_lot = 0;
+    // از تابع تخصصی متاتریدر برای این کار استفاده می‌کنیم
+    if(!OrderCalcProfit(is_buy ? ORDER_TYPE_BUY : ORDER_TYPE_SELL, m_symbol, 1.0, entry_price, sl, loss_for_one_lot))
+    {
+        Log("خطا در محاسبه سود/زیان با OrderCalcProfit. کد خطا: " + (string)GetLastError());
+        return;
+    }
+    loss_for_one_lot = MathAbs(loss_for_one_lot);
+
+    if(loss_for_one_lot <= 0)
+    {
+        Log("میزان ضرر محاسبه شده برای ۱ لات معتبر نیست. معامله باز نشد.");
+        return;
+    }
+
+    // --- گام ۳: محاسبه حجم دقیق لات بر اساس ریسک و میزان ضرر ۱ لات ---
+    double lot_size = NormalizeDouble(risk_amount / loss_for_one_lot, 2);
+
+    // --- گام ۴: نرمال‌سازی و گرد کردن لات بر اساس محدودیت‌های بروکر ---
+    double min_lot = SymbolInfoDouble(m_symbol, SYMBOL_VOLUME_MIN);
+    double max_lot = SymbolInfoDouble(m_symbol, SYMBOL_VOLUME_MAX);
+    double lot_step = SymbolInfoDouble(m_symbol, SYMBOL_VOLUME_STEP);
+    
+    // اطمینان از اینکه لات در محدوده مجاز است
+    lot_size = MathMax(min_lot, MathMin(max_lot, lot_size));
+    
+    // گرد کردن لات بر اساس گام مجاز بروکر
+    lot_size = MathRound(lot_size / lot_step) * lot_step;
+
+    if(lot_size < min_lot)
+    {
+        Log("حجم محاسبه شده (" + DoubleToString(lot_size,2) + ") کمتر از حداقل لات مجاز (" + DoubleToString(min_lot,2) + ") است. معامله باز نشد.");
+        return;
+    }
+
+    // --- گام ۵: محاسبه حد سود و ارسال معامله ---
+    double point = SymbolInfoDouble(m_symbol, SYMBOL_POINT);
+    double sl_distance_points = MathAbs(entry_price - sl) / point;
+    double tp_distance_points = sl_distance_points * m_settings.take_profit_ratio;
+    double tp = is_buy ? entry_price + tp_distance_points * point : entry_price - tp_distance_points * point;
+    
+    int digits = (int)SymbolInfoInteger(m_symbol, SYMBOL_DIGITS);
+    sl = NormalizeDouble(sl, digits);
+    tp = NormalizeDouble(tp, digits);
+    
+    string comment = "Memento " + (is_buy ? "Buy" : "Sell");
+    
+    if(is_buy)
+    {
+        m_trade.Buy(lot_size, m_symbol, 0, sl, tp, comment);
+    }
+    else
+    {
+        m_trade.Sell(lot_size, m_symbol, 0, sl, tp, comment);
+    }
+    
+    // لاگ کردن نتیجه
+    if(m_trade.ResultRetcode() == TRADE_RETCODE_DONE)
+    {
+        Log("معامله " + comment + " با لات " + DoubleToString(lot_size, 2) + " با موفقیت باز شد.");
+    }
+    else
+    {
+        Log("خطا در باز کردن معامله " + comment + ": " + (string)m_trade.ResultRetcode() + " - " + m_trade.ResultComment());
+    }
+}
