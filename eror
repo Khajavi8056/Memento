@@ -1,6 +1,10 @@
-'ArrayAdd' - undeclared identifier	MarketStructure.mqh	172	49
-',' - unexpected token	MarketStructure.mqh	172	77
-'m_swing_highs_array' - some operator expected	MarketStructure.mqh	172	58
-')' - unexpected token	MarketStructure.mqh	172	93
-illegal 'else' without matching 'if'	MarketStructure.mqh	173	9
-'}' - not all control paths return a value	MarketStructure.mqh	231	1
+'CalculateStopLoss' - member function already defined with different parameters	IchimokuLogic.mqh	661	26
+'FindBackupStopLoss' - member function already defined with different parameters	IchimokuLogic.mqh	792	26
+'FindFlatKijun' - member function already defined with different parameters	IchimokuLogic.mqh	998	26
+'FindPivotKijun' - member function already defined with different parameters	IchimokuLogic.mqh	1029	26
+'FindPivotTenkan' - member function already defined with different parameters	IchimokuLogic.mqh	1057	26
+'CalculateAtrStopLoss' - member function already defined with different parameters	IchimokuLogic.mqh	1193	26
+'CheckKumoFilter' - member function already defined with different parameters	IchimokuLogic.mqh	1292	24
+'CheckAtrFilter' - member function already defined with different parameters	IchimokuLogic.mqh	1323	24
+'CheckAdxFilter' - member function already defined with different parameters	IchimokuLogic.mqh	1355	24
+9 errors, 0 warnings		9	0
