@@ -1,3 +1,8 @@
+
+
+
+
+
 //+------------------------------------------------------------------+
 //|                                                      Memento.mq5 |
 //|                                  Copyright 2025,hipoalgoritm |
@@ -26,36 +31,40 @@ CTrailingStopManager TrailingStop;
 
 
 
+//+------------------------------------------------------------------+
+//| تابع مقداردهی اولیه اکسپرت                                     |
+//+------------------------------------------------------------------+
 int OnInit() {
     //--- ✅✅✅ بخش مقداردهی اولیه تنظیمات (نسخه کاملاً اصلاح شده و هماهنگ) ✅✅✅ ---
 
-    // 1. تنظیمات عمومی
+    // --- 1. تنظیمات عمومی ---
     g_settings.enable_dashboard           = Inp_Enable_Dashboard;
     g_settings.symbols_list                 = Inp_Symbols_List;
     g_settings.magic_number                 = Inp_Magic_Number;
     g_settings.enable_logging               = Inp_Enable_Logging;
 
-    // 2. تنظیمات ایچیموکو
-    g_settings.ichimoku_timeframe           = Inp_Ichimoku_Timeframe; // ✅ اضافه شد
+    // --- 2. تنظیمات ایچیموکو ---
+    g_settings.ichimoku_timeframe           = Inp_Ichimoku_Timeframe;
     g_settings.tenkan_period                = Inp_Tenkan_Period;
     g_settings.kijun_period                 = Inp_Kijun_Period;
     g_settings.senkou_period                = Inp_Senkou_Period;
     g_settings.chikou_period                = Inp_Chikou_Period;
 
-    // 3. تنظیمات سیگنال و تاییدیه
+    // --- 3. تنظیمات سیگنال و تاییدیه ---
     g_settings.signal_mode                  = Inp_Signal_Mode;
-    g_settings.entry_confirmation_mode      = Inp_Entry_Confirmation_Mode; // ✅ اضافه شد
-    g_settings.grace_period_mode            = Inp_Grace_Period_Mode; // ✅ اضافه شد
+    g_settings.entry_confirmation_mode      = Inp_Entry_Confirmation_Mode;
+    g_settings.grace_period_mode            = Inp_Grace_Period_Mode;
     g_settings.grace_period_candles         = Inp_Grace_Period_Candles;
     g_settings.confirmation_type            = Inp_Confirmation_Type;
-    g_settings.ltf_timeframe                = Inp_LTF_Timeframe; // ✅ اضافه شد
+    g_settings.ltf_timeframe                = Inp_LTF_Timeframe;
     g_settings.talaqi_calculation_mode      = Inp_Talaqi_Calculation_Mode;
     g_settings.talaqi_atr_multiplier        = Inp_Talaqi_ATR_Multiplier;
     g_settings.talaqi_distance_in_points    = Inp_Talaqi_Distance_in_Points;
     g_settings.talaqi_kumo_factor           = Inp_Talaqi_Kumo_Factor;
 
-    // 4. تنظیمات حد ضرر
+    // --- 4. تنظیمات حد ضرر (SL) ---
     g_settings.stoploss_type                = Inp_StopLoss_Type;
+    g_settings.sl_timeframe                 = Inp_SL_Timeframe; // ✅✅✅ جدید: مقداردهی اولیه تایم‌فریم SL ✅✅✅
     g_settings.sl_atr_multiplier            = Inp_SL_ATR_Multiplier;
     g_settings.flat_kijun_period            = Inp_Flat_Kijun_Period;
     g_settings.flat_kijun_min_length        = Inp_Flat_Kijun_Min_Length;
@@ -63,25 +72,26 @@ int OnInit() {
     g_settings.sl_lookback_period           = Inp_SL_Lookback_Period;
     g_settings.sl_buffer_multiplier         = Inp_SL_Buffer_Multiplier;
     
-    // 4.1. <<< بخش اضافه شده برای SL پویا >>>
+    // --- 4.1. تنظیمات SL پویا ---
     g_settings.enable_sl_vol_regime         = Inp_Enable_SL_Vol_Regime;
     g_settings.sl_vol_regime_atr_period     = Inp_SL_Vol_Regime_ATR_Period;
     g_settings.sl_vol_regime_ema_period     = Inp_SL_Vol_Regime_EMA_Period;
     g_settings.sl_high_vol_multiplier       = Inp_SL_High_Vol_Multiplier;
     g_settings.sl_low_vol_multiplier        = Inp_SL_Low_Vol_Multiplier;
 
-    // 5. تنظیمات مدیریت سرمایه
+    // --- 5. تنظیمات مدیریت سرمایه ---
     g_settings.risk_percent_per_trade       = Inp_Risk_Percent_Per_Trade;
     g_settings.take_profit_ratio            = Inp_Take_Profit_Ratio;
     g_settings.max_trades_per_symbol        = Inp_Max_Trades_Per_Symbol;
     g_settings.max_total_trades             = Inp_Max_Total_Trades;
 
-    // 6. تنظیمات گرافیکی
+    // --- 6. تنظیمات گرافیکی ---
     g_settings.object_size_multiplier       = Inp_Object_Size_Multiplier;
     g_settings.bullish_color                = Inp_Bullish_Color;
     g_settings.bearish_color                = Inp_Bearish_Color;
     
-    // 7. <<< بخش اضافه شده برای فیلترها >>>
+    // --- 7. تنظیمات فیلترهای ورود ---
+    g_settings.filter_timeframe             = Inp_Filter_Timeframe; // ✅✅✅ جدید: مقداردهی اولیه تایم‌فریم فیلتر ✅✅✅
     g_settings.enable_kumo_filter           = Inp_Enable_Kumo_Filter;
     g_settings.enable_atr_filter            = Inp_Enable_ATR_Filter;
     g_settings.atr_filter_period            = Inp_ATR_Filter_Period;
@@ -90,28 +100,32 @@ int OnInit() {
     g_settings.adx_period                   = Inp_ADX_Period;
     g_settings.adx_threshold                = Inp_ADX_Threshold;
 
-    // 8. <<< بخش اضافه شده برای خروج زودرس >>>
+    // --- 8. تنظیمات منطق خروج ---
     g_settings.enable_early_exit            = Inp_Enable_Early_Exit;
     g_settings.early_exit_rsi_period        = Inp_Early_Exit_RSI_Period;
     g_settings.early_exit_rsi_overbought    = Inp_Early_Exit_RSI_Overbought;
     g_settings.early_exit_rsi_oversold      = Inp_Early_Exit_RSI_Oversold;
 
 
-    //--- بقیه تابع OnInit بدون تغییر ...
-    int symbols_count = StringSplit(g_settings.symbols_list, ',', g_symbols_array);
+    //--- پردازش لیست نمادها و ساخت مدیران استراتژی ---
+    int symbols_count = StringSplit(g_settings.symbols_list, ',', g_symbols_array); // جدا کردن نمادها با کاما
     if (symbols_count == 0) {
         Print("خطا: هیچ نمادی برای معامله مشخص نشده است.");
-        return INIT_FAILED;
+        return INIT_FAILED; // در صورت نبود نماد، اکسپرت را متوقف کن
     }
 
+    // تغییر اندازه آرایه مدیران استراتژی به تعداد نمادها
     ArrayResize(g_symbol_managers, symbols_count);
     for (int i = 0; i < symbols_count; i++) {
-        string sym = g_symbols_array[i];
-        StringTrimLeft(sym);
+        string sym = g_symbols_array[i]; // گرفتن نام نماد
+        StringTrimLeft(sym); // پاک کردن فاصله‌های اضافی از چپ و راست
         StringTrimRight(sym);
+        // ساخت یک نمونه جدید از کلاس CStrategyManager برای هر نماد
         g_symbol_managers[i] = new CStrategyManager(sym, g_settings);
+        // فراخوانی تابع Init() برای هر مدیر استراتژی
         if (!g_symbol_managers[i].Init()) {
             Print("مقداردهی اولیه نماد ", sym, " با خطا مواجه شد. عملیات متوقف می‌شود.");
+            // در صورت خطا، پاکسازی تمام نمونه‌های ساخته شده
             for (int j = 0; j <= i; j++) {
                 if (g_symbol_managers[j] != NULL) {
                     delete g_symbol_managers[j];
@@ -124,16 +138,16 @@ int OnInit() {
     }
 
     Print("اکسپرت Memento با موفقیت برای نمادهای زیر مقداردهی اولیه شد: ", g_settings.symbols_list);
-    TrailingStop.Init(Inp_Magic_Number);
+    // مقداردهی اولیه کتابخانه تریلینگ استاپ
+    TrailingStop.Init(g_settings.magic_number);
 
+    // شروع تایمر برای اجرای مداوم منطق اکسپرت
     EventSetTimer(1);
-    return(INIT_SUCCEEDED);
+    return(INIT_SUCCEEDED); // مقداردهی اولیه موفق
 }
 
 
-
-
-//+------------------------------------------------------------------+
+//---------------+---+++++++++++++++++++++++
 //| تابع پایان اکسپرت (پاکسازی)                                      |
 //+------------------------------------------------------------------+
 void OnDeinit(const int reason) {
