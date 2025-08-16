@@ -1,67 +1,31 @@
 //+------------------------------------------------------------------+
 //|                                        MarketStructure.mqh       |
-//|                 © 2025, Mohammad & Gemini (از پروژه قدیمی)        |
+//|                 © 2025, Mohammad & Gemini                        |
 //|          کتابخانه مستقل برای تشخیص سقف/کف و شکست ساختار بازار      |
 //+------------------------------------------------------------------+
 #property copyright "© 2025, HipoAlgorithm"
 #property link      "https://www.mql5.com"
-#property version   "2.0" // نسخه کامل با ورودی‌های مستقل و توابع عمومی گسترده
-
-/*
-========================================================================================================
-|                                                                                                      |
-|                      --- راهنمای استفاده سریع از کتابخانه MarketStructure ---                          |
-|                                                                                                      |
-|   هدف: این کتابخانه به صورت یک "جعبه سیاه" (Black Box) عمل کرده و وظیفه آن پیدا کردن                   |
-|   سقف‌ها و کف‌های چرخش (Swing Points) و تشخیص شکست ساختار بازار (MSS/BoS) در هر نماد و تایم فریمی است. |
-|                                                                                                      |
-|   مراحل استفاده:                                                                                       |
-|                                                                                                      |
-|   ۱. افزودن به پروژه:                                                                                  |
-|      #include "MarketStructure.mqh"                                                                  |
-|                                                                                                      |
-|   ۲. ساخت یک نمونه از کلاس (در بخش متغیرهای سراسری اکسپرت):                                             |
-|      CMarketStructureShift mss_analyzer;                                                             |
-|                                                                                                      |
-|   ۳. مقداردهی اولیه در تابع OnInit اکسپرت:                                                             |
-|      // کتابخانه به صورت خودکار تنظیمات را از پنل ورودی می‌خواند.                                      |
-|      mss_analyzer.Init(_Symbol, PERIOD_M5); // فقط نماد و تایم فریم مورد نظر را پاس دهید.               |
-|                                                                                                      |
-|   ۴. فراخوانی در تابع OnTimer یا OnTick اکسپرت (در هر کندل جدید):                                       |
-|      SMssSignal signal = mss_analyzer.ProcessNewBar();                                               |
-|                                                                                                      |
-|   ۵. بررسی خروجی و استفاده از سیگنال:                                                                  |
-|      if(signal.type != MSS_NONE)                                                                      |
-|      {                                                                                                |
-|          if(signal.type == MSS_SHIFT_UP)                                                              |
-|          {                                                                                            |
-|              // اینجا منطق ورود به معامله خرید را پیاده‌سازی کنید                                       |
-|              Print("سیگنال MSS صعودی در قیمت ", signal.break_price, " دریافت شد!");                      |
-|          }                                                                                            |
-|      }                                                                                                |
-|                                                                                                      |
-========================================================================================================
-*/
+#property version   "2.1" // اصلاح باگ مقداردهی اولیه و بهبود منطق آپدیت آرایه
 
 #include <Object.mqh>
 
 //+------------------------------------------------------------------+
 //|   بخش تنظیمات ورودی (Inputs) - کاملا مستقل و Plug & Play         |
 //+------------------------------------------------------------------+
-input group "---=== 🏛️ Market Structure Library Settings 🏛️ ===---"; // گروه اصلی برای تمام تنظیمات کتابخانه
-input group "پارامترهای اصلی تحلیل"; // زیرگروه اول
+input group "---=== 🏛️ Market Structure Library Settings 🏛️ ===---";
+input group "پارامترهای اصلی تحلیل";
 input int    Inp_MSS_Swing_Length   = 10;   // طول تشخیص سقف/کف (تعداد کندل از هر طرف)
-input group "تنظیمات نمایشی و لاگ"; // زیرگروه دوم
-input bool   Inp_MSS_Enable_Drawing = true;  // ✅ فعال/غیرفعال کردن رسم روی چارت
+input group "تنظیمات نمایشی و لاگ";
+input bool   Inp_MSS_Enable_Drawing = true;  // فعال/غیرفعال کردن رسم روی چارت
 input bool   Inp_MSS_Enable_Logging = false; // فعال/غیرفعال کردن لاگ‌های کتابخانه (برای دیباگ)
-input group ""; // پایان گروه بندی
+input group "";
 
-// --- ۱. تعریف خروجی‌های کتابخانه ---
+// --- تعریف خروجی‌های کتابخانه ---
 enum E_MSS_SignalType
 {
     MSS_NONE,         // هیچ سیگنالی وجود ندارد
-    MSS_BREAK_HIGH,   // یک سقف شکسته شده (شکست ساختار ساده - BoS)
-    MSS_BREAK_LOW,    // یک کف شکسته شده (شکست ساختار ساده - BoS)
+    MSS_BREAK_HIGH,   // شکست ساختار ساده صعودی (BoS)
+    MSS_BREAK_LOW,    // شکست ساختار ساده نزولی (BoS)
     MSS_SHIFT_UP,     // تغییر ساختار به صعودی (MSS)
     MSS_SHIFT_DOWN    // تغییر ساختار به نزولی (MSS)
 };
@@ -112,8 +76,6 @@ private:
 public:
     void Init(string symbol, ENUM_TIMEFRAMES period);
     SMssSignal ProcessNewBar();
-
-    // --- توابع عمومی جدید برای کاربردهای بیشتر ---
     double GetLastSwingHigh() const { return m_last_swing_h; }
     double GetLastSwingLow() const { return m_last_swing_l; }
     int    GetLastSwingHighIndex() const { return m_last_swing_h_index; }
@@ -125,10 +87,8 @@ public:
 };
 
 //+------------------------------------------------------------------+
-//| پیاده‌سازی توابع کلاس                                            |
+//| تابع مقداردهی اولیه (کامل و اصلاح شده)                           |
 //+------------------------------------------------------------------+
-// MarketStructure.mqh -> جایگزین تابع Init فعلی
-
 void CMarketStructureShift::Init(string symbol, ENUM_TIMEFRAMES period)
 {
     m_symbol = symbol;
@@ -146,20 +106,22 @@ void CMarketStructureShift::Init(string symbol, ENUM_TIMEFRAMES period)
     m_last_swing_h_index = 0;
     m_last_swing_l_index = 0;
     
-    // --- ✅ بخش حیاتی: پر کردن آرایه‌ها با داده‌های تاریخی در لحظه شروع ✅ ---
+    // --- ✅ بخش حیاتی و اصلاح شده برای مقداردهی اولیه آرایه‌ها ✅ ---
     ArrayFree(m_swing_highs_array);
     ArrayFree(m_swing_lows_array);
     
     int highs_found = 0;
     int lows_found = 0;
     
-    // از کندل فعلی شروع به جستجو به عقب می‌کنیم تا 200 کندل قبل
-    for(int i = m_swing_length; i < 200 && (highs_found < 2 || lows_found < 2); i++)
+    // از کندل فعلی شروع به جستجو به عقب می‌کنیم
+    for(int i = m_swing_length; i < 500 && (highs_found < 2 || lows_found < 2); i++)
     {
+        // اطمینان از وجود داده کافی برای جلوگیری از خطای "array out of range"
+        if(iBars(m_symbol, m_period) < i + m_swing_length + 1) break;
+        
         bool is_high = true;
         bool is_low = true;
         
-        // چک کردن شرایط سقف/کف
         for(int j = 1; j <= m_swing_length; j++)
         {
             if(high(i) <= high(i-j) || high(i) < high(i+j)) is_high = false;
@@ -168,17 +130,19 @@ void CMarketStructureShift::Init(string symbol, ENUM_TIMEFRAMES period)
         
         if(is_high && highs_found < 2)
         {
-            // سقف پیدا شده رو به اول آرایه اضافه می‌کنیم
-            ArrayInsert(m_swing_highs_array, 0, 1);
-            m_swing_highs_array[0] = high(i);
+            // --- ✅ روش صحیح برای اضافه کردن یک عضو به ابتدای آرایه ---
+            double temp_high[1];      // 1. یک آرایه کمکی یک عضوی می‌سازیم
+            temp_high[0] = high(i);   // 2. مقدار سقف را در آن قرار می‌دهیم
+            ArrayInsert(m_swing_highs_array, temp_high, 0); // 3. آرایه کمکی را به ابتدای آرایه اصلی اضافه می‌کنیم
             highs_found++;
         }
         
         if(is_low && lows_found < 2)
         {
-            // کف پیدا شده رو به اول آرایه اضافه می‌کنیم
-            ArrayInsert(m_swing_lows_array, 0, 1);
-            m_swing_lows_array[0] = low(i);
+            // --- ✅ روش صحیح برای اضافه کردن یک عضو به ابتدای آرایه ---
+            double temp_low[1];       // 1. یک آرایه کمکی یک عضوی می‌سازیم
+            temp_low[0] = low(i);     // 2. مقدار کف را در آن قرار می‌دهیم
+            ArrayInsert(m_swing_lows_array, temp_low, 0);   // 3. آرایه کمکی را به ابتدای آرایه اصلی اضافه می‌کنیم
             lows_found++;
         }
     }
@@ -191,12 +155,13 @@ void CMarketStructureShift::Init(string symbol, ENUM_TIMEFRAMES period)
        Print("کف‌های اولیه پیدا شده:");
        ArrayPrint(m_swing_lows_array);
     }
-    // --- پایان بخش حیاتی ---
     
     Log("کتابخانه MarketStructure برای " + m_symbol + " در " + EnumToString(m_period) + " راه‌اندازی شد.");
 }
 
-
+//+------------------------------------------------------------------+
+//| تابع اصلی پردازش کندل جدید (کامل و اصلاح شده)                      |
+//+------------------------------------------------------------------+
 SMssSignal CMarketStructureShift::ProcessNewBar()
 {
     SMssSignal result;
@@ -222,18 +187,15 @@ SMssSignal CMarketStructureShift::ProcessNewBar()
         Log("سقف چرخش جدید: " + DoubleToString(m_last_swing_h, _Digits));
         if (m_enable_drawing) drawSwingPoint(m_obj_prefix + TimeToString(time(curr_bar)), time(curr_bar), m_last_swing_h, 77, clrBlue, -1);
         
-        // منطق اکسپرت اصلی برای آرایه سقف‌ها
-        if (ArraySize(m_swing_highs_array) == 2){
-            ArrayRemove(m_swing_highs_array,0,1);
-            ArrayResize(m_swing_highs_array,ArraySize(m_swing_highs_array)+1);
-            m_swing_highs_array[ArraySize(m_swing_highs_array)-1] = m_last_swing_h;
-            if (m_enable_logging) { Print("POPULATED! New swing high prices data is as below:"); ArrayPrint(m_swing_highs_array, _Digits, " , "); }
-        } else {
-            ArrayResize(m_swing_highs_array,ArraySize(m_swing_highs_array)+1);
-            m_swing_highs_array[ArraySize(m_swing_highs_array)-1] = m_last_swing_h;
+        // --- ✅ منطق جدید و بهینه شده برای آپدیت آرایه سقف‌ها ---
+        ArrayResize(m_swing_highs_array, ArraySize(m_swing_highs_array) + 1);
+        m_swing_highs_array[ArraySize(m_swing_highs_array) - 1] = m_last_swing_h;
+        if(ArraySize(m_swing_highs_array) > 2)
+        {
+            ArrayRemove(m_swing_highs_array, 0, 1);
         }
-
     }
+    
     if (isSwingLow)
     {
         m_last_swing_l = low(curr_bar);
@@ -241,15 +203,12 @@ SMssSignal CMarketStructureShift::ProcessNewBar()
         Log("کف چرخش جدید: " + DoubleToString(m_last_swing_l, _Digits));
         if (m_enable_drawing) drawSwingPoint(m_obj_prefix + TimeToString(time(curr_bar)), time(curr_bar), m_last_swing_l, 77, clrRed, +1);
 
-        // منطق اکسپرت اصلی برای آرایه کف‌ها
-        if (ArraySize(m_swing_lows_array) == 2){
-            ArrayRemove(m_swing_lows_array,0,1);
-            ArrayResize(m_swing_lows_array,ArraySize(m_swing_lows_array)+1);
-            m_swing_lows_array[ArraySize(m_swing_lows_array)-1] = m_last_swing_l;
-            if (m_enable_logging) { Print("POPULATED! New swing low prices data is as below:"); ArrayPrint(m_swing_lows_array, _Digits, " , "); }
-        } else {
-            ArrayResize(m_swing_lows_array,ArraySize(m_swing_lows_array)+1);
-            m_swing_lows_array[ArraySize(m_swing_lows_array)-1] = m_last_swing_l;
+        // --- ✅ منطق جدید و بهینه شده برای آپدیت آرایه کف‌ها ---
+        ArrayResize(m_swing_lows_array, ArraySize(m_swing_lows_array) + 1);
+        m_swing_lows_array[ArraySize(m_swing_lows_array) - 1] = m_last_swing_l;
+        if(ArraySize(m_swing_lows_array) > 2)
+        {
+            ArrayRemove(m_swing_lows_array, 0, 1);
         }
     }
 
@@ -260,42 +219,36 @@ SMssSignal CMarketStructureShift::ProcessNewBar()
     {
         Log("شکست سقف در قیمت " + DoubleToString(m_last_swing_h, _Digits));
         
-        bool isMSS_High = IsUptrend(); // از تابع خود کلاس استفاده کن
+        bool isMSS_High = IsUptrend();
         if (isMSS_High) {
             result.type = MSS_SHIFT_UP;
-            Log("تشخیص: تغییر ساختار به صعودی (MSS UP)");
             if (m_enable_drawing) drawBreakLevel_MSS(m_obj_prefix + "MSS_UP_" + TimeToString(time(0)), time(m_last_swing_h_index), m_last_swing_h, time(0), m_last_swing_h, clrDarkGreen, -1);
         } else {
             result.type = MSS_BREAK_HIGH;
-            Log("تشخیص: شکست ساده ساختار (BoS UP)");
             if (m_enable_drawing) drawBreakLevel(m_obj_prefix + "BOS_UP_" + TimeToString(time(0)), time(m_last_swing_h_index), m_last_swing_h, time(0), m_last_swing_h, clrBlue, -1);
         }
         
         result.break_price = m_last_swing_h;
         result.break_time = time(0);
         result.swing_bar_index = m_last_swing_h_index;
-        
         m_last_swing_h = -1.0;
     }
     else if (m_last_swing_l > 0 && Bid < m_last_swing_l)
     {
         Log("شکست کف در قیمت " + DoubleToString(m_last_swing_l, _Digits));
         
-        bool isMSS_Low = IsDowntrend(); // از تابع خود کلاس استفاده کن
+        bool isMSS_Low = IsDowntrend();
         if (isMSS_Low) {
             result.type = MSS_SHIFT_DOWN;
-            Log("تشخیص: تغییر ساختار به نزولی (MSS DOWN)");
             if (m_enable_drawing) drawBreakLevel_MSS(m_obj_prefix + "MSS_DOWN_" + TimeToString(time(0)), time(m_last_swing_l_index), m_last_swing_l, time(0), m_last_swing_l, clrBlack, +1);
         } else {
             result.type = MSS_BREAK_LOW;
-            Log("تشخیص: شکست ساده ساختار (BoS DOWN)");
             if (m_enable_drawing) drawBreakLevel(m_obj_prefix + "BOS_DOWN_" + TimeToString(time(0)), time(m_last_swing_l_index), m_last_swing_l, time(0), m_last_swing_l, clrRed, +1);
         }
 
         result.break_price = m_last_swing_l;
         result.break_time = time(0);
         result.swing_bar_index = m_last_swing_l_index;
-        
         m_last_swing_l = -1.0;
     }
 
@@ -310,26 +263,21 @@ void CMarketStructureShift::Log(string message)
     }
 }
 
-// --- توابع عمومی جدید ---
 bool CMarketStructureShift::IsUptrend() const
 {
     if (ArraySize(m_swing_highs_array) < 2 || ArraySize(m_swing_lows_array) < 2) return false;
-    // روند صعودی = سقف جدید > سقف قدیمی و کف جدید > کف قدیمی
-    return (m_swing_highs_array[ArraySize(m_swing_highs_array)-1] > m_swing_highs_array[ArraySize(m_swing_highs_array)-2] && m_swing_lows_array[ArraySize(m_swing_lows_array)-1] > m_swing_lows_array[ArraySize(m_swing_lows_array)-2]);
+    return (m_swing_highs_array[1] > m_swing_highs_array[0] && m_swing_lows_array[1] > m_swing_lows_array[0]);
 }
 
 bool CMarketStructureShift::IsDowntrend() const
 {
     if (ArraySize(m_swing_highs_array) < 2 || ArraySize(m_swing_lows_array) < 2) return false;
-    // روند نزولی = سقف جدید < سقف قدیمی و کف جدید < کف قدیمی
-    return (m_swing_highs_array[ArraySize(m_swing_highs_array)-1] < m_swing_highs_array[ArraySize(m_swing_highs_array)-2] && m_swing_lows_array[ArraySize(m_swing_lows_array)-1] < m_swing_lows_array[ArraySize(m_swing_lows_array)-2]);
+    return (m_swing_highs_array[1] < m_swing_highs_array[0] && m_swing_lows_array[1] < m_swing_lows_array[0]);
 }
 
-// --- پیاده‌سازی کامل توابع گرافیکی (بدون تغییر در منطق) ---
 void CMarketStructureShift::drawSwingPoint(string objName,datetime time_param,double price,int arrCode, color clr,int direction)
 {
-   if(ObjectFind(m_chart_id,objName) < 0)
-     {
+   if(ObjectFind(m_chart_id,objName) < 0) {
       ObjectCreate(m_chart_id,objName,OBJ_ARROW,0,time_param,price);
       ObjectSetInteger(m_chart_id,objName,OBJPROP_ARROWCODE,arrCode);
       ObjectSetInteger(m_chart_id,objName,OBJPROP_COLOR,clr);
@@ -337,62 +285,47 @@ void CMarketStructureShift::drawSwingPoint(string objName,datetime time_param,do
       if(direction > 0) ObjectSetInteger(m_chart_id,objName,OBJPROP_ANCHOR,ANCHOR_TOP);
       if(direction < 0) ObjectSetInteger(m_chart_id,objName,OBJPROP_ANCHOR,ANCHOR_BOTTOM);
       
-      string text = "BoS";
+      string text = "Swing"; // اصلاح شد
       string objName_Descr = objName + text;
       ObjectCreate(m_chart_id,objName_Descr,OBJ_TEXT,0,time_param,price);
       ObjectSetInteger(m_chart_id,objName_Descr,OBJPROP_COLOR,clr);
       ObjectSetInteger(m_chart_id,objName_Descr,OBJPROP_FONTSIZE,10);
       if(direction > 0) { ObjectSetString(m_chart_id,objName_Descr,OBJPROP_TEXT,"  "+text); ObjectSetInteger(m_chart_id,objName_Descr,OBJPROP_ANCHOR,ANCHOR_LEFT_UPPER); }
       if(direction < 0) { ObjectSetString(m_chart_id,objName_Descr,OBJPROP_TEXT,"  "+text); ObjectSetInteger(m_chart_id,objName_Descr,OBJPROP_ANCHOR,ANCHOR_LEFT_LOWER); }
-     }
+   }
    ChartRedraw(m_chart_id);
 }
+
 void CMarketStructureShift::drawBreakLevel(string objName,datetime time1,double price1, datetime time2,double price2,color clr,int direction)
 {
-   if(ObjectFind(m_chart_id,objName) < 0)
-     {
+   if(ObjectFind(m_chart_id,objName) < 0) {
       ObjectCreate(m_chart_id,objName,OBJ_ARROWED_LINE,0,time1,price1,time2,price2);
       ObjectSetInteger(m_chart_id,objName,OBJPROP_COLOR,clr);
       ObjectSetInteger(m_chart_id,objName,OBJPROP_WIDTH,2);
-      string text = "Break";
+      string text = "BoS"; // اصلاح شد
       string objName_Descr = objName + text;
       ObjectCreate(m_chart_id,objName_Descr,OBJ_TEXT,0,time2,price2);
       ObjectSetInteger(m_chart_id,objName_Descr,OBJPROP_COLOR,clr);
       ObjectSetInteger(m_chart_id,objName_Descr,OBJPROP_FONTSIZE,10);
       if(direction > 0) { ObjectSetString(m_chart_id,objName_Descr,OBJPROP_TEXT,text+"  "); ObjectSetInteger(m_chart_id,objName_Descr,OBJPROP_ANCHOR,ANCHOR_RIGHT_UPPER); }
       if(direction < 0) { ObjectSetString(m_chart_id,objName_Descr,OBJPROP_TEXT,text+"  "); ObjectSetInteger(m_chart_id,objName_Descr,OBJPROP_ANCHOR,ANCHOR_RIGHT_LOWER); }
-     }
+   }
    ChartRedraw(m_chart_id);
 }
+
 void CMarketStructureShift::drawBreakLevel_MSS(string objName,datetime time1,double price1, datetime time2,double price2,color clr,int direction)
 {
-   if(ObjectFind(m_chart_id,objName) < 0)
-     {
+   if(ObjectFind(m_chart_id,objName) < 0) {
       ObjectCreate(m_chart_id,objName,OBJ_ARROWED_LINE,0,time1,price1,time2,price2);
       ObjectSetInteger(m_chart_id,objName,OBJPROP_COLOR,clr);
       ObjectSetInteger(m_chart_id,objName,OBJPROP_WIDTH,4);
-      string text = "Break (MSS)";
+      string text = "MSS"; // اصلاح شد
       string objName_Descr = objName + text;
       ObjectCreate(m_chart_id,objName_Descr,OBJ_TEXT,0,time2,price2);
       ObjectSetInteger(m_chart_id,objName_Descr,OBJPROP_COLOR,clr);
       ObjectSetInteger(m_chart_id,objName_Descr,OBJPROP_FONTSIZE,13);
       if(direction > 0) { ObjectSetString(m_chart_id,objName_Descr,OBJPROP_TEXT,text+"  "); ObjectSetInteger(m_chart_id,objName_Descr,OBJPROP_ANCHOR,ANCHOR_RIGHT_UPPER); }
       if(direction < 0) { ObjectSetString(m_chart_id,objName_Descr,OBJPROP_TEXT,text+"  "); ObjectSetInteger(m_chart_id,objName_Descr,OBJPROP_ANCHOR,ANCHOR_RIGHT_LOWER); }
-     }
-
-
-
-
-
-دو خطا دارم در این کد 
-
-
-variable expected	MarketStructure.mqh	172	46
-   built-in: bool ArrayInsert(T&[...],const T&[...],uint,uint,uint)	MarketStructure.mqh	172	46
-variable expected	MarketStructure.mqh	180	45
-   built-in: bool ArrayInsert(T&[...],const T&[...],uint,uint,uint)	MarketStructure.mqh	180	45
-
+   }
    ChartRedraw(m_chart_id);
 }
-
-//+------------------------------------------------------------------+
