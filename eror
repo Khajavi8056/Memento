@@ -4,7 +4,7 @@
 //+------------------------------------------------------------------+
 #property copyright "© 2025,hipoalgoritm"
 #property link      "https://www.mql5.com"
-#property version   "2.1" 
+#property version   "2.1"
 #include "set.mqh"
 #include <Trade\Trade.mqh>
 #include <Trade\SymbolInfo.mqh>
@@ -17,10 +17,10 @@
 //+------------------------------------------------------------------+
 struct SPotentialSignal
 {
-    datetime        time;                 // زمان وقوع سیگنال اولیه
-    bool            is_buy;               // جهت سیگنال (خرید/فروش)
-    int             grace_candle_count;   // شمارنده کندل‌ها برای مهلت کندلی
-    double          invalidation_level;   // سطح قیمت برای ابطال سیگنال در مهلت ساختاری
+    datetime time;                 // زمان وقوع سیگنال اولیه
+    bool is_buy;               // جهت سیگنال (خرید/فروش)
+    int grace_candle_count;   // شمارنده کندل‌ها برای مهلت کندلی
+    double invalidation_level;   // سطح قیمت برای ابطال سیگنال در مهلت ساختاری
     
     // سازنده کپی (Copy Constructor)
     SPotentialSignal(const SPotentialSignal &other)
@@ -33,7 +33,7 @@ struct SPotentialSignal
     // سازنده پیش‌فرض (برای اینکه کد به مشکل نخوره)
     SPotentialSignal()
     {
-       invalidation_level = 0.0;
+        invalidation_level = 0.0;
     }
 };
 
@@ -44,29 +44,29 @@ struct SPotentialSignal
 class CStrategyManager
 {
 private:
-    string              m_symbol;
-    SSettings           m_settings;
-    CTrade              m_trade;
+    string m_symbol;
+    SSettings m_settings;
+    CTrade m_trade;
    
-    datetime            m_last_bar_time;
+    datetime m_last_bar_time;
     
     // --- هندل های اندیکاتور (اصلاح شده) ---
-    int                 m_ichimoku_handle;
-    int                 m_atr_handle;      
-    int                 m_adx_handle;       
-    int                 m_rsi_exit_handle;  
+    int m_ichimoku_handle;
+    int m_atr_handle;      
+    int m_adx_handle;       
+    int m_rsi_exit_handle;  
 
     // --- بافرهای داده ---
-    double              m_tenkan_buffer[];
-    double              m_kijun_buffer[];
-    double              m_chikou_buffer[];
-    double              m_high_buffer[];
-    double              m_low_buffer[];
+    double m_tenkan_buffer[];
+    double m_kijun_buffer[];
+    double m_chikou_buffer[];
+    double m_high_buffer[];
+    double m_low_buffer[];
     
     // --- مدیریت سیگنال ---
-    SPotentialSignal    m_signal;
-    bool                m_is_waiting;
-    SPotentialSignal    m_potential_signals[];
+    SPotentialSignal m_signal;
+    bool m_is_waiting;
+    SPotentialSignal m_potential_signals[];
     CVisualManager* m_visual_manager;
     CMarketStructureShift m_ltf_analyzer;
     CMarketStructureShift m_grace_structure_analyzer;
@@ -656,6 +656,209 @@ bool CStrategyManager::CheckFinalConfirmation(bool is_buy)
 }
 
 //+------------------------------------------------------------------+
+//| (نسخه نهایی با منطق انتخاب بهینه - کاملاً سازگار) محاسبه استاپ لاس |
+//+------------------------------------------------------------------+
+double CStrategyManager::CalculateStopLoss(bool is_buy, double entry_price, ENUM_TIMEFRAMES timeframe)
+{
+    // اگر کاربر روش ساده یا ATR را انتخاب کرده بود، همان را اجرا کن (بدون تغییر)
+    if (m_settings.stoploss_type == MODE_SIMPLE)
+    {
+        double buffer = m_settings.sl_buffer_multiplier * SymbolInfoDouble(m_symbol, SYMBOL_POINT);
+        return FindBackupStopLoss(is_buy, buffer, timeframe);
+    }
+    if (m_settings.stoploss_type == MODE_ATR)
+    {
+        double sl_price = CalculateAtrStopLoss(is_buy, entry_price, timeframe);
+        if (sl_price == 0) // اگر ATR به هر دلیلی جواب نداد
+        {
+            Log("محاسبه ATR SL با خطا مواجه شد. استفاده از روش پشتیبان...");
+            double buffer = m_settings.sl_buffer_multiplier * SymbolInfoDouble(m_symbol, SYMBOL_POINT);
+            return FindBackupStopLoss(is_buy, buffer, timeframe);
+        }
+        return sl_price;
+    }
+
+    // --- قلب تپنده منطق جدید: انتخاب بهینه (برای MODE_COMPLEX) ---
+
+    Log("شروع فرآیند انتخاب استاپ لاس بهینه...");
+
+    // --- مرحله ۱: تشکیل لیست کاندیداها ---
+    double candidates[];
+    int count = 0;
+    double sl_candidate = 0; // متغیر کمکی برای نگهداری نتیجه هر تابع
+    double buffer = m_settings.sl_buffer_multiplier * SymbolInfoDouble(m_symbol, SYMBOL_POINT);
+    
+    // کاندیدای ۱: کیجون فلت
+    sl_candidate = FindFlatKijun(timeframe);
+    if (sl_candidate > 0) {
+        ArrayResize(candidates, count + 1);
+        candidates[count] = is_buy ? sl_candidate - buffer : sl_candidate + buffer;
+        count++;
+    }
+    
+    // کاندیدای ۲: پیوت کیجون
+    sl_candidate = FindPivotKijun(is_buy, timeframe);
+    if (sl_candidate > 0) {
+        ArrayResize(candidates, count + 1);
+        candidates[count] = is_buy ? sl_candidate - buffer : sl_candidate + buffer;
+        count++;
+    }
+
+    // کاندیدای ۳: پیوت تنکان
+    sl_candidate = FindPivotTenkan(is_buy, timeframe);
+    if (sl_candidate > 0) {
+        ArrayResize(candidates, count + 1);
+        candidates[count] = is_buy ? sl_candidate - buffer : sl_candidate + buffer;
+        count++;
+    }
+
+    // کاندیدای ۴: روش ساده (کندل مخالف)
+    sl_candidate = FindBackupStopLoss(is_buy, buffer, timeframe);
+    if (sl_candidate > 0) {
+        ArrayResize(candidates, count + 1);
+        candidates[count] = sl_candidate;
+        count++;
+    }
+    
+    // کاندیدای ۵: روش ATR
+    sl_candidate = CalculateAtrStopLoss(is_buy, entry_price, timeframe);
+    if (sl_candidate > 0) {
+        ArrayResize(candidates, count + 1);
+        candidates[count] = sl_candidate;
+        count++;
+    }
+
+    if (count == 0)
+    {
+        Log("خطا: هیچ کاندیدای اولیه‌ای برای استاپ لاس پیدا نشد.");
+        return 0.0;
+    }
+
+    // --- مرحله ۲: اعتبارسنجی و بهینه‌سازی کاندیداها ---
+    double valid_candidates[];
+    int valid_count = 0;
+    double point = SymbolInfoDouble(m_symbol, SYMBOL_POINT);
+    double spread = (double)SymbolInfoInteger(m_symbol, SYMBOL_SPREAD) * point;
+    double min_safe_distance = spread + buffer; 
+
+    for (int i = 0; i < count; i++)
+    {
+        double current_sl = candidates[i];
+        
+        if ((is_buy && current_sl >= entry_price) || (!is_buy && current_sl <= entry_price))
+        {
+            continue; 
+        }
+
+        if (MathAbs(entry_price - current_sl) < min_safe_distance)
+        {
+            current_sl = is_buy ? entry_price - min_safe_distance : entry_price + min_safe_distance;
+            Log("کاندیدای شماره " + (string)(i+1) + " به دلیل نزدیکی بیش از حد به قیمت " + DoubleToString(current_sl, _Digits) + " اصلاح شد.");
+        }
+
+        ArrayResize(valid_candidates, valid_count + 1);
+        valid_candidates[valid_count] = current_sl;
+        valid_count++;
+    }
+
+    if (valid_count == 0)
+    {
+        Log("خطا: پس از فیلترینگ، هیچ کاندیدای معتبری برای استاپ لاس باقی نماند.");
+        return 0.0;
+    }
+    
+    // --- مرحله ۳: انتخاب نزدیک‌ترین گزینه معتبر ---
+    double best_sl_price = 0.0;
+    double smallest_distance = DBL_MAX;
+
+    for (int i = 0; i < valid_count; i++)
+    {
+        double distance = MathAbs(entry_price - valid_candidates[i]);
+        if (distance < smallest_distance)
+        {
+            smallest_distance = distance;
+            best_sl_price = valid_candidates[i];
+        }
+    }
+
+    Log("✅ استاپ لاس بهینه پیدا شد: " + DoubleToString(best_sl_price, _Digits) + ". فاصله: " + DoubleToString(smallest_distance / point, 1) + " پوینت.");
+
+    return best_sl_price;
+}
+
+//---+//+------------------------------------------------------------------+
+//| تابع استاپ لاس پشتیبان (بازنویسی کامل بر اساس منطق رنگ مخالف)   |
+//+------------------------------------------------------------------+
+double CStrategyManager::FindBackupStopLoss(bool is_buy, double buffer, ENUM_TIMEFRAMES timeframe)
+{
+    // تعداد کندلی که می‌خواهیم در گذشته برای پیدا کردن استاپ لاس جستجو کنیم.
+    int bars_to_check = m_settings.sl_lookback_period;
+    
+    // اگر تعداد کندل‌های موجود در چارت کافی نیست، از تابع خارج می‌شویم.
+    if (iBars(m_symbol, timeframe) < bars_to_check + 1) return 0;
+    
+    // یک حلقه 'for' می‌سازیم که از کندل شماره ۱ (کندل قبلی) شروع به حرکت به عقب می‌کند.
+    for (int i = 1; i <= bars_to_check; i++)
+    {
+        // رنگ کندلی که در حال بررسی آن هستیم را مشخص می‌کنیم.
+        bool is_candle_bullish = (iClose(m_symbol, timeframe, i) > iOpen(m_symbol, timeframe, i));
+        bool is_candle_bearish = (iClose(m_symbol, timeframe, i) < iOpen(m_symbol, timeframe, i));
+
+        // اگر معامله ما از نوع "خرید" (Buy) باشد...
+        if (is_buy)
+        {
+            // ...پس ما به دنبال اولین کندل با رنگ مخالف، یعنی کندل "نزولی" (Bearish) هستیم.
+            if (is_candle_bearish)
+            {
+                // به محض پیدا کردن اولین کندل نزولی، استاپ لاس را چند پوینت زیر کفِ (Low) همان کندل قرار می‌دهیم.
+                double sl_price = iLow(m_symbol, timeframe, i) - buffer;
+                Log("استاپ لاس ساده: اولین کندل نزولی در شیفت " + (string)i + " پیدا شد.");
+                
+                // قیمت محاسبه شده را برمی‌گردانیم و کار تابع تمام می‌شود.
+                return sl_price;
+            }
+        }
+        // اگر معامله ما از نوع "فروش" (Sell) باشد...
+        else // is_sell
+        {
+            // ...پس ما به دنبال اولین کندل با رنگ مخالف، یعنی کندل "صعودی" (Bullish) هستیم.
+            if (is_candle_bullish)
+            {
+                // به محض پیدا کردن اولین کندل صعودی، استاپ لاس را چند پوینت بالای سقفِ (High) همان کندل قرار می‌دهیم.
+                double sl_price = iHigh(m_symbol, timeframe, i) + buffer;
+                Log("استاپ لاس ساده: اولین کندل صعودی در شیفت " + (string)i + " پیدا شد.");
+                
+                // قیمت محاسبه شده را برمی‌گردانیم و کار تابع تمام می‌شود.
+                return sl_price;
+            }
+        }
+    }
+    
+    // --- بخش پشتیبانِ پشتیبان ---
+    // اگر حلقه 'for' تمام شود و کد به اینجا برسد، یعنی در کل بازه مورد بررسی، هیچ کندل رنگ مخالفی پیدا نشده است.
+    // (مثلاً در یک روند خیلی قوی که همه کندل‌ها یک رنگ هستند)
+    // در این حالت اضطراری، برای اینکه بدون استاپ لاس نمانیم، از روش قدیمی (پیدا کردن بالاترین/پایین‌ترین قیمت) استفاده می‌کنیم.
+    Log("هیچ کندل رنگ مخالفی برای استاپ لاس ساده پیدا نشد. از روش سقف/کف مطلق استفاده می‌شود.");
+    
+    // داده‌های سقف و کف کندل‌ها را در آرایه‌ها کپی می‌کنیم.
+    CopyHigh(m_symbol, timeframe, 1, bars_to_check, m_high_buffer);
+    CopyLow(m_symbol, timeframe, 1, bars_to_check, m_low_buffer);
+
+    if(is_buy)
+    {
+       // برای خرید، ایندکس پایین‌ترین کندل را پیدا کرده و قیمت Low آن را برمی‌گردانیم.
+       int min_index = ArrayMinimum(m_low_buffer, 0, bars_to_check);
+       return m_low_buffer[min_index] - buffer;
+    }
+    else
+    {
+       // برای فروش، ایندکس بالاترین کندل را پیدا کرده و قیمت High آن را برمی‌گردانیم.
+       int max_index = ArrayMaximum(m_high_buffer, 0, bars_to_check);
+       return m_high_buffer[max_index] + buffer;
+    }
+}
+
+//+------------------------------------------------------------------+
 //| توابع کمکی دیگر                                                  |
 //+------------------------------------------------------------------+
 void CStrategyManager::Log(string message)
@@ -697,32 +900,30 @@ int CStrategyManager::CountTotalTrades()
 //+------------------------------------------------------------------+
 void CStrategyManager::OpenTrade(bool is_buy)
 {
-    // اگر تعداد معاملات باز به حد مجاز رسیده باشد، از تابع خارج می‌شویم
     if(CountTotalTrades() >= m_settings.max_total_trades || CountSymbolTrades() >= m_settings.max_trades_per_symbol)
     {
         Log("رسیدن به حد مجاز معاملات. معامله جدید باز نشد.");
         return;
     }
 
-    // گرفتن قیمت ورود
     double entry_price = is_buy ? SymbolInfoDouble(m_symbol, SYMBOL_ASK) : SymbolInfoDouble(m_symbol, SYMBOL_BID);
-    
-    // ✅✅✅ اصلاحیه اصلی: فراخوانی تابع CalculateStopLoss با تایم‌فریم انتخابی ✅✅✅
     double sl = CalculateStopLoss(is_buy, entry_price, m_settings.sl_timeframe);
 
-    // اگر محاسبه استاپ لاس با خطا مواجه شد، معامله باز نمی‌شود
     if(sl == 0)
     {
         Log("خطا در محاسبه استاپ لاس. معامله باز نشد.");
         return;
     }
     
+    // ✅✅✅ بخش کلیدی و اصلاح شده ✅✅✅
+
     // --- گام ۱: محاسبه ریسک به ازای هر معامله به پول حساب ---
     double balance = AccountInfoDouble(ACCOUNT_BALANCE);
     double risk_amount = balance * (m_settings.risk_percent_per_trade / 100.0);
 
     // --- گام ۲: محاسبه میزان ضرر برای ۱ لات معامله با این استاپ لاس ---
     double loss_for_one_lot = 0;
+    string base_currency = AccountInfoString(ACCOUNT_CURRENCY);
     // از تابع تخصصی متاتریدر برای این کار استفاده می‌کنیم
     if(!OrderCalcProfit(is_buy ? ORDER_TYPE_BUY : ORDER_TYPE_SELL, m_symbol, 1.0, entry_price, sl, loss_for_one_lot))
     {
@@ -768,18 +969,9 @@ void CStrategyManager::OpenTrade(bool is_buy)
     tp = NormalizeDouble(tp, digits);
     
     string comment = "Memento " + (is_buy ? "Buy" : "Sell");
+    MqlTradeResult result;
     
-    if(is_buy)
-    {
-        m_trade.Buy(lot_size, m_symbol, 0, sl, tp, comment);
-    }
-    else
-    {
-        m_trade.Sell(lot_size, m_symbol, 0, sl, tp, comment);
-    }
-    
-    // لاگ کردن نتیجه
-    if(m_trade.ResultRetcode() == TRADE_RETCODE_DONE)
+    if(m_trade.Buy(lot_size, m_symbol, 0, sl, tp, comment))
     {
         Log("معامله " + comment + " با لات " + DoubleToString(lot_size, 2) + " با موفقیت باز شد.");
     }
@@ -787,6 +979,125 @@ void CStrategyManager::OpenTrade(bool is_buy)
     {
         Log("خطا در باز کردن معامله " + comment + ": " + (string)m_trade.ResultRetcode() + " - " + m_trade.ResultComment());
     }
+}
+
+
+//+------------------------------------------------------------------+
+//| پیدا کردن سطح کیجون سن فلت (صاف)                                  |
+//+------------------------------------------------------------------+
+double CStrategyManager::FindFlatKijun(ENUM_TIMEFRAMES timeframe)
+{
+    int kijun_handle = iIchimoku(m_symbol, timeframe, m_settings.tenkan_period, m_settings.kijun_period, m_settings.senkou_period);
+    if (kijun_handle == INVALID_HANDLE)
+    {
+        Log("خطا در ایجاد هندل ایچیموکو برای FindFlatKijun.");
+        return 0.0;
+    }
+
+    double kijun_values[];
+    if (CopyBuffer(kijun_handle, 1, 1, m_settings.flat_kijun_period, kijun_values) < m_settings.flat_kijun_period)
+    {
+        IndicatorRelease(kijun_handle);
+        return 0.0;
+    }
+    
+    IndicatorRelease(kijun_handle);
+    ArraySetAsSeries(kijun_values, true);
+
+    int flat_count = 1;
+    for (int i = 1; i < m_settings.flat_kijun_period; i++)
+    {
+        if (kijun_values[i] == kijun_values[i - 1])
+        {
+            flat_count++;
+            if (flat_count >= m_settings.flat_kijun_min_length)
+            {
+                return kijun_values[i]; // سطح فلت پیدا شد
+            }
+        }
+        else
+        {
+            flat_count = 1; // ریست کردن شمارنده
+        }
+    }
+
+    return 0.0; // هیچ سطح فلتی پیدا نشد
+}
+
+//+------------------------------------------------------------------+
+//| پیدا کردن پیوت (نقطه چرخش) روی کیجون سن                          |
+//+------------------------------------------------------------------+
+double CStrategyManager::FindPivotKijun(bool is_buy, ENUM_TIMEFRAMES timeframe)
+{
+    int kijun_handle = iIchimoku(m_symbol, timeframe, m_settings.tenkan_period, m_settings.kijun_period, m_settings.senkou_period);
+    if (kijun_handle == INVALID_HANDLE)
+    {
+        Log("خطا در ایجاد هندل ایچیموکو برای FindPivotKijun.");
+        return 0.0;
+    }
+    double kijun_values[];
+    if (CopyBuffer(kijun_handle, 1, 1, m_settings.pivot_lookback, kijun_values) < m_settings.pivot_lookback)
+    {
+        IndicatorRelease(kijun_handle);
+        return 0.0;
+    }
+    
+    IndicatorRelease(kijun_handle);
+    ArraySetAsSeries(kijun_values, true);
+
+    for (int i = 1; i < m_settings.pivot_lookback - 1; i++)
+    {
+        // برای معامله خرید، دنبال یک دره (پیوت کف) می‌گردیم
+        if (is_buy && kijun_values[i] < kijun_values[i - 1] && kijun_values[i] < kijun_values[i + 1])
+        {
+            return kijun_values[i];
+        }
+        // برای معامله فروش، دنبال یک قله (پیوت سقف) می‌گردیم
+        if (!is_buy && kijun_values[i] > kijun_values[i - 1] && kijun_values[i] > kijun_values[i + 1])
+        {
+            return kijun_values[i];
+        }
+    }
+
+    return 0.0; // هیچ پیوتی پیدا نشد
+}
+
+//+------------------------------------------------------------------+
+//| پیدا کردن پیوت (نقطه چرخش) روی تنکان سن                          |
+//+------------------------------------------------------------------+
+double CStrategyManager::FindPivotTenkan(bool is_buy, ENUM_TIMEFRAMES timeframe)
+{
+    int tenkan_handle = iIchimoku(m_symbol, timeframe, m_settings.tenkan_period, m_settings.kijun_period, m_settings.senkou_period);
+    if (tenkan_handle == INVALID_HANDLE)
+    {
+        Log("خطا در ایجاد هندل ایچیموکو برای FindPivotTenkan.");
+        return 0.0;
+    }
+    double tenkan_values[];
+    if (CopyBuffer(tenkan_handle, 0, 1, m_settings.pivot_lookback, tenkan_values) < m_settings.pivot_lookback)
+    {
+        IndicatorRelease(tenkan_handle);
+        return 0.0;
+    }
+    
+    IndicatorRelease(tenkan_handle);
+    ArraySetAsSeries(tenkan_values, true);
+
+    for (int i = 1; i < m_settings.pivot_lookback - 1; i++)
+    {
+        // برای معامله خرید، دنبال یک دره (پیوت کف) می‌گردیم
+        if (is_buy && tenkan_values[i] < tenkan_values[i - 1] && tenkan_values[i] < tenkan_values[i + 1])
+        {
+            return tenkan_values[i];
+        }
+        // برای معامله فروش، دنبال یک قله (پیوت سقف) می‌گردیم
+        if (!is_buy && tenkan_values[i] > tenkan_values[i - 1] && tenkan_values[i] > tenkan_values[i + 1])
+        {
+            return tenkan_values[i];
+        }
+    }
+
+    return 0.0; // هیچ پیوتی پیدا نشد
 }
 
 ////+------------------------------------------------------------------+
@@ -898,251 +1209,36 @@ double CStrategyManager::CalculateAtrTolerance(int reference_shift)
 
 
 //+------------------------------------------------------------------+
-//| (نسخه نهایی با منطق انتخاب بهینه - کاملاً سازگار) محاسبه استاپ لاس |
+//| (نسخه نهایی و ضد ضربه) محاسبه حد ضرر ATR 
 //+------------------------------------------------------------------+
-double CStrategyManager::CalculateStopLoss(bool is_buy, double entry_price, ENUM_TIMEFRAMES timeframe)
-{
-    // اگر کاربر روش ساده یا ATR را انتخاب کرده بود، همان را اجرا کن (بدون تغییر)
-    if (m_settings.stoploss_type == MODE_SIMPLE)
-    {
-        double buffer = m_settings.sl_buffer_multiplier * SymbolInfoDouble(m_symbol, SYMBOL_POINT);
-        // ✅✅✅ اصلاحیه: پاس دادن تایم‌فریم به تابع کمکی ✅✅✅
-        return FindBackupStopLoss(is_buy, buffer, timeframe);
-    }
-    if (m_settings.stoploss_type == MODE_ATR)
-    {
-        // ✅✅✅ اصلاحیه: پاس دادن تایم‌فریم به تابع کمکی ✅✅✅
-        double sl_price = CalculateAtrStopLoss(is_buy, entry_price, timeframe);
-        if (sl_price == 0) // اگر ATR به هر دلیلی جواب نداد
-        {
-            Log("محاسبه ATR SL با خطا مواجه شد. استفاده از روش پشتیبان...");
-            double buffer = m_settings.sl_buffer_multiplier * SymbolInfoDouble(m_symbol, SYMBOL_POINT);
-            // ✅✅✅ اصلاحیه: پاس دادن تایم‌فریم به تابع کمکی ✅✅✅
-            return FindBackupStopLoss(is_buy, buffer, timeframe);
-        }
-        return sl_price;
-    }
-
-    // --- قلب تپنده منطق جدید: انتخاب بهینه (برای MODE_COMPLEX) ---
-
-    Log("شروع فرآیند انتخاب استاپ لاس بهینه...");
-
-    // --- مرحله ۱: تشکیل لیست کاندیداها ---
-    double candidates[];
-    int count = 0;
-    double sl_candidate = 0; // متغیر کمکی برای نگهداری نتیجه هر تابع
-    double buffer = m_settings.sl_buffer_multiplier * SymbolInfoDouble(m_symbol, SYMBOL_POINT);
-    
-    // کاندیدای ۱: کیجون فلت
-    // ✅✅✅ اصلاحیه: پاس دادن تایم‌فریم به تابع کمکی ✅✅✅
-    sl_candidate = FindFlatKijun(timeframe);
-    if (sl_candidate > 0) {
-        ArrayResize(candidates, count + 1);
-        candidates[count] = is_buy ? sl_candidate - buffer : sl_candidate + buffer;
-        count++;
-    }
-    
-    // کاندیدای ۲: پیوت کیجون
-    // ✅✅✅ اصلاحیه: پاس دادن تایم‌فریم به تابع کمکی ✅✅✅
-    sl_candidate = FindPivotKijun(is_buy, timeframe);
-    if (sl_candidate > 0) {
-        ArrayResize(candidates, count + 1);
-        candidates[count] = is_buy ? sl_candidate - buffer : sl_candidate + buffer;
-        count++;
-    }
-
-    // کاندیدای ۳: پیوت تنکان
-    // ✅✅✅ اصلاحیه: پاس دادن تایم‌فریم به تابع کمکی ✅✅✅
-    sl_candidate = FindPivotTenkan(is_buy, timeframe);
-    if (sl_candidate > 0) {
-        ArrayResize(candidates, count + 1);
-        candidates[count] = is_buy ? sl_candidate - buffer : sl_candidate + buffer;
-        count++;
-    }
-
-    // کاندیدای ۴: روش ساده (کندل مخالف)
-    // ✅✅✅ اصلاحیه: پاس دادن تایم‌فریم به تابع کمکی ✅✅✅
-    sl_candidate = FindBackupStopLoss(is_buy, buffer, timeframe);
-    if (sl_candidate > 0) {
-        ArrayResize(candidates, count + 1);
-        candidates[count] = sl_candidate;
-        count++;
-    }
-    
-    // کاندیدای ۵: روش ATR
-    // ✅✅✅ اصلاحیه: پاس دادن تایم‌فریم به تابع کمکی ✅✅✅
-    sl_candidate = CalculateAtrStopLoss(is_buy, entry_price, timeframe);
-    if (sl_candidate > 0) {
-        ArrayResize(candidates, count + 1);
-        candidates[count] = sl_candidate;
-        count++;
-    }
-
-    if (count == 0)
-    {
-        Log("خطا: هیچ کاندیدای اولیه‌ای برای استاپ لاس پیدا نشد.");
-        return 0.0;
-    }
-
-    // --- مرحله ۲: اعتبارسنجی و بهینه‌سازی کاندیداها ---
-    double valid_candidates[];
-    int valid_count = 0;
-    double point = SymbolInfoDouble(m_symbol, SYMBOL_POINT);
-    double spread = (double)SymbolInfoInteger(m_symbol, SYMBOL_SPREAD) * point;
-    double min_safe_distance = spread + buffer; 
-
-    for (int i = 0; i < count; i++)
-    {
-        double current_sl = candidates[i];
-        
-        if ((is_buy && current_sl >= entry_price) || (!is_buy && current_sl <= entry_price))
-        {
-            continue; 
-        }
-
-        if (MathAbs(entry_price - current_sl) < min_safe_distance)
-        {
-            current_sl = is_buy ? entry_price - min_safe_distance : entry_price + min_safe_distance;
-            Log("کاندیدای شماره " + (string)(i+1) + " به دلیل نزدیکی بیش از حد به قیمت " + DoubleToString(current_sl, _Digits) + " اصلاح شد.");
-        }
-
-        ArrayResize(valid_candidates, valid_count + 1);
-        valid_candidates[valid_count] = current_sl;
-        valid_count++;
-    }
-
-    if (valid_count == 0)
-    {
-        Log("خطا: پس از فیلترینگ، هیچ کاندیدای معتبری برای استاپ لاس باقی نماند.");
-        return 0.0;
-    }
-    
-    // --- مرحله ۳: انتخاب نزدیک‌ترین گزینه معتبر ---
-    double best_sl_price = 0.0;
-    double smallest_distance = DBL_MAX;
-
-    for (int i = 0; i < valid_count; i++)
-    {
-        double distance = MathAbs(entry_price - valid_candidates[i]);
-        if (distance < smallest_distance)
-        {
-            smallest_distance = distance;
-            best_sl_price = valid_candidates[i];
-        }
-    }
-
-    Log("✅ استاپ لاس بهینه پیدا شد: " + DoubleToString(best_sl_price, _Digits) + ". فاصله: " + DoubleToString(smallest_distance / point, 1) + " پوینت.");
-
-    return best_sl_price;
-}
-
-
-//+------------------------------------------------------------------+
-//| تابع استاپ لاس پشتیبان (بازنویسی کامل بر اساس منطق رنگ مخالف)   |
-//+------------------------------------------------------------------+
-double CStrategyManager::FindBackupStopLoss(bool is_buy, double buffer, ENUM_TIMEFRAMES timeframe) // ✅✅✅ تغییر در امضا ✅✅✅
-{
-    // تعداد کندلی که می‌خواهیم در گذشته برای پیدا کردن استاپ لاس جستجو کنیم.
-    int bars_to_check = m_settings.sl_lookback_period;
-    
-    // اگر تعداد کندل‌های موجود در چارت کافی نیست، از تابع خارج می‌شویم.
-    if (iBars(m_symbol, timeframe) < bars_to_check + 1) return 0; // ✅✅✅ استفاده از تایم‌فریم جدید ✅✅✅
-    
-    // یک حلقه 'for' می‌سازیم که از کندل شماره ۱ (کندل قبلی) شروع به حرکت به عقب می‌کند.
-    for (int i = 1; i <= bars_to_check; i++)
-    {
-        // رنگ کندلی که در حال بررسی آن هستیم را مشخص می‌کنیم.
-        bool is_candle_bullish = (iClose(m_symbol, timeframe, i) > iOpen(m_symbol, timeframe, i)); // ✅✅✅ استفاده از تایم‌فریم جدید ✅✅✅
-        bool is_candle_bearish = (iClose(m_symbol, timeframe, i) < iOpen(m_symbol, timeframe, i)); // ✅✅✅ استفاده از تایم‌فریم جدید ✅✅✅
-
-        // اگر معامله ما از نوع "خرید" (Buy) باشد...
-        if (is_buy)
-        {
-            // ...پس ما به دنبال اولین کندل با رنگ مخالف، یعنی کندل "نزولی" (Bearish) هستیم.
-            if (is_candle_bearish)
-            {
-                // به محض پیدا کردن اولین کندل نزولی، استاپ لاس را چند پوینت زیر کفِ (Low) همان کندل قرار می‌دهیم.
-                double sl_price = iLow(m_symbol, timeframe, i) - buffer; // ✅✅✅ استفاده از تایم‌فریم جدید ✅✅✅
-                Log("استاپ لاس ساده: اولین کندل نزولی در شیفت " + (string)i + " پیدا شد.");
-                
-                // قیمت محاسبه شده را برمی‌گردانیم و کار تابع تمام می‌شود.
-                return sl_price;
-            }
-        }
-        // اگر معامله ما از نوع "فروش" (Sell) باشد...
-        else // is_sell
-        {
-            // ...پس ما به دنبال اولین کندل با رنگ مخالف، یعنی کندل "صعودی" (Bullish) هستیم.
-            if (is_candle_bullish)
-            {
-                // به محض پیدا کردن اولین کندل صعودی، استاپ لاس را چند پوینت بالای سقفِ (High) همان کندل قرار می‌دهیم.
-                double sl_price = iHigh(m_symbol, timeframe, i) + buffer; // ✅✅✅ استفاده از تایم‌فریم جدید ✅✅✅
-                Log("استاپ لاس ساده: اولین کندل صعودی در شیفت " + (string)i + " پیدا شد.");
-                
-                // قیمت محاسبه شده را برمی‌گردانیم و کار تابع تمام می‌شود.
-                return sl_price;
-            }
-        }
-    }
-    
-    // --- بخش پشتیبانِ پشتیبان ---
-    // اگر حلقه 'for' تمام شود و کد به اینجا برسد، یعنی در کل بازه مورد بررسی، هیچ کندل رنگ مخالفی پیدا نشده است.
-    Log("هیچ کندل رنگ مخالفی برای استاپ لاس ساده پیدا نشد. از روش سقف/کف مطلق استفاده می‌شود.");
-    
-    // داده‌های سقف و کف کندل‌ها را در آرایه‌ها کپی می‌کنیم.
-    CopyHigh(m_symbol, timeframe, 1, bars_to_check, m_high_buffer); // ✅✅✅ استفاده از تایم‌فریم جدید ✅✅✅
-    CopyLow(m_symbol, timeframe, 1, bars_to_check, m_low_buffer); // ✅✅✅ استفاده از تایم‌فریم جدید ✅✅✅
-
-    if(is_buy)
-    {
-       // برای خرید، ایندکس پایین‌ترین کندل را پیدا کرده و قیمت Low آن را برمی‌گردانیم.
-       int min_index = ArrayMinimum(m_low_buffer, 0, bars_to_check);
-       return m_low_buffer[min_index] - buffer;
-    }
-    else
-    {
-       // برای فروش، ایندکس بالاترین کندل را پیدا کرده و قیمت High آن را برمی‌گردانیم.
-       int max_index = ArrayMaximum(m_high_buffer, 0, bars_to_check);
-       return m_high_buffer[max_index] + buffer;
-    }
-}
-
-
-//+------------------------------------------------------------------+
-//| (نسخه نهایی و ضد ضربه) محاسبه حد ضرر ATR                          |
-//+------------------------------------------------------------------+
-double CStrategyManager::CalculateAtrStopLoss(bool is_buy, double entry_price, ENUM_TIMEFRAMES timeframe) // ✅✅✅ تغییر در امضا ✅✅✅
+double CStrategyManager::CalculateAtrStopLoss(bool is_buy, double entry_price, ENUM_TIMEFRAMES timeframe)
 {
     // اگر حالت پویای SL (رژیم نوسان) غیرفعال باشد، از منطق ساده قبلی استفاده کن
     if (!m_settings.enable_sl_vol_regime)
     {
-        // هندل ATR قبلا با تایم‌فریم فیلتر مقداردهی شده، پس باید یک هندل جدید برای تایم‌فریم SL بسازیم
-        int atr_sl_handle = iATR(m_symbol, timeframe, m_settings.atr_filter_period); // ✅✅✅ استفاده از تایم‌فریم جدید ✅✅✅
-        if (atr_sl_handle == INVALID_HANDLE)
+        // ✅✅✅ بادیگARD شماره ۱: بررسی اعتبار هندل ✅✅✅
+        if (m_atr_handle == INVALID_HANDLE)
         {
-            Log("خطای بحرانی در CalculateAtrStopLoss: هندل ATR نامعتبر است!");
-            return 0.0;
+            Log("خطای بحرانی در CalculateAtrStopLoss: هندل ATR نامعتبر است! پریود ATR در تنظیمات ورودی را بررسی کنید.");
+            return 0.0; // بازگشت امن برای جلوگیری از باز شدن معامله
         }
         
         double atr_buffer[];
-        if(CopyBuffer(atr_sl_handle, 0, 1, 1, atr_buffer) < 1)
+        if(CopyBuffer(m_atr_handle, 0, 1, 1, atr_buffer) < 1)
         {
-            Log("داده ATR برای محاسبه حد ضرر ساده موجود نیست.");
-            IndicatorRelease(atr_sl_handle);
+            Log("داده ATR برای محاسبه حد ضرر ساده موجود نیست. (تابع CopyBuffer شکست خورد)");
             return 0.0;
         }
-        IndicatorRelease(atr_sl_handle); // هندل را آزاد می‌کنیم
         
         double atr_value = atr_buffer[0];
         return is_buy ? entry_price - (atr_value * m_settings.sl_atr_multiplier) : entry_price + (atr_value * m_settings.sl_atr_multiplier);
     }
 
-    // --- منطق جدید: SL پویا بر اساس رژیم نوسان ---
+    // --- منطق جدید: SL پویا بر اساس رژیم نوسان (این بخش هندل جداگانه خود را دارد و ایمن است) ---
     int history_size = m_settings.sl_vol_regime_ema_period + 5;
     double atr_values[], ema_values[];
 
-    // ✅✅✅ اصلاحیه: هندل ATR را با تایم‌فریم جدید می‌سازیم ✅✅✅
-    int atr_sl_handle = iATR(m_symbol, timeframe, m_settings.sl_vol_regime_atr_period); 
+    int atr_sl_handle = iATR(m_symbol, timeframe, m_settings.sl_vol_regime_atr_period);
     if (atr_sl_handle == INVALID_HANDLE || CopyBuffer(atr_sl_handle, 0, 0, history_size, atr_values) < history_size)
     {
         Log("داده کافی برای محاسبه SL پویا موجود نیست.");
@@ -1171,132 +1267,74 @@ double CStrategyManager::CalculateAtrStopLoss(bool is_buy, double entry_price, E
     return is_buy ? entry_price - (current_atr * final_multiplier) : entry_price + (current_atr * final_multiplier);
 }
 
-
 //+------------------------------------------------------------------+
-//| پیدا کردن سطح کیجون سن فلت (صاف)                                  |
+//  تابع اصلی "گیت کنترل نهایی" که تمام فیلترها را چک می‌کند
 //+------------------------------------------------------------------+
-double CStrategyManager::FindFlatKijun(ENUM_TIMEFRAMES timeframe) // ✅✅✅ تغییر در امضا ✅✅✅
+bool CStrategyManager::AreAllFiltersPassed(bool is_buy)
 {
-    double kijun_values[];
-    // هندل ایچیموکو را با تایم‌فریم جدید می‌سازیم
-    int ichi_handle = iIchimoku(m_symbol, timeframe, m_settings.tenkan_period, m_settings.kijun_period, m_settings.senkou_period);
-    if (ichi_handle == INVALID_HANDLE || CopyBuffer(ichi_handle, 1, 1, m_settings.flat_kijun_period, kijun_values) < m_settings.flat_kijun_period)
+    // ✅✅✅ اصلاحیه: اینجا تایم‌فریم رو به توابع فیلتر پاس بده ✅✅✅
+    ENUM_TIMEFRAMES timeframe = m_settings.filter_timeframe;
+
+    if (m_settings.enable_kumo_filter)
     {
-        if(ichi_handle != INVALID_HANDLE) IndicatorRelease(ichi_handle);
-        return 0.0;
+        if (!CheckKumoFilter(is_buy, timeframe))
+        {
+            Log("فیلتر کومو رد شد.");
+            return false;
+        }
     }
-    IndicatorRelease(ichi_handle);
+
+    if (m_settings.enable_atr_filter)
+    {
+        if (!CheckAtrFilter(timeframe))
+        {
+            Log("فیلتر ATR رد شد.");
+            return false;
+        }
+    }
     
-    ArraySetAsSeries(kijun_values, true);
-
-    int flat_count = 1;
-    for (int i = 1; i < m_settings.flat_kijun_period; i++)
+    if (m_settings.enable_adx_filter)
     {
-        if (kijun_values[i] == kijun_values[i - 1])
+        if (!CheckAdxFilter(is_buy, timeframe))
         {
-            flat_count++;
-            if (flat_count >= m_settings.flat_kijun_min_length)
-            {
-                return kijun_values[i];
-            }
-        }
-        else
-        {
-            flat_count = 1;
+            Log("فیلتر ADX رد شد.");
+            return false;
         }
     }
-    return 0.0;
+    
+    Log("✅ تمام فیلترهای فعال با موفقیت پاس شدند.");
+    return true;
 }
 
-//+------------------------------------------------------------------+
-//| پیدا کردن پیوت (نقطه چرخش) روی کیجون سن                          |
-//+------------------------------------------------------------------+
-double CStrategyManager::FindPivotKijun(bool is_buy, ENUM_TIMEFRAMES timeframe) // ✅✅✅ تغییر در امضا ✅✅✅
+
+//==================================================================
+//  تابع کمکی برای بررسی فیلتر ابر کومو
+//==================================================================
+bool CStrategyManager::CheckKumoFilter(bool is_buy, ENUM_TIMEFRAMES timeframe)
 {
-    double kijun_values[];
-    int ichi_handle = iIchimoku(m_symbol, timeframe, m_settings.tenkan_period, m_settings.kijun_period, m_settings.senkou_period);
-    if (ichi_handle == INVALID_HANDLE || CopyBuffer(ichi_handle, 1, 1, m_settings.pivot_lookback, kijun_values) < m_settings.pivot_lookback)
+    int ichimoku_handle = iIchimoku(m_symbol, timeframe, m_settings.tenkan_period, m_settings.kijun_period, m_settings.senkou_period);
+    if(ichimoku_handle == INVALID_HANDLE)
     {
-        if(ichi_handle != INVALID_HANDLE) IndicatorRelease(ichi_handle);
-        return 0.0;
+        Log("خطا: هندل ایچیموکو برای فیلتر کومو نامعتبر است.");
+        return false;
     }
-    IndicatorRelease(ichi_handle);
-
-    ArraySetAsSeries(kijun_values, true);
-
-    for (int i = 1; i < m_settings.pivot_lookback - 1; i++)
-    {
-        if (is_buy && kijun_values[i] < kijun_values[i - 1] && kijun_values[i] < kijun_values[i + 1])
-        {
-            return kijun_values[i];
-        }
-        if (!is_buy && kijun_values[i] > kijun_values[i - 1] && kijun_values[i] > kijun_values[i + 1])
-        {
-            return kijun_values[i];
-        }
-    }
-    return 0.0;
-}
-
-//+------------------------------------------------------------------+
-//| پیدا کردن پیوت (نقطه چرخش) روی تنکان سن                          |
-//+------------------------------------------------------------------+
-double CStrategyManager::FindPivotTenkan(bool is_buy, ENUM_TIMEFRAMES timeframe) // ✅✅✅ تغییر در امضا ✅✅✅
-{
-    double tenkan_values[];
-    int ichi_handle = iIchimoku(m_symbol, timeframe, m_settings.tenkan_period, m_settings.kijun_period, m_settings.senkou_period);
-    if (ichi_handle == INVALID_HANDLE || CopyBuffer(ichi_handle, 0, 1, m_settings.pivot_lookback, tenkan_values) < m_settings.pivot_lookback)
-    {
-        if(ichi_handle != INVALID_HANDLE) IndicatorRelease(ichi_handle);
-        return 0.0;
-    }
-    IndicatorRelease(ichi_handle);
-
-    ArraySetAsSeries(tenkan_values, true);
-
-    for (int i = 1; i < m_settings.pivot_lookback - 1; i++)
-    {
-        if (is_buy && tenkan_values[i] < tenkan_values[i - 1] && tenkan_values[i] < tenkan_values[i + 1])
-        {
-            return tenkan_values[i];
-        }
-        if (!is_buy && tenkan_values[i] > tenkan_values[i - 1] && tenkan_values[i] > tenkan_values[i + 1])
-        {
-            return tenkan_values[i];
-        }
-    }
-    return 0.0;
-}
-
-//+------------------------------------------------------------------+
-//| (نسخه نهایی و ضد ضربه) تابع کمکی برای بررسی فیلتر ابر کومو
-//+------------------------------------------------------------------+
-bool CStrategyManager::CheckKumoFilter(bool is_buy, ENUM_TIMEFRAMES timeframe) // ✅✅✅ تغییر در امضا ✅✅✅
-{
-    // اگر فیلتر کومو فعال نبود، همیشه true برمی‌گرداند تا بقیه سیستم به کارش ادامه دهد.
-    if (!m_settings.enable_kumo_filter)
-    {
-        return true;
-    }
-
+    
     double senkou_a[], senkou_b[];
-    // هندل ایچیموکو را با تایم‌فریم انتخابی کاربر می‌سازیم
-    int ichi_handle = iIchimoku(m_symbol, timeframe, m_settings.tenkan_period, m_settings.kijun_period, m_settings.senkou_period);
-    
-    // گرفتن مقادیر سنکو A و B برای کندل فعلی (شیفت ۰)
-    if(ichi_handle == INVALID_HANDLE || CopyBuffer(ichi_handle, 2, 0, 1, senkou_a) < 1 || 
-       CopyBuffer(ichi_handle, 3, 0, 1, senkou_b) < 1)
+    // گرفتن مقدار سنکو A و B برای کندل فعلی (شیفت ۰)
+    // بافر 2 = Senkou Span A , بافر 3 = Senkou Span B
+    if(CopyBuffer(ichimoku_handle, 2, 0, 1, senkou_a) < 1 || 
+       CopyBuffer(ichimoku_handle, 3, 0, 1, senkou_b) < 1)
     {
        Log("خطا: داده کافی برای فیلتر کومو موجود نیست.");
-       if(ichi_handle != INVALID_HANDLE) IndicatorRelease(ichi_handle);
-       return false; // اگر داده نباشد، فیلتر رد می‌شود
+       IndicatorRelease(ichimoku_handle);
+       return false; // اگر داده نباشه، برای امنیت رد کن
     }
     
-    IndicatorRelease(ichi_handle);
-    
+    IndicatorRelease(ichimoku_handle);
+
     double high_kumo = MathMax(senkou_a[0], senkou_b[0]);
     double low_kumo = MathMin(senkou_a[0], senkou_b[0]);
-    double close_price = iClose(m_symbol, timeframe, 1); // قیمت بسته شدن کندل تاییدیه
+    double close_price = iClose(m_symbol, m_settings.ichimoku_timeframe, 1); // قیمت بسته شدن کندل تاییدیه
 
     if (is_buy)
     {
@@ -1310,23 +1348,16 @@ bool CStrategyManager::CheckKumoFilter(bool is_buy, ENUM_TIMEFRAMES timeframe) /
     }
 }
 
-//+------------------------------------------------------------------+
-//| (نسخه نهایی و ضد ضربه) تابع کمکی برای بررسی فیلتر ATR
-//+------------------------------------------------------------------+
-bool CStrategyManager::CheckAtrFilter(ENUM_TIMEFRAMES timeframe) // ✅✅✅ تغییر در امضا ✅✅✅
+//==================================================================
+//  (نسخه نهایی و ضد ضربه) تابع کمکی برای بررسی فیلتر ATR
+//==================================================================
+bool CStrategyManager::CheckAtrFilter(ENUM_TIMEFRAMES timeframe)
 {
-    // اگر فیلتر ATR فعال نبود، همیشه true برمی‌گرداند
-    if (!m_settings.enable_atr_filter)
-    {
-        return true;
-    }
-
-    // یک هندل ATR جدید با تایم‌فریم انتخابی می‌سازیم
     int atr_handle = iATR(m_symbol, timeframe, m_settings.atr_filter_period);
-    if (atr_handle == INVALID_HANDLE)
+    if(atr_handle == INVALID_HANDLE)
     {
-        Log("فیلتر ATR رد شد چون هندل آن نامعتبر است.");
-        return false;
+        Log("فیلتر ATR رد شد چون هندل آن نامعتبر است. پریود ATR در تنظیمات ورودی را بررسی کنید.");
+        return false; // بازگشت امن، فیلتر رد می‌شود
     }
     
     double atr_value_buffer[];
@@ -1338,13 +1369,12 @@ bool CStrategyManager::CheckAtrFilter(ENUM_TIMEFRAMES timeframe) // ✅✅✅ ت
     }
     
     IndicatorRelease(atr_handle);
-    
+
     double current_atr = atr_value_buffer[0];
     
     double point = SymbolInfoDouble(m_symbol, SYMBOL_POINT);
     double min_atr_threshold = m_settings.atr_filter_min_value_pips * point;
     
-    // برای جفت‌ارزهای ۵ رقمی (و ۳ رقمی)، مقدار پیپ را در ۱۰ ضرب می‌کنیم
     if(_Digits == 3 || _Digits == 5)
     {
         min_atr_threshold *= 10;
@@ -1353,29 +1383,28 @@ bool CStrategyManager::CheckAtrFilter(ENUM_TIMEFRAMES timeframe) // ✅✅✅ ت
     return (current_atr >= min_atr_threshold);
 }
 
-//+------------------------------------------------------------------+
-//| (جدید) تابع کمکی برای بررسی فیلتر قدرت و جهت روند ADX
-//+------------------------------------------------------------------+
-bool CStrategyManager::CheckAdxFilter(bool is_buy, ENUM_TIMEFRAMES timeframe) // ✅✅✅ تغییر در امضا ✅✅✅
+//==================================================================
+//  (جدید) تابع کمکی برای بررسی فیلتر قدرت و جهت روند ADX
+//==================================================================
+bool CStrategyManager::CheckAdxFilter(bool is_buy, ENUM_TIMEFRAMES timeframe) 
 {  
-    // اگر فیلتر ADX فعال نبود، همیشه true برمی‌گرداند
-    if (!m_settings.enable_adx_filter)
+    int adx_handle = iADX(m_symbol, timeframe, m_settings.adx_period);
+    if(adx_handle == INVALID_HANDLE)
     {
-        return true;
+        Log("فیلتر ADX رد شد چون هندل آن نامعتبر است. دوره ADX در تنظیمات ورودی را بررسی کنید.");
+        return false;
     }
 
     double adx_buffer[1], di_plus_buffer[1], di_minus_buffer[1];  
     
-    // یک هندل ADX جدید با تایم‌فریم انتخابی می‌سازیم
-    int adx_handle = iADX(m_symbol, timeframe, m_settings.adx_period);
-    
-    if (adx_handle == INVALID_HANDLE || CopyBuffer(adx_handle, 0, 1, 1, adx_buffer) < 1 || 
+    // از هندل از پیش ساخته شده کلاس استفاده می‌کنیم (بهینه)
+    if (CopyBuffer(adx_handle, 0, 1, 1, adx_buffer) < 1 || 
         CopyBuffer(adx_handle, 1, 1, 1, di_plus_buffer) < 1 || 
         CopyBuffer(adx_handle, 2, 1, 1, di_minus_buffer) < 1)
     {
         Log("داده کافی برای فیلتر ADX موجود نیست.");
-        if(adx_handle != INVALID_HANDLE) IndicatorRelease(adx_handle);
-        return false;
+        IndicatorRelease(adx_handle);
+        return false; // برای امنیت، اگر داده نباشد فیلتر رد می‌شود
     }
     
     IndicatorRelease(adx_handle);
@@ -1389,10 +1418,116 @@ bool CStrategyManager::CheckAdxFilter(bool is_buy, ENUM_TIMEFRAMES timeframe) //
     // شرط ۲: آیا جهت روند با جهت سیگنال ما یکی است؟
     if (is_buy)
     {
-        return (di_plus_buffer[0] > di_minus_buffer[0]);
+        return (di_plus_buffer[0] > di_minus_buffer[0]); // برای خرید، DI+ باید بالای DI- باشد
     }
-    else
+    else // is_sell
     {
-        return (di_minus_buffer[0] > di_plus_buffer[0]);
+        return (di_minus_buffer[0] > di_plus_buffer[0]); // برای فروش، DI- باید بالای DI+ باشد
     }
+}
+//+------------------------------------------------------------------+
+//| (جدید) تابع اصلی برای مدیریت خروج زودرس
+//+------------------------------------------------------------------+
+void CStrategyManager::CheckForEarlyExit()
+{
+    // از آخر به اول روی پوزیشن ها حلقه میزنیم چون ممکن است یکی بسته شود
+    for (int i = PositionsTotal() - 1; i >= 0; i--) 
+    {
+        ulong ticket = PositionGetTicket(i);
+        // فقط پوزیشن های مربوط به همین اکسپرت و همین نماد را بررسی میکنیم
+        if (PositionGetString(POSITION_SYMBOL) == m_symbol && PositionGetInteger(POSITION_MAGIC) == (long)m_settings.magic_number)
+        {
+            if (PositionSelectByTicket(ticket))
+            {
+                bool is_buy = (PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY);
+                // آیا شرایط خروج زودرس فراهم است؟
+                if (CheckChikouRsiExit(is_buy)) 
+                { 
+                    Log("🚨 سیگنال خروج زودرس برای تیکت " + (string)ticket + " صادر شد. بستن معامله...");
+                    m_trade.PositionClose(ticket); 
+                }
+            }
+        }
+    }
+}
+
+//+------------------------------------------------------------------+
+//| (جدید) تابع کمکی برای بررسی منطق خروج چیکو + RSI
+//+------------------------------------------------------------------+
+bool CStrategyManager::CheckChikouRsiExit(bool is_buy)
+{
+    // گرفتن داده های لازم از کندل تایید (کندل شماره ۱)
+    double chikou_price = iClose(m_symbol, m_settings.ichimoku_timeframe, 1);
+    
+    double tenkan_buffer[1], kijun_buffer[1], rsi_buffer[1];
+    if(CopyBuffer(m_ichimoku_handle, 0, 1, 1, tenkan_buffer) < 1 ||
+       CopyBuffer(m_ichimoku_handle, 1, 1, 1, kijun_buffer) < 1 ||
+       CopyBuffer(m_rsi_exit_handle, 0, 1, 1, rsi_buffer) < 1)
+    {
+        return false; // اگر داده نباشد، خروجی در کار نیست
+    }
+    
+    double tenkan = tenkan_buffer[0];
+    double kijun = kijun_buffer[0];
+    double rsi = rsi_buffer[0];
+    
+    bool chikou_cross_confirms_exit = false;
+    bool rsi_confirms_exit = false;
+
+    if (is_buy) // برای یک معامله خرید، به دنبال سیگنال خروج نزولی هستیم
+    {
+        // شرط ۱: آیا قیمت (چیکو) به زیر خطوط تنکان و کیجون کراس کرده؟
+        chikou_cross_confirms_exit = (chikou_price < MathMin(tenkan, kijun));
+        // شرط ۲: آیا RSI هم از دست رفتن مومنتوم صعودی را تایید میکند؟
+        rsi_confirms_exit = (rsi < m_settings.early_exit_rsi_oversold);
+    }
+    else // برای یک معامله فروش، به دنبال سیگنال خروج صعودی هستیم
+    {
+        // شرط ۱: آیا قیمت (چیکو) به بالای خطوط تنکان و کیجون کراس کرده؟
+        chikou_cross_confirms_exit = (chikou_price > MathMax(tenkan, kijun));
+        // شرط ۲: آیا RSI هم از دست رفتن مومنتوم نزولی را تایید میکند؟
+        rsi_confirms_exit = (rsi > m_settings.early_exit_rsi_overbought);
+    }
+    
+    // اگر هر دو شرط برقرار باشند، سیگنال خروج صادر میشود
+    return (chikou_cross_confirms_exit && rsi_confirms_exit);
+}
+
+
+//+------------------------------------------------------------------+
+//| (جدید) بررسی تاییدیه نهایی با شکست ساختار در تایم فریم پایین      |
+//+------------------------------------------------------------------+
+bool CStrategyManager::CheckLowerTfConfirmation(bool is_buy)
+{
+    // کتابخانه تحلیل ساختار را روی کندل جدید اجرا کن
+    SMssSignal mss_signal = m_ltf_analyzer.ProcessNewBar();
+
+    // اگر هیچ سیگنالی در تایم فریم پایین پیدا نشد، تاییدیه رد می‌شود
+    if(mss_signal.type == MSS_NONE)
+    {
+        return false;
+    }
+
+    // اگر سیگنال اصلی ما "خرید" است...
+    if (is_buy)
+    {
+        // ...ما دنبال یک شکست صعودی در تایم فریم پایین هستیم
+        if (mss_signal.type == MSS_BREAK_HIGH || mss_signal.type == MSS_SHIFT_UP)
+        {
+            Log("✅ تاییدیه تایم فریم پایین برای خرید دریافت شد (CHoCH).");
+            return true; // تایید شد!
+        }
+    }
+    else // اگر سیگنال اصلی ما "فروش" است...
+    {
+        // ...ما دنبال یک شکست نزولی در تایم فریم پایین هستیم
+        if (mss_signal.type == MSS_BREAK_LOW || mss_signal.type == MSS_SHIFT_DOWN)
+        {
+            Log("✅ تاییدیه تایم فریم پایین برای فروش دریافت شد (CHoCH).");
+            return true; // تایید شد!
+        }
+    }
+
+    // اگر سیگنال تایم فریم پایین در جهت سیگنال اصلی ما نبود، تاییدیه رد می‌شود
+    return false;
 }
