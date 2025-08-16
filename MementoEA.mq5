@@ -30,35 +30,29 @@ bool              g_dashboard_needs_update = true; // پرچم برای آپدی
 CTrailingStopManager TrailingStop;
 
 
-
 //+------------------------------------------------------------------+
-//| تابع مقداردهی اولیه اکسپرت                                     |
-//+------------------------------------------------------------------+
-//+------------------------------------------------------------------+
-//| تابع مقداردهی اولیه اکسپرت (هماهنگ شده با set.mqh نسخه 8.1)       |
+//| تابع مقداردهی اولیه اکسپرت (هماهنگ شده با set.mqh نسخه 8.2)       |
 //+------------------------------------------------------------------+
 int OnInit()
 {
-    //--- بخش مقداردهی اولیه تنظیمات ---
-
     // --- 1. تنظیمات عمومی ---
     g_settings.enable_dashboard           = Inp_Enable_Dashboard;
     g_settings.symbols_list                 = Inp_Symbols_List;
     g_settings.magic_number                 = Inp_Magic_Number;
     g_settings.enable_logging               = Inp_Enable_Logging;
 
-    // --- 2. تنظیمات ایچیموکو ---
+    // --- 2. تنظیمات ایچیموکو (✅ با نام‌های جدید هماهنگ شد) ---
     g_settings.ichimoku_timeframe           = Inp_Ichimoku_Timeframe;
-    g_settings.tenkan_period                = Inp_Tenkan_Period;
-    g_settings.kijun_period                 = Inp_Kijun_Period;
-    g_settings.senkou_period                = Inp_Senkou_Period;
-    g_settings.chikou_period                = Inp_Chikou_Period;
+    g_settings.tenkan                       = Inp_Tenkan_Period;
+    g_settings.kijun                        = Inp_Kijun_Period;
+    g_settings.senkou                       = Inp_Senkou_Period;
+    g_settings.chikou                       = Inp_Chikou_Period;
 
-    // --- 3. تنظیمات سیگنال و تاییدیه ---
+    // --- 3. تنظیمات سیگنال و تاییدیه (✅ با نام‌های جدید هماهنگ شد) ---
     g_settings.signal_mode                  = Inp_Signal_Mode;
     g_settings.entry_confirmation_mode      = Inp_Entry_Confirmation_Mode;
-    g_settings.grace_period_mode            = Inp_Grace_Period_Mode;
-    g_settings.grace_period_candles         = Inp_Grace_Period_Candles;
+    g_settings.grace_mode                   = Inp_Grace_Period_Mode;
+    g_settings.grace_candles                = Inp_Grace_Period_Candles;
     g_settings.confirmation_type            = Inp_Confirmation_Type;
     g_settings.ltf_timeframe                = Inp_LTF_Timeframe;
     g_settings.talaqi_calculation_mode      = Inp_Talaqi_Calculation_Mode;
@@ -66,20 +60,20 @@ int OnInit()
     g_settings.talaqi_distance_in_points    = Inp_Talaqi_Distance_in_Points;
     g_settings.talaqi_kumo_factor           = Inp_Talaqi_Kumo_Factor;
 
-    // --- 4. تنظیمات حد ضرر (SL) ---
+    // --- 4. تنظیمات حد ضرر (SL) (✅ با نام‌های جدید هماهنگ شد) ---
     g_settings.stoploss_type                = Inp_StopLoss_Type;
-    g_settings.sl_timeframe_source          = Inp_SL_Timeframe_Source; // ✅ آپدیت شد
+    g_settings.sl_timeframe_source          = Inp_SL_Timeframe_Source;
     g_settings.sl_atr_multiplier            = Inp_SL_ATR_Multiplier;
-    g_settings.flat_kijun_period            = Inp_Flat_Kijun_Period;
+    g_settings.flat_kijun                   = Inp_Flat_Kijun_Period;
     g_settings.flat_kijun_min_length        = Inp_Flat_Kijun_Min_Length;
     g_settings.pivot_lookback               = Inp_Pivot_Lookback;
-    g_settings.sl_lookback_period           = Inp_SL_Lookback_Period;
+    g_settings.sl_lookback                  = Inp_SL_Lookback_Period;
     g_settings.sl_buffer_multiplier         = Inp_SL_Buffer_Multiplier;
     
-    // --- 4.1. تنظیمات SL پویا ---
+    // --- 4.1. تنظیمات SL پویا (✅ با نام‌های جدید هماهنگ شد) ---
     g_settings.enable_sl_vol_regime         = Inp_Enable_SL_Vol_Regime;
-    g_settings.sl_vol_regime_atr_period     = Inp_SL_Vol_Regime_ATR_Period;
-    g_settings.sl_vol_regime_ema_period     = Inp_SL_Vol_Regime_EMA_Period;
+    g_settings.sl_vol_regime_atr            = Inp_SL_Vol_Regime_ATR_Period;
+    g_settings.sl_vol_regime_ema            = Inp_SL_Vol_Regime_EMA_Period;
     g_settings.sl_high_vol_multiplier       = Inp_SL_High_Vol_Multiplier;
     g_settings.sl_low_vol_multiplier        = Inp_SL_Low_Vol_Multiplier;
 
@@ -94,24 +88,24 @@ int OnInit()
     g_settings.bullish_color                = Inp_Bullish_Color;
     g_settings.bearish_color                = Inp_Bearish_Color;
     
-    // --- 7. تنظیمات فیلترهای ورود ---
-    g_settings.filter_timeframe_source      = Inp_Filter_Timeframe_Source; // ✅ آپدیت شد
+    // --- 7. تنظیمات فیلترهای ورود (✅ با نام‌های جدید هماهنگ شد) ---
+    g_settings.filter_timeframe_source      = Inp_Filter_Timeframe_Source;
     g_settings.enable_kumo_filter           = Inp_Enable_Kumo_Filter;
     g_settings.enable_atr_filter            = Inp_Enable_ATR_Filter;
-    g_settings.atr_filter_period            = Inp_ATR_Filter_Period;
+    g_settings.atr_filter                   = Inp_ATR_Filter_Period;
     g_settings.atr_filter_min_value_pips    = Inp_ATR_Filter_Min_Value_pips;
     g_settings.enable_adx_filter            = Inp_Enable_ADX_Filter;
-    g_settings.adx_period                   = Inp_ADX_Period;
+    g_settings.adx                          = Inp_ADX_Period;
     g_settings.adx_threshold                = Inp_ADX_Threshold;
 
-    // --- 8. تنظیمات منطق خروج ---
+    // --- 8. تنظیمات منطق خروج (✅ با نام‌های جدید هماهنگ شد) ---
     g_settings.enable_early_exit            = Inp_Enable_Early_Exit;
-    g_settings.early_exit_rsi_period        = Inp_Early_Exit_RSI_Period;
+    g_settings.early_exit_rsi               = Inp_Early_Exit_RSI_Period;
     g_settings.early_exit_rsi_overbought    = Inp_Early_Exit_RSI_Overbought;
     g_settings.early_exit_rsi_oversold      = Inp_Early_Exit_RSI_Oversold;
 
 
-    //--- پردازش لیست نمادها و ساخت مدیران استراتژی ---
+    //--- پردازش لیست نمادها و ساخت مدیران استراتژی (بدون تغییر) ---
     int symbols_count = StringSplit(g_settings.symbols_list, ',', g_symbols_array);
     if (symbols_count == 0) {
         Print("خطا: هیچ نمادی برای معامله مشخص نشده است.");
@@ -121,11 +115,8 @@ int OnInit()
     ArrayResize(g_symbol_managers, symbols_count);
     for (int i = 0; i < symbols_count; i++) {
         string sym = g_symbols_array[i];
-        StringTrimLeft(sym);
-        StringTrimRight(sym);
-
+        StringTrimLeft(sym); StringTrimRight(sym);
         g_symbol_managers[i] = new CStrategyManager(sym, g_settings);
-
         if (!g_symbol_managers[i].Init()) {
             Print("مقداردهی اولیه نماد ", sym, " با خطا مواجه شد. عملیات متوقف می‌شود.");
             for (int j = 0; j <= i; j++) {
@@ -139,9 +130,7 @@ int OnInit()
     }
 
     Print("اکسپرت Memento با موفقیت برای نمادهای زیر مقداردهی اولیه شد: ", g_settings.symbols_list);
-    
     TrailingStop.Init(g_settings.magic_number);
-
     EventSetTimer(1);
     return(INIT_SUCCEEDED);
 }
