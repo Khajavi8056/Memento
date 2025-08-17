@@ -39,8 +39,15 @@ struct SMssSignal
     
     SMssSignal() { Reset(); }
     void Reset() { type=MSS_NONE; break_price=0.0; break_time=0; swing_bar_index=0; }
-};
 
+SMssSignal(const SMssSignal &other)
+{
+    type = other.type;
+    break_price = other.break_price;
+    break_time = other.break_time; // <-- اصلاح شد
+    swing_bar_index = other.swing_bar_index;
+}
+};
 //+------------------------------------------------------------------+
 //|   کلاس اصلی کتابخانه: جعبه سیاه تشخیص شکست ساختار                 |
 //+------------------------------------------------------------------+
