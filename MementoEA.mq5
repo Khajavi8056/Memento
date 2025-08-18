@@ -43,6 +43,7 @@ int OnInit() {
     g_settings.chikou_period                = Inp_Chikou_Period; // کپی دوره چیکو
 
     // 3. تنظیمات سیگنال و تاییدیه
+    g_settings.primary_strategy             = Inp_Primary_Strategy; // <<<< اضافه شود
     g_settings.signal_mode                  = Inp_Signal_Mode; // کپی حالت سیگنال
     g_settings.entry_confirmation_mode      = Inp_Entry_Confirmation_Mode; // ✅ اضافه شد
     g_settings.grace_period_mode            = Inp_Grace_Period_Mode; // ✅ اضافه شد
@@ -91,6 +92,10 @@ int OnInit() {
     g_settings.enable_adx_filter            = Inp_Enable_ADX_Filter; // کپی فعال کردن ADX
     g_settings.adx_period                   = Inp_ADX_Period; // کپی دوره ADX
     g_settings.adx_threshold                = Inp_ADX_Threshold; // کپی آستانه ADX
+
+    g_settings.enable_kijun_slope_filter    = Inp_Enable_KijunSlope_Filter;    // <<<< اضافه شود
+    g_settings.enable_kumo_expansion_filter = Inp_Enable_KumoExpansion_Filter; // <<<< اضافه شود
+    g_settings.enable_chikou_space_filter   = Inp_Enable_ChikouSpace_Filter;   // <<<< اضافه شود
 
     // 8. <<< بخش اضافه شده برای خروج زودرس >>>
     g_settings.enable_early_exit            = Inp_Enable_Early_Exit; // کپی فعال کردن خروج زودرس
