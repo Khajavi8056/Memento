@@ -1823,7 +1823,7 @@ bool CStrategyManager::IsKumoExpanding(ENUM_TIMEFRAMES timeframe, int period)
     }
 
     double sma_thickness[];
-    SimpleMAOnBuffer(period, 0, 0, thickness, sma_thickness);
+    SimpleMAOnBuffer(period, 0, 0,0, thickness, sma_thickness);// اینجا برسی شود که ایا درست است 
 
     ArraySetAsSeries(sma_thickness, true);
     return (sma_thickness[0] > sma_thickness[1]); // چک افزایش
