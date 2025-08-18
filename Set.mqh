@@ -2,13 +2,13 @@
 //|                                                                  |
 //|                    Project: Memento (By HipoAlgorithm)           |
 //|                    File: set.mqh (EA Settings)                   |
-//|                    Version: 8.0 (HTF & Advanced Grace Period)    |
+//|                    Version: 9.0 (MKM Strategy Integration)       |
 //|                    © 2025, Mohammad & Gemini                     |
 //|                                                                  |
 //+------------------------------------------------------------------+
 #property copyright "© 2025, hipoalgoritm" // حقوق کپی‌رایت پروژه
 #property link      "https://www.mql5.com" // لینک مرتبط با پروژه
-#property version   "8.0" // نسخه فعلی فایل تنظیمات با اضافه شدن تایم فریم HTF و حالت‌های پیشرفته مهلت سیگنال
+#property version   "9.0" // نسخه فعلی فایل تنظیمات با اضافه شدن استراتژی MKM
 
 // --- انواع شمارشی برای خوانایی بهتر کد ---
 
@@ -49,6 +49,12 @@ enum E_Filter_Timeframe_Context
     FILTER_CONTEXT_LTF  // فیلترها در تایم فریم تاییدیه (LTF)
 };
 
+enum E_Primary_Strategy_Mode
+{
+    STRATEGY_TRIPLE_CROSS,  // استراتژی فعلی: کراس سه‌گانه
+    STRATEGY_KUMO_MTL       // استراتژی جدید: ابر، مومنتوم و نوسان (MKM)
+};
+
 
 //+------------------------------------------------------------------+
 //|                      تنظیمات ورودی اکسپرت                         |
@@ -72,6 +78,7 @@ input int             Inp_Chikou_Period     = 26;                     // دور�
 
 // ---=== 🎯 3. سیگنال و تاییدیه (Signal & Confirmation) 🎯 ===---
 input group           "---=== 🎯 3. سیگنال و تاییدیه (Signal & Confirmation) 🎯 ===---"; // گروه تنظیمات سیگنال و تاییدیه
+input E_Primary_Strategy_Mode Inp_Primary_Strategy = STRATEGY_TRIPLE_CROSS; // استراتژی اصلی
 input E_Signal_Mode   Inp_Signal_Mode         = MODE_SIGNAL_CONTEST;  // روش مدیریت سیگنال
 
 input group           "         --- تاییدیه نهایی ورود (Final Confirmation) ---"; // زیرگروه تاییدیه ورود
@@ -139,6 +146,11 @@ input bool            Inp_Enable_ADX_Filter = false;                    // فع�
 input int             Inp_ADX_Period = 14;                              // [ADX] دوره محاسبه
 input double          Inp_ADX_Threshold = 25.0;                         // [ADX] حداقل قدرت روند برای ورود
 
+input group           "         --- فیلترهای پیشرفته (MKM Filters) ---";
+input bool            Inp_Enable_KijunSlope_Filter = false;     // فعال‌سازی فیلتر شیب کیجون-سن
+input bool            Inp_Enable_KumoExpansion_Filter = false;  // فعال‌سازی فیلتر انبساط کومو
+input bool            Inp_Enable_ChikouSpace_Filter = false;    // فعال‌سازی فیلتر فضای باز چیکو
+
 // ---=== 🎯 8. منطق خروج (Exit Logic) 🎯 ===---
 input group "       ---=== 🎯 8. منطق خروج (Exit Logic) 🎯 ===---"; // گروه منطق خروج
 input bool            Inp_Enable_Early_Exit = false;                    // فعال سازی خروج زودرس با کراس چیکو و تایید RSI
@@ -167,6 +179,7 @@ struct SSettings
     int                 chikou_period; // دوره چیکو
     
     // 3. Signal & Confirmation
+    E_Primary_Strategy_Mode primary_strategy; // استراتژی اصلی
     E_Signal_Mode       signal_mode; // حالت سیگنال
     
     // ✅✅✅ [بخش اصلاح شده] متغیرهای تاییدیه و مهلت ✅✅✅
@@ -219,6 +232,10 @@ struct SSettings
     bool                enable_adx_filter; // فعال کردن ADX
     int                 adx_period; // دوره ADX
     double              adx_threshold; // آستانه ADX
+
+    bool                enable_kijun_slope_filter;   // فیلتر شیب کیجون
+    bool                enable_kumo_expansion_filter;// فیلتر انبساط کومو
+    bool                enable_chikou_space_filter;  // فیلتر فضای باز چیکو
 
     // 8. Exit Logic
     bool                enable_early_exit; // فعال کردن خروج زودرس
