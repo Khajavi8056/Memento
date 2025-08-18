@@ -144,6 +144,11 @@ private:
     bool IsDataReady(); // چک آماده بودن داده
     bool IsNewBar(ENUM_TIMEFRAMES timeframe, datetime &last_bar_time); // چک بار جدید
 
+    //--- توابع جدید MKM ---
+    double CalculateKijunSlope(ENUM_TIMEFRAMES timeframe, int period, double& threshold);
+    bool IsKumoExpanding(ENUM_TIMEFRAMES timeframe, int period);
+    bool IsChikouInOpenSpace(bool is_buy, ENUM_TIMEFRAMES timeframe);
+
 public:
     CStrategyManager(string symbol, SSettings &settings); // کانستراکتور
     ~CStrategyManager(); // دیستراکتور
@@ -366,40 +371,61 @@ void CStrategyManager::OnTimerTick()
 //+------------------------------------------------------------------+
 void CStrategyManager::ProcessSignalSearch()
 {
-    bool is_new_signal_buy = false; // فلگ سیگنال
-    if (!CheckTripleCross(is_new_signal_buy)) // چک کراس
-        return; // اگر نبود، خارج
-
-    // اگر سیگنال پیدا شد:
-    if (m_settings.signal_mode == MODE_REPLACE_SIGNAL) // حالت جایگزینی
+    // مسیر ۱: استراتژی کراس سه‌گانه (کد قبلی بدون تغییر)
+    if (m_settings.primary_strategy == STRATEGY_TRIPLE_CROSS)
     {
-        if (m_is_waiting && is_new_signal_buy != m_signal.is_buy) // چک مخالف
-        {
-            Log("سیگنال جدید و مخالف پیدا شد! سیگنال قبلی کنسل شد."); // لاگ
-            m_is_waiting = false; // ریست
-        }
-        if (!m_is_waiting) // اگر منتظر نبود
-        {
-            m_is_waiting = true; // تنظیم انتظار
-            m_signal.is_buy = is_new_signal_buy; // نوع
-            m_signal.time = iTime(m_symbol, m_settings.ichimoku_timeframe, m_settings.chikou_period); // زمان
-            m_signal.grace_candle_count = 0; // ریست شمارنده
-            m_signal.invalidation_level = 0.0; // ریست سطح
+        bool is_new_signal_buy = false;
+        if (!CheckTripleCross(is_new_signal_buy)) return;
 
-            if (m_settings.grace_period_mode == GRACE_BY_STRUCTURE) // حالت ساختاری
+        if (m_settings.signal_mode == MODE_REPLACE_SIGNAL)
+        {
+            if (m_is_waiting && is_new_signal_buy != m_signal.is_buy) { m_is_waiting = false; }
+            if (!m_is_waiting)
             {
-                m_signal.invalidation_level = is_new_signal_buy ? m_grace_structure_analyzer.GetLastSwingLow() : m_grace_structure_analyzer.GetLastSwingHigh(); // سطح
+                m_is_waiting = true;
+                m_signal.is_buy = is_new_signal_buy;
+                m_signal.time = iTime(m_symbol, m_settings.ichimoku_timeframe, m_settings.chikou_period);
+                m_signal.grace_candle_count = 0;
+                if (m_settings.grace_period_mode == GRACE_BY_STRUCTURE)
+                {
+                    m_signal.invalidation_level = is_new_signal_buy ? m_grace_structure_analyzer.GetLastSwingLow() : m_grace_structure_analyzer.GetLastSwingHigh();
+                }
             }
-            Log("سیگنال اولیه " + (m_signal.is_buy ? "خرید" : "فروش") + " پیدا شد. ورود به حالت انتظار..."); // لاگ
+        }
+        else { AddOrUpdatePotentialSignal(is_new_signal_buy); }
+
+        if(m_symbol == _Symbol) m_visual_manager.DrawTripleCrossRectangle(is_new_signal_buy, m_settings.chikou_period);
+    }
+    // مسیر ۲: استراتژی جدید MKM (فقط حالت تک سیگنالی)
+    else if (m_settings.primary_strategy == STRATEGY_KUMO_MTL)
+    {
+        if(m_is_waiting) return; // اگر از قبل منتظریم، سیگنال جدیدی بررسی نکن
+
+        // فیلتر روند کلان در تایم فریم روزانه
+        // ایجاد هندل موقت برای ایچیموکو روزانه
+        int d1_ichi_handle = iIchimoku(m_symbol, PERIOD_D1, 10, 28, 55);
+        if (d1_ichi_handle == INVALID_HANDLE) return;
+
+        double senkou_a[1], senkou_b[1];
+        CopyBuffer(d1_ichi_handle, 2, 0, 1, senkou_a); // Senkou A
+        CopyBuffer(d1_ichi_handle, 3, 0, 1, senkou_b); // Senkou B
+        IndicatorRelease(d1_ichi_handle);
+
+        double high_kumo = MathMax(senkou_a[0], senkou_b[0]);
+        double low_kumo = MathMin(senkou_a[0], senkou_b[0]);
+        double close_price = iClose(m_symbol, PERIOD_CURRENT, 0);
+
+        bool is_buy_trend = (close_price > high_kumo);
+        bool is_sell_trend = (close_price < low_kumo);
+
+        if (is_buy_trend || is_sell_trend)
+        {
+            m_is_waiting = true;
+            m_signal.is_buy = is_buy_trend;
+            m_signal.time = TimeCurrent();
+            Log("روند کلان MKM " + (m_signal.is_buy ? "صعودی" : "نزولی") + " است. ورود به حالت انتظار برای تاییدیه LTF...");
         }
     }
-    else // MODE_SIGNAL_CONTEST // مسابقه
-    {
-        AddOrUpdatePotentialSignal(is_new_signal_buy); // اضافه
-    }
-
-    if(m_symbol == _Symbol) // چک چارت
-        m_visual_manager.DrawTripleCrossRectangle(is_new_signal_buy, m_settings.chikou_period); // رسم
 }
 
 //+------------------------------------------------------------------+
@@ -409,81 +435,135 @@ void CStrategyManager::ProcessSignalSearch()
 //+------------------------------------------------------------------+
 void CStrategyManager::ManageActiveSignal(bool is_new_htf_bar)
 {
-    // منطق برای حالت MODE_REPLACE_SIGNAL
-    if (m_settings.signal_mode == MODE_REPLACE_SIGNAL && m_is_waiting) // چک حالت و انتظار
+    // مسیر ۱: استراتژی کراس سه‌گانه (کد قبلی بدون تغییر)
+    if (m_settings.primary_strategy == STRATEGY_TRIPLE_CROSS)
     {
-        bool is_signal_expired = false; // فلگ انقضا
-        // بررسی انقضا
-        if (m_settings.grace_period_mode == GRACE_BY_CANDLES && is_new_htf_bar) // کندلی و HTF
+        // منطق برای حالت MODE_REPLACE_SIGNAL
+        if (m_settings.signal_mode == MODE_REPLACE_SIGNAL && m_is_waiting) // چک حالت و انتظار
         {
-            m_signal.grace_candle_count++; // افزایش
-            if (m_signal.grace_candle_count >= m_settings.grace_period_candles) // چک
-                is_signal_expired = true; // انقضا
-        }
-        else if (m_settings.grace_period_mode == GRACE_BY_STRUCTURE) // ساختاری
-        {
-            double current_price = iClose(m_symbol, m_settings.ltf_timeframe, 1); // قیمت LTF
-            if (m_signal.invalidation_level > 0 &&  // چک سطح
-               ((m_signal.is_buy && current_price < m_signal.invalidation_level) || 
-               (!m_signal.is_buy && current_price > m_signal.invalidation_level)))
-               is_signal_expired = true; // انقضا
-        }
-
-        // تصمیم‌گیری نهایی
-        if (is_signal_expired) // منقضی
-        {
-            m_is_waiting = false; // ریست
-        }
-        else if (CheckFinalConfirmation(m_signal.is_buy)) // تایید
-        {
-            if (AreAllFiltersPassed(m_signal.is_buy)) // فیلترها
-            {
-                OpenTrade(m_signal.is_buy); // باز کردن
-            }
-            m_is_waiting = false; // ریست
-        }
-    }
-    // منطق برای حالت MODE_SIGNAL_CONTEST
-    else if (m_settings.signal_mode == MODE_SIGNAL_CONTEST && ArraySize(m_potential_signals) > 0) // چک مسابقه
-    {
-         for (int i = ArraySize(m_potential_signals) - 1; i >= 0; i--) // حلقه معکوس
-         {
-            bool is_signal_expired = false; // فلگ
+            bool is_signal_expired = false; // فلگ انقضا
             // بررسی انقضا
-            if (m_settings.grace_period_mode == GRACE_BY_CANDLES && is_new_htf_bar) // کندلی
+            if (m_settings.grace_period_mode == GRACE_BY_CANDLES && is_new_htf_bar) // کندلی و HTF
             {
-                m_potential_signals[i].grace_candle_count++; // افزایش
-                if (m_potential_signals[i].grace_candle_count >= m_settings.grace_period_candles) // چک
+                m_signal.grace_candle_count++; // افزایش
+                if (m_signal.grace_candle_count >= m_settings.grace_period_candles) // چک
                     is_signal_expired = true; // انقضا
             }
             else if (m_settings.grace_period_mode == GRACE_BY_STRUCTURE) // ساختاری
             {
-                double current_price = iClose(m_symbol, m_settings.ltf_timeframe, 1); // قیمت
-                 if (m_potential_signals[i].invalidation_level > 0 &&
-                    ((m_potential_signals[i].is_buy && current_price < m_potential_signals[i].invalidation_level) ||
-                     (!m_potential_signals[i].is_buy && current_price > m_potential_signals[i].invalidation_level)))
-                     is_signal_expired = true; // انقضا
+                double current_price = iClose(m_symbol, m_settings.ltf_timeframe, 1); // قیمت LTF
+                if (m_signal.invalidation_level > 0 &&  // چک سطح
+                   ((m_signal.is_buy && current_price < m_signal.invalidation_level) || 
+                   (!m_signal.is_buy && current_price > m_signal.invalidation_level)))
+                   is_signal_expired = true; // انقضا
             }
 
-            if(is_signal_expired) // منقضی
+            // تصمیم‌گیری نهایی
+            if (is_signal_expired) // منقضی
             {
-                ArrayRemove(m_potential_signals, i, 1); // حذف
-                continue; // ادامه
+                m_is_waiting = false; // ریست
             }
-
-            if(CheckFinalConfirmation(m_potential_signals[i].is_buy) && AreAllFiltersPassed(m_potential_signals[i].is_buy)) // چک تایید و فیلتر
+            else if (CheckFinalConfirmation(m_signal.is_buy)) // تایید
             {
-                OpenTrade(m_potential_signals[i].is_buy); // باز کردن
-                // پاکسازی سایر سیگنال‌های هم‌جهت
-                bool winner_is_buy = m_potential_signals[i].is_buy; // برنده
-                for (int j = ArraySize(m_potential_signals) - 1; j >= 0; j--) // پاکسازی
+                if (AreAllFiltersPassed(m_signal.is_buy)) // فیلترها
                 {
-                    if (m_potential_signals[j].is_buy == winner_is_buy) // هم‌جهت
-                        ArrayRemove(m_potential_signals, j, 1); // حذف
+                    OpenTrade(m_signal.is_buy); // باز کردن
                 }
-                return; // خروج چون کار تمام است
+                m_is_waiting = false; // ریست
             }
-         }
+        }
+        // منطق برای حالت MODE_SIGNAL_CONTEST
+        else if (m_settings.signal_mode == MODE_SIGNAL_CONTEST && ArraySize(m_potential_signals) > 0) // چک مسابقه
+        {
+             for (int i = ArraySize(m_potential_signals) - 1; i >= 0; i--) // حلقه معکوس
+             {
+                bool is_signal_expired = false; // فلگ
+                // بررسی انقضا
+                if (m_settings.grace_period_mode == GRACE_BY_CANDLES && is_new_htf_bar) // کندلی
+                {
+                    m_potential_signals[i].grace_candle_count++; // افزایش
+                    if (m_potential_signals[i].grace_candle_count >= m_settings.grace_period_candles) // چک
+                        is_signal_expired = true; // انقضا
+                }
+                else if (m_settings.grace_period_mode == GRACE_BY_STRUCTURE) // ساختاری
+                {
+                    double current_price = iClose(m_symbol, m_settings.ltf_timeframe, 1); // قیمت
+                     if (m_potential_signals[i].invalidation_level > 0 &&
+                        ((m_potential_signals[i].is_buy && current_price < m_potential_signals[i].invalidation_level) ||
+                         (!m_potential_signals[i].is_buy && current_price > m_potential_signals[i].invalidation_level)))
+                         is_signal_expired = true; // انقضا
+                }
+
+                if(is_signal_expired) // منقضی
+                {
+                    ArrayRemove(m_potential_signals, i, 1); // حذف
+                    continue; // ادامه
+                }
+
+                if(CheckFinalConfirmation(m_potential_signals[i].is_buy) && AreAllFiltersPassed(m_potential_signals[i].is_buy)) // چک تایید و فیلتر
+                {
+                    OpenTrade(m_potential_signals[i].is_buy); // باز کردن
+                    // پاکسازی سایر سیگنال‌های هم‌جهت
+                    bool winner_is_buy = m_potential_signals[i].is_buy; // برنده
+                    for (int j = ArraySize(m_potential_signals) - 1; j >= 0; j--) // پاکسازی
+                    {
+                        if (m_potential_signals[j].is_buy == winner_is_buy) // هم‌جهت
+                            ArrayRemove(m_potential_signals, j, 1); // حذف
+                    }
+                    return; // خروج چون کار تمام است
+                }
+             }
+        }
+    }
+    // مسیر ۲: استراتژی جدید MKM
+    else if (m_settings.primary_strategy == STRATEGY_KUMO_MTL)
+    {
+        if (!m_is_waiting) return;
+
+        // تاییدیه ها در LTF (چهارساعته)
+        ENUM_TIMEFRAMES ltf = m_settings.ltf_timeframe;
+        bool is_buy = m_signal.is_buy;
+
+        // ۱. فیلتر مومنتوم
+        double slope_threshold = 0.0;
+        double slope = CalculateKijunSlope(ltf, 5, slope_threshold);
+        bool momentum_ok = is_buy ? (slope > slope_threshold) : (slope < -slope_threshold);
+
+        // ۲. فیلتر نوسان
+        bool volatility_ok = IsKumoExpanding(ltf, 20);
+
+        // ۳. تایید نهایی ساختاری
+        bool structure_ok = IsChikouInOpenSpace(is_buy, ltf);
+
+        // ۴. ماشه ورود: کیجون بونس
+        // (این یک پیاده سازی ساده است، می توان آن را پیچیده تر کرد)
+        bool trigger_ok = false;
+
+        // ایجاد هندل موقت برای کیجون در LTF
+        int ltf_ichi_handle = iIchimoku(m_symbol, ltf, m_settings.tenkan_period, m_settings.kijun_period, m_settings.senkou_period);
+        if (ltf_ichi_handle != INVALID_HANDLE)
+        {
+            double kijun_buffer[1];
+            CopyBuffer(ltf_ichi_handle, 1, 1, 1, kijun_buffer); // کیجون شیفت 1
+            double kijun = kijun_buffer[0];
+            IndicatorRelease(ltf_ichi_handle);
+
+            if (is_buy && iLow(m_symbol, ltf, 1) <= kijun && iClose(m_symbol, ltf, 1) > kijun)
+                trigger_ok = true;
+            if (!is_buy && iHigh(m_symbol, ltf, 1) >= kijun && iClose(m_symbol, ltf, 1) < kijun)
+                trigger_ok = true;
+        }
+
+        // تصمیم نهایی
+        if (momentum_ok && volatility_ok && structure_ok && trigger_ok)
+        {
+            Log("تمام شرایط MKM برای " + (is_buy ? "خرید" : "فروش") + " فراهم شد.");
+            if(AreAllFiltersPassed(is_buy))
+            {
+                OpenTrade(is_buy);
+            }
+            m_is_waiting = false; // ریست کردن وضعیت
+        }
     }
 }
 
@@ -1354,8 +1434,26 @@ bool CStrategyManager::AreAllFiltersPassed(bool is_buy)
         }
     }
 
-    Log("✅ تمام فیلترهای فعال با موفقیت پاس شدند."); // لاگ موفقیت
-    return true; // تایید
+// فیلترهای جدید MKM (اگر فعال باشند)
+if (m_settings.enable_kijun_slope_filter)
+{
+    double threshold = 0.0;
+    double slope = CalculateKijunSlope(filter_tf, 5, threshold);
+    if (is_buy && slope <= threshold) return false;
+    if (!is_buy && slope >= -threshold) return false;
+}
+if (m_settings.enable_kumo_expansion_filter)
+{
+    if (!IsKumoExpanding(filter_tf, 20)) return false;
+}
+if (m_settings.enable_chikou_space_filter)
+{
+    if (!IsChikouInOpenSpace(is_buy, filter_tf)) return false;
+}
+
+Log("✅ تمام فیلترهای فعال با موفقیت پاس شدند.");
+return true;
+
 }
 
 
@@ -1665,4 +1763,103 @@ bool CStrategyManager::IsNewBar(ENUM_TIMEFRAMES timeframe, datetime &last_bar_ti
         return true; // جدید
     }
     return false; // قدیمی
+}
+
+//+------------------------------------------------------------------+
+//| تابع محاسبه شیب کیجون سن                                        |
+//| شیب = (کیجون فعلی - کیجون period کندل قبل) / period             |
+//| threshold را 0.0 تنظیم می‌کند و شیب را برمی‌گرداند.            |
+//+------------------------------------------------------------------+
+double CStrategyManager::CalculateKijunSlope(ENUM_TIMEFRAMES timeframe, int period, double& threshold)
+{
+    threshold = 0.0; // آستانه پیش‌فرض
+
+    int kijun_handle = (timeframe == m_settings.ichimoku_timeframe) ? m_ichimoku_handle : iIchimoku(m_symbol, timeframe, m_settings.tenkan_period, m_settings.kijun_period, m_settings.senkou_period);
+    if (kijun_handle == INVALID_HANDLE) return 0.0;
+
+    double kijun_buffer[];
+    if (CopyBuffer(kijun_handle, 1, 0, period + 1, kijun_buffer) < period + 1)
+    {
+        if (kijun_handle != m_ichimoku_handle) IndicatorRelease(kijun_handle);
+        return 0.0;
+    }
+
+    if (kijun_handle != m_ichimoku_handle) IndicatorRelease(kijun_handle);
+
+    ArraySetAsSeries(kijun_buffer, true);
+    double current_kijun = kijun_buffer[0];
+    double past_kijun = kijun_buffer[period];
+
+    double slope = (current_kijun - past_kijun) / period;
+    return slope;
+}
+
+//+------------------------------------------------------------------+
+//| تابع چک انبساط کومو                                             |
+//| ضخامت کومو را محاسبه و SMA روی ضخامت‌ها چک می‌کند اگر در حال افزایش باشد. |
+//+------------------------------------------------------------------+
+bool CStrategyManager::IsKumoExpanding(ENUM_TIMEFRAMES timeframe, int period)
+{
+    int ichi_handle = (timeframe == m_settings.ichimoku_timeframe) ? m_ichimoku_handle : iIchimoku(m_symbol, timeframe, m_settings.tenkan_period, m_settings.kijun_period, m_settings.senkou_period);
+    if (ichi_handle == INVALID_HANDLE) return false;
+
+    double senkou_a[], senkou_b[];
+    if (CopyBuffer(ichi_handle, 2, 0, period, senkou_a) < period || CopyBuffer(ichi_handle, 3, 0, period, senkou_b) < period)
+    {
+        if (ichi_handle != m_ichimoku_handle) IndicatorRelease(ichi_handle);
+        return false;
+    }
+
+    if (ichi_handle != m_ichimoku_handle) IndicatorRelease(ichi_handle);
+
+    ArraySetAsSeries(senkou_a, true);
+    ArraySetAsSeries(senkou_b, true);
+
+    double thickness[];
+    ArrayResize(thickness, period);
+    for (int i = 0; i < period; i++)
+    {
+        thickness[i] = MathAbs(senkou_a[i] - senkou_b[i]);
+    }
+
+    double sma_thickness[];
+    SimpleMAOnBuffer(period, 0, 0, thickness, sma_thickness);
+
+    ArraySetAsSeries(sma_thickness, true);
+    return (sma_thickness[0] > sma_thickness[1]); // چک افزایش
+}
+
+//+------------------------------------------------------------------+
+//| تابع چک فضای باز چیکو                                           |
+//| برای buy: چیکو > max(high[1..26])                                 |
+//| برای sell: چیکو < min(low[1..26])                                 |
+//+------------------------------------------------------------------+
+bool CStrategyManager::IsChikouInOpenSpace(bool is_buy, ENUM_TIMEFRAMES timeframe)
+{
+    int ichi_handle = (timeframe == m_settings.ichimoku_timeframe) ? m_ichimoku_handle : iIchimoku(m_symbol, timeframe, m_settings.tenkan_period, m_settings.kijun_period, m_settings.senkou_period);
+    if (ichi_handle == INVALID_HANDLE) return false;
+
+    double chikou_buffer[];
+    if (CopyBuffer(ichi_handle, 4, 1, 1, chikou_buffer) < 1) // چیکو شیفت 1
+    {
+        if (ichi_handle != m_ichimoku_handle) IndicatorRelease(ichi_handle);
+        return false;
+    }
+
+    if (ichi_handle != m_ichimoku_handle) IndicatorRelease(ichi_handle);
+
+    double chikou = chikou_buffer[0];
+
+    double high_buffer[], low_buffer[];
+    CopyHigh(m_symbol, timeframe, 1, 26, high_buffer);
+    CopyLow(m_symbol, timeframe, 1, 26, low_buffer);
+
+    if (is_buy)
+    {
+        return (chikou > ArrayMaximum(high_buffer));
+    }
+    else
+    {
+        return (chikou < ArrayMinimum(low_buffer));
+    }
 }
