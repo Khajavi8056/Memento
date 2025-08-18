@@ -43,6 +43,15 @@ enum E_Talaqi_Mode
     TALAQI_MODE_ATR,        // پویا (مبتنی بر ATR)
 };
 
+// ✅✅✅ [جدید] enum برای کنترل تایم فریم محاسبات ✅✅✅
+enum E_Context_Timeframe
+{
+    CTX_TIMEFRAME_MAIN,         // استفاده از تایم فریم اصلی ایچیموکو
+    CTX_TIMEFRAME_CONFIRMATION  // استفاده از تایم فریم تاییدیه (پایین)
+};
+
+// ✅✅✅ [جدید] enum برای مدیریت وضعیت سیگنال‌ها ✅✅✅
+enum E_Signal_State { INITIAL, CONFIRMED, INVALIDATED, EXPIRED, EXECUTED };
 
 //+------------------------------------------------------------------+
 //|                      تنظیمات ورودی اکسپرت                         |
@@ -63,6 +72,9 @@ input int             Inp_Tenkan_Period     = 10;                     // دور�
 input int             Inp_Kijun_Period      = 28;                     // دوره کیجون-سن (بهینه شده)
 input int             Inp_Senkou_Period     = 55;                     // دوره سنکو اسپن بی (بهینه شده)
 input int             Inp_Chikou_Period     = 26;                     // دوره چیکو اسپن (نقطه مرجع)
+
+// ✅✅✅ [جدید] ورودی برای انتخاب تایم فریم محاسبات ✅✅✅
+input E_Context_Timeframe Inp_Context_Timeframe = CTX_TIMEFRAME_MAIN; // تایم فریم برای محاسبه SL و فیلترها
 
 // ---=== 🎯 3. سیگنال و تاییدیه (Signal & Confirmation) 🎯 ===---
 input group           "---=== 🎯 3. سیگنال و تاییدیه (Signal & Confirmation) 🎯 ===---";
@@ -157,6 +169,9 @@ struct SSettings
     int                 kijun_period;
     int                 senkou_period;
     int                 chikou_period;
+    
+    // ✅✅✅ [جدید] متغیر برای تایم فریم محاسبات ✅✅✅
+    E_Context_Timeframe context_timeframe;       // تایم فریم برای محاسبه SL و فیلترها
     
     // 3. Signal & Confirmation
     E_Signal_Mode       signal_mode;
