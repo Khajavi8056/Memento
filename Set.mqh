@@ -6,9 +6,9 @@
 //|                    © 2025, Mohammad & Gemini                     |
 //|                                                                  |
 //+------------------------------------------------------------------+
-#property copyright "© 2025, hipoalgoritm"
-#property link      "https://www.mql5.com"
-#property version   "8.0" // افزوده شدن تایم فریم اصلی قابل تنظیم و حالت‌های پیشرفته مهلت سیگنال
+#property copyright "© 2025, hipoalgoritm" // حقوق کپی‌رایت پروژه
+#property link      "https://www.mql5.com" // لینک مرتبط با پروژه
+#property version   "8.0" // نسخه فعلی فایل تنظیمات با اضافه شدن تایم فریم HTF و حالت‌های پیشرفته مهلت سیگنال
 
 // --- انواع شمارشی برای خوانایی بهتر کد ---
 
@@ -25,7 +25,7 @@ enum E_Grace_Period_Mode
     GRACE_BY_STRUCTURE         // انقضا بر اساس شکست ساختار قیمت (روش هوشمند)
 };
 
-enum E_Confirmation_Mode { MODE_CLOSE_ONLY, MODE_OPEN_AND_CLOSE };
+enum E_Confirmation_Mode { MODE_CLOSE_ONLY, MODE_OPEN_AND_CLOSE }; // حالت‌های تایید کندل
 
 enum E_SL_Mode
 {
@@ -34,7 +34,7 @@ enum E_SL_Mode
     MODE_ATR              // پویا (مبتنی بر ATR)
 };
 
-enum E_Signal_Mode { MODE_REPLACE_SIGNAL, MODE_SIGNAL_CONTEST };
+enum E_Signal_Mode { MODE_REPLACE_SIGNAL, MODE_SIGNAL_CONTEST }; // حالت‌های مدیریت سیگنال
 
 enum E_Talaqi_Mode
 {
@@ -43,29 +43,26 @@ enum E_Talaqi_Mode
     TALAQI_MODE_ATR,        // پویا (مبتنی بر ATR)
 };
 
-// ✅✅✅ [جدید] enum برای کنترل تایم فریم محاسبات ✅✅✅
-enum E_Context_Timeframe
+enum E_Filter_Timeframe_Context
 {
-    CTX_TIMEFRAME_MAIN,         // استفاده از تایم فریم اصلی ایچیموکو
-    CTX_TIMEFRAME_CONFIRMATION  // استفاده از تایم فریم تاییدیه (پایین)
+    FILTER_CONTEXT_HTF, // فیلترها در تایم فریم اصلی (HTF)
+    FILTER_CONTEXT_LTF  // فیلترها در تایم فریم تاییدیه (LTF)
 };
 
-// ✅✅✅ [جدید] enum برای مدیریت وضعیت سیگنال‌ها ✅✅✅
-enum E_Signal_State { INITIAL, CONFIRMED, INVALIDATED, EXPIRED, EXECUTED };
 
 //+------------------------------------------------------------------+
 //|                      تنظیمات ورودی اکسپرت                         |
 //+------------------------------------------------------------------+
 
 // ---=== ⚙️ 1. تنظیمات عمومی (General) ⚙️ ===---
-input group           "          ---=== ⚙️ 1. تنظیمات عمومی (General) ⚙️ ===---";
+input group           "          ---=== ⚙️ 1. تنظیمات عمومی (General) ⚙️ ===---"; // گروه تنظیمات عمومی
 input bool            Inp_Enable_Dashboard  = true;                   // ✅ فعال/غیرفعال کردن داشبورد اطلاعاتی
 input string          Inp_Symbols_List      = "EURUSD,GBPUSD,XAUUSD"; // لیست نمادها (جدا شده با کاما)
 input int             Inp_Magic_Number      = 12345;                  // شماره جادویی معاملات
 input bool            Inp_Enable_Logging    = true;                   // فعال/غیرفعال کردن لاگ‌ها
 
 // ---=== 📈 2. تنظیمات ایچیموکو (Ichimoku Baseline) 📈 ===---
-input group           "      ---=== 📈 2. تنظیمات ایچیموکو (Ichimoku) 📈 ===---";
+input group           "      ---=== 📈 2. تنظیمات ایچیموکو (Ichimoku) 📈 ===---"; // گروه تنظیمات ایچیموکو
 // ✅✅✅ [جدید] ورودی برای تایم فریم اصلی ✅✅✅
 input ENUM_TIMEFRAMES Inp_Ichimoku_Timeframe = PERIOD_H1;                // تایم فریم اصلی برای تحلیل ایچیموکو
 input int             Inp_Tenkan_Period     = 10;                     // دوره تنکان-سن (بهینه شده)
@@ -73,29 +70,26 @@ input int             Inp_Kijun_Period      = 28;                     // دور�
 input int             Inp_Senkou_Period     = 55;                     // دوره سنکو اسپن بی (بهینه شده)
 input int             Inp_Chikou_Period     = 26;                     // دوره چیکو اسپن (نقطه مرجع)
 
-// ✅✅✅ [جدید] ورودی برای انتخاب تایم فریم محاسبات ✅✅✅
-input E_Context_Timeframe Inp_Context_Timeframe = CTX_TIMEFRAME_MAIN; // تایم فریم برای محاسبه SL و فیلترها
-
 // ---=== 🎯 3. سیگنال و تاییدیه (Signal & Confirmation) 🎯 ===---
-input group           "---=== 🎯 3. سیگنال و تاییدیه (Signal & Confirmation) 🎯 ===---";
+input group           "---=== 🎯 3. سیگنال و تاییدیه (Signal & Confirmation) 🎯 ===---"; // گروه تنظیمات سیگنال و تاییدیه
 input E_Signal_Mode   Inp_Signal_Mode         = MODE_SIGNAL_CONTEST;  // روش مدیریت سیگنال
 
-input group           "         --- تاییدیه نهایی ورود (Final Confirmation) ---";
+input group           "         --- تاییدیه نهایی ورود (Final Confirmation) ---"; // زیرگروه تاییدیه ورود
 input E_Entry_Confirmation_Mode Inp_Entry_Confirmation_Mode = CONFIRM_CURRENT_TIMEFRAME; // نوع تاییدیه ورود
 
 // ✅✅✅ [بخش جدید] تنظیمات مهلت سیگنال ✅✅✅
-input group           "         --- مهلت سیگنال در حالت انتظار (Grace Period) ---";
+input group           "         --- مهلت سیگنال در حالت انتظار (Grace Period) ---"; // زیرگروه مهلت سیگنال
 input E_Grace_Period_Mode Inp_Grace_Period_Mode = GRACE_BY_CANDLES;   // نوع انقضای سیگنال
 input int             Inp_Grace_Period_Candles= 4;                      // [حالت کندلی] تعداد کندل مهلت برای تاییدیه
 // نکته: در حالت ساختاری، سطح ابطال به صورت خودکار پیدا می‌شود.
 
-input group           "         --- تنظیمات تاییدیه تایم فریم پایین (LTF) ---";
+input group           "         --- تنظیمات تاییدیه تایم فریم پایین (LTF) ---"; // زیرگروه تاییدیه LTF
 input ENUM_TIMEFRAMES Inp_LTF_Timeframe = PERIOD_M5;                      // [روش LTF] تایم فریم برای تاییدیه ورود
 input E_Confirmation_Mode Inp_Confirmation_Type = MODE_CLOSE_ONLY;    // [روش تایم فریم فعلی] نوع تایید کندل
 
 
 // --- زیرگروه تنظیمات تلاقی (Confluence) ---
-input group           "         --- تنظیمات تلاقی (Confluence) ---";
+input group           "         --- تنظیمات تلاقی (Confluence) ---"; // زیرگروه تلاقی
 input E_Talaqi_Mode   Inp_Talaqi_Calculation_Mode = TALAQI_MODE_ATR;    // روش محاسبه فاصله تلاقی (بهینه شده)
 input double          Inp_Talaqi_ATR_Multiplier     = 0.28;             // [ATR Mode] ضریب ATR برای تلاقی (بهینه شده)
 input double          Inp_Talaqi_Distance_in_Points = 3.0;              // [MANUAL Mode] فاصله تلاقی (بر اساس پوینت)
@@ -103,7 +97,8 @@ input double          Inp_Talaqi_Kumo_Factor      = 0.2;              // [KUMO M
 
 
 // ---=== 🛡️ 4. مدیریت حد ضرر (Stop Loss) 🛡️ ===---
-input group           "       ---=== 🛡️ 4. مدیریت حد ضرر (Stop Loss) 🛡️ ===---";
+input group           "       ---=== 🛡️ 4. مدیریت حد ضرر (Stop Loss) 🛡️ ===---"; // گروه مدیریت حد ضرر
+input ENUM_TIMEFRAMES Inp_SL_Timeframe = PERIOD_CURRENT;                // تایم فریم برای محاسبه SL
 input E_SL_Mode       Inp_StopLoss_Type       = MODE_COMPLEX;           // روش محاسبه استاپ لاس
 input double          Inp_SL_ATR_Multiplier   = 2.2;                    // [ATR Mode] ضریب ATR برای حد ضرر (بهینه شده)
 input int             Inp_SL_Lookback_Period  = 15;                     // [SIMPLE] دوره نگاه به عقب برای یافتن سقف/کف
@@ -112,7 +107,7 @@ input int             Inp_Flat_Kijun_Period   = 50;                     // [COMP
 input int             Inp_Flat_Kijun_Min_Length = 5;                    // [COMPLEX] حداقل طول کیجون فلت
 input int             Inp_Pivot_Lookback      = 30;                     // [COMPLEX] تعداد کندل برای جستجوی پیوت
 
-input group           "    --- SL پویا بر اساس نوسان ---";
+input group           "    --- SL پویا بر اساس نوسان ---"; // زیرگروه SL پویا
 input bool            Inp_Enable_SL_Vol_Regime = false;                 // فعال سازی SL پویا با رژیم نوسان
 input int             Inp_SL_Vol_Regime_ATR_Period = 14;                // [پویا] دوره ATR برای محاسبه نوسان
 input int             Inp_SL_Vol_Regime_EMA_Period = 20;                // [پویا] دوره EMA برای تعریف خط رژیم نوسان
@@ -121,20 +116,21 @@ input double          Inp_SL_Low_Vol_Multiplier = 1.5;                  // [پو
 
 
 // ---=== 💰 5. مدیریت سرمایه (Money Management) 💰 ===---
-input group           " ---=== 💰 5. مدیریت سرمایه (Money Management) 💰 ===---";
+input group           " ---=== 💰 5. مدیریت سرمایه (Money Management) 💰 ===---"; // گروه مدیریت سرمایه
 input double          Inp_Risk_Percent_Per_Trade = 0.7;                 // درصد ریسک در هر معامله (بهینه شده)
 input double          Inp_Take_Profit_Ratio   = 1.9;                    // نسبت ریسک به ریوارد برای حد سود (بهینه شده)
 input int             Inp_Max_Trades_Per_Symbol = 1;                    // حداکثر معاملات باز برای هر نماد
 input int             Inp_Max_Total_Trades    = 5;                      // حداکثر کل معاملات باز
 
 // ---=== 🎨 6. تنظیمات گرافیکی (Visuals) 🎨 ===---
-input group           "        ---=== 🎨 6. تنظیمات گرافیکی (Visuals) 🎨 ===---";
+input group           "        ---=== 🎨 6. تنظیمات گرافیکی (Visuals) 🎨 ===---"; // گروه تنظیمات گرافیکی
 input double          Inp_Object_Size_Multiplier = 1.0;                 // ضریب اندازه اشیاء گرافیکی
 input color           Inp_Bullish_Color       = clrLimeGreen;           // رنگ سیگنال و اشیاء خرید
 input color           Inp_Bearish_Color       = clrRed;                 // رنگ سیگنال و اشیاء فروش
 
 // ---=== 🚦 7. فیلترهای ورود (Entry Filters) 🚦 ===---
-input group           "   ---=== 🚦 7. فیلترهای ورود (Entry Filters) 🚦 ===---";
+input group           "   ---=== 🚦 7. فیلترهای ورود (Entry Filters) 🚦 ===---"; // گروه فیلترهای ورود
+input E_Filter_Timeframe_Context Inp_Filter_Context = FILTER_CONTEXT_HTF; // تایم فریم اجرای فیلترها
 input bool            Inp_Enable_Kumo_Filter = true;                    // ✅ [فیلتر کومو]: فعال/غیرفعال
 input bool            Inp_Enable_ATR_Filter  = true;                    // ✅ [فیلتر ATR]: فعال/غیرفعال
 input int             Inp_ATR_Filter_Period  = 14;                      // [فیلتر ATR]: دوره محاسبه ATR
@@ -144,7 +140,7 @@ input int             Inp_ADX_Period = 14;                              // [ADX]
 input double          Inp_ADX_Threshold = 25.0;                         // [ADX] حداقل قدرت روند برای ورود
 
 // ---=== 🎯 8. منطق خروج (Exit Logic) 🎯 ===---
-input group "       ---=== 🎯 8. منطق خروج (Exit Logic) 🎯 ===---";
+input group "       ---=== 🎯 8. منطق خروج (Exit Logic) 🎯 ===---"; // گروه منطق خروج
 input bool            Inp_Enable_Early_Exit = false;                    // فعال سازی خروج زودرس با کراس چیکو و تایید RSI
 input int             Inp_Early_Exit_RSI_Period = 14;                   // [خروج زودرس] دوره RSI
 input int             Inp_Early_Exit_RSI_Overbought = 70;               // [خروج زودرس] سطح اشباع خرید برای خروج از فروش
@@ -157,24 +153,21 @@ input int             Inp_Early_Exit_RSI_Oversold = 30;                 // [خر
 struct SSettings
 {
     // 1. General
-    bool                enable_dashboard;
-    string              symbols_list;
-    int                 magic_number;
-    bool                enable_logging;
+    bool                enable_dashboard; // فعال کردن داشبورد
+    string              symbols_list; // لیست نمادها
+    int                 magic_number; // شماره جادویی
+    bool                enable_logging; // فعال کردن لاگ‌ها
     
     // 2. Ichimoku
     // ✅✅✅ [بخش اصلاح شده] متغیرهای ایچیموکو ✅✅✅
     ENUM_TIMEFRAMES     ichimoku_timeframe;      // تایم فریم اصلی تحلیل
-    int                 tenkan_period;
-    int                 kijun_period;
-    int                 senkou_period;
-    int                 chikou_period;
-    
-    // ✅✅✅ [جدید] متغیر برای تایم فریم محاسبات ✅✅✅
-    E_Context_Timeframe context_timeframe;       // تایم فریم برای محاسبه SL و فیلترها
+    int                 tenkan_period; // دوره تنکان
+    int                 kijun_period; // دوره کیجون
+    int                 senkou_period; // دوره سنکو
+    int                 chikou_period; // دوره چیکو
     
     // 3. Signal & Confirmation
-    E_Signal_Mode       signal_mode;
+    E_Signal_Mode       signal_mode; // حالت سیگنال
     
     // ✅✅✅ [بخش اصلاح شده] متغیرهای تاییدیه و مهلت ✅✅✅
     E_Entry_Confirmation_Mode entry_confirmation_mode; // نوع تاییدیه ورود
@@ -184,50 +177,52 @@ struct SSettings
     ENUM_TIMEFRAMES     ltf_timeframe;               // [حالت LTF] تایم فریم برای تاییدیه
     
     // 3.1. Talaqi
-    E_Talaqi_Mode       talaqi_calculation_mode;
-    double              talaqi_distance_in_points;
-    double              talaqi_kumo_factor;
-    double              talaqi_atr_multiplier;
+    E_Talaqi_Mode       talaqi_calculation_mode; // حالت تلاقی
+    double              talaqi_distance_in_points; // فاصله دستی
+    double              talaqi_kumo_factor; // ضریب کومو
+    double              talaqi_atr_multiplier; // ضریب ATR
     
     // 4. Stop Loss
-    E_SL_Mode           stoploss_type;
-    double              sl_atr_multiplier;
-    int                 sl_lookback_period;
-    double              sl_buffer_multiplier;
-    int                 flat_kijun_period;
-    int                 flat_kijun_min_length;
-    int                 pivot_lookback;
+    ENUM_TIMEFRAMES     sl_timeframe; // تایم فریم برای محاسبه SL
+    E_SL_Mode           stoploss_type; // نوع SL
+    double              sl_atr_multiplier; // ضریب ATR برای SL
+    int                 sl_lookback_period; // دوره نگاه به عقب
+    double              sl_buffer_multiplier; // ضریب بافر
+    int                 flat_kijun_period; // دوره کیجون فلت
+    int                 flat_kijun_min_length; // حداقل طول فلت
+    int                 pivot_lookback; // دوره پیوت
     
-    bool                enable_sl_vol_regime;
-    int                 sl_vol_regime_atr_period;
-    int                 sl_vol_regime_ema_period;
-    double              sl_high_vol_multiplier;
-    double              sl_low_vol_multiplier;
+    bool                enable_sl_vol_regime; // فعال کردن SL پویا
+    int                 sl_vol_regime_atr_period; // دوره ATR پویا
+    int                 sl_vol_regime_ema_period; // دوره EMA پویا
+    double              sl_high_vol_multiplier; // ضریب بالا نوسان
+    double              sl_low_vol_multiplier; // ضریب پایین نوسان
 
     // 5. Money Management
-    double              risk_percent_per_trade;
-    double              take_profit_ratio;
-    int                 max_trades_per_symbol;
-    int                 max_total_trades;
+    double              risk_percent_per_trade; // درصد ریسک
+    double              take_profit_ratio; // نسبت TP
+    int                 max_trades_per_symbol; // حداکثر معاملات نماد
+    int                 max_total_trades; // حداکثر معاملات کل
     
     // 6. Visuals
-    double              object_size_multiplier;
-    color               bullish_color;
-    color               bearish_color;
+    double              object_size_multiplier; // ضریب اندازه اشیاء
+    color               bullish_color; // رنگ خرید
+    color               bearish_color; // رنگ فروش
     
     // 7. Entry Filters
-    bool                enable_kumo_filter;
-    bool                enable_atr_filter;
-    int                 atr_filter_period;
-    double              atr_filter_min_value_pips;
+    E_Filter_Timeframe_Context filter_context; // زمینه فیلترها
+    bool                enable_kumo_filter; // فعال کردن کومو
+    bool                enable_atr_filter; // فعال کردن ATR
+    int                 atr_filter_period; // دوره ATR فیلتر
+    double              atr_filter_min_value_pips; // حداقل ATR
 
-    bool                enable_adx_filter;
-    int                 adx_period;
-    double              adx_threshold;
+    bool                enable_adx_filter; // فعال کردن ADX
+    int                 adx_period; // دوره ADX
+    double              adx_threshold; // آستانه ADX
 
     // 8. Exit Logic
-    bool                enable_early_exit;
-    int                 early_exit_rsi_period;
-    int                 early_exit_rsi_overbought;
-    int                 early_exit_rsi_oversold;
+    bool                enable_early_exit; // فعال کردن خروج زودرس
+    int                 early_exit_rsi_period; // دوره RSI خروج
+    int                 early_exit_rsi_overbought; // سطح اشباع خرید
+    int                 early_exit_rsi_oversold; // سطح اشباع فروش
 };
