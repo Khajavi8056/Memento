@@ -4,7 +4,7 @@
 //+------------------------------------------------------------------+
 #property copyright "© 2025, HipoAlgorithm" // حقوق کپی‌رایت کتابخانه
 #property link      "https://www.mql5.com" // لینک مرتبط
-#property version   "2.1" // نسخه با اصلاح منطق آرایه و تشخیص روند
+#property version   "3.1" // نسخه با اصلاحات ارتقاء
 
 #include <Object.mqh> // کتابخانه اشیاء برای رسم
 
@@ -29,25 +29,31 @@ enum E_MSS_SignalType
     MSS_SHIFT_DOWN    // تغییر به نزولی (MSS)
 };
 
-// ساختار سیگنال خروجی
+// MarketStructure.mqh
+
 struct SMssSignal
 {
-    E_MSS_SignalType type; // نوع سیگنال
-    double           break_price; // قیمت شکست
-    datetime         break_time; // زمان شکست
-    int              swing_bar_index; // اندیس بار چرخش
+    E_MSS_SignalType type;
+    double           break_price;
+    datetime         break_time;
+    int              swing_bar_index;
+    bool             new_swing_formed;
+    bool             is_swing_high;    // <<<< ✅ این خط رو اینجا اضافه کن
     
-    SMssSignal() { Reset(); } // سازنده پیش‌فرض
-    void Reset() { type=MSS_NONE; break_price=0.0; break_time=0; swing_bar_index=0; } // ریست ساختار
+    SMssSignal() { Reset(); } 
+    void Reset() { type=MSS_NONE; break_price=0.0; break_time=0; swing_bar_index=0; new_swing_formed=false; is_swing_high=false; } // به ریست هم اضافش کن
 
-    SMssSignal(const SMssSignal &other) // کپی سازنده
+    SMssSignal(const SMssSignal &other) 
     {
-        type = other.type; // کپی نوع
-        break_price = other.break_price; // کپی قیمت
-        break_time = other.break_time; // کپی زمان
-        swing_bar_index = other.swing_bar_index; // کپی اندیس
+        type = other.type;
+        break_price = other.break_price;
+        break_time = other.break_time;
+        swing_bar_index = other.swing_bar_index;
+        new_swing_formed = other.new_swing_formed;
+        is_swing_high = other.is_swing_high; // <<<< ✅ و اینجا هم برای کپی کردن
     }
 };
+
 
 //+------------------------------------------------------------------+
 //| کلاس اصلی تحلیل ساختار بازار                                    |
@@ -92,6 +98,9 @@ public:
     void   GetRecentLows(double &lows[]) const { ArrayCopy(lows, m_swing_lows_array); } // کپی کف‌ها
     bool   IsUptrend() const; // چک روند صعودی
     bool   IsDowntrend() const; // چک روند نزولی
+    double GetSecondLastSwingHigh() const; // [NEW] گرفتن دومین سقف آخر
+    double GetSecondLastSwingLow() const; // [NEW] گرفتن دومین کف آخر
+    bool   ScanPastForMSS(bool is_buy_direction, int lookback_bars, int &found_at_bar); // [NEW] اسکن گذشته برای MSS
 };
 
 //+------------------------------------------------------------------+
@@ -121,7 +130,7 @@ void CMarketStructureShift::Init(string symbol, ENUM_TIMEFRAMES period)
     int highs_found = 0; // شمارنده سقف‌ها
     int lows_found = 0; // شمارنده کف‌ها
     
-    // جستجو به عقب برای پیدا کردن دو سقف و کف اولیه
+    // جستجو به عقب برای پیدا کردن حداقل دو سقف و کف اولیه
     for(int i = m_swing_length; i < 500 && (highs_found < 2 || lows_found < 2); i++) // حلقه به عقب
     {
         if(iBars(m_symbol, m_period) < i + m_swing_length + 1) break; // چک داده کافی
@@ -192,16 +201,15 @@ SMssSignal CMarketStructureShift::ProcessNewBar()
         Log("سقف چرخش جدید: " + DoubleToString(m_last_swing_h, _Digits)); // لاگ
         if (m_enable_drawing) drawSwingPoint(m_obj_prefix + TimeToString(time(curr_bar)), time(curr_bar), m_last_swing_h, 77, clrBlue, -1); // رسم
 
-        // --- منطق اصلاح شده برای آپدیت آرایه ---
+        // [MODIFIED] منطق برای آپدیت آرایه با چک اندازه
         if(ArraySize(m_swing_highs_array) > 0)
         {
-           // شیفت دادن عضو قدیمی به اندیس 1
            if(ArraySize(m_swing_highs_array) == 1) ArrayResize(m_swing_highs_array, 2);
            m_swing_highs_array[1] = m_swing_highs_array[0];
         }
         else ArrayResize(m_swing_highs_array, 2);
-        // قرار دادن عضو جدید در اندیس 0
         m_swing_highs_array[0] = m_last_swing_h;
+        result.new_swing_formed = true; // [NEW] اعلام تشکیل سوینگ جدید
     }
     
     if (isSwingLow) // اگر کف جدید
@@ -211,7 +219,7 @@ SMssSignal CMarketStructureShift::ProcessNewBar()
         Log("کف چرخش جدید: " + DoubleToString(m_last_swing_l, _Digits)); // لاگ
         if (m_enable_drawing) drawSwingPoint(m_obj_prefix + TimeToString(time(curr_bar)), time(curr_bar), m_last_swing_l, 77, clrRed, +1); // رسم
 
-        // --- منطق اصلاح شده برای آپدیت آرایه ---
+        // [MODIFIED] منطق برای آپدیت آرایه با چک اندازه
         if(ArraySize(m_swing_lows_array) > 0)
         {
            if(ArraySize(m_swing_lows_array) == 1) ArrayResize(m_swing_lows_array, 2);
@@ -219,6 +227,7 @@ SMssSignal CMarketStructureShift::ProcessNewBar()
         }
         else ArrayResize(m_swing_lows_array, 2);
         m_swing_lows_array[0] = m_last_swing_l;
+        result.new_swing_formed = true; // [NEW] اعلام تشکیل سوینگ جدید
     }
 
     double Ask = SymbolInfoDouble(m_symbol, SYMBOL_ASK); // قیمت Ask
@@ -261,9 +270,21 @@ SMssSignal CMarketStructureShift::ProcessNewBar()
         m_last_swing_l = -1.0; // ریست
     }
 
-    return result; // بازگشت سیگنال
-}
 
+      // [MODIFIED] این بخش را به انتهای تابع ProcessNewBar در MarketStructure.mqh اضافه کنید
+      if (isSwingHigh)
+      {
+          result.new_swing_formed = true;
+          result.is_swing_high = true;
+      }
+      if (isSwingLow)
+      {
+          result.new_swing_formed = true;
+          result.is_swing_high = false;
+      }
+
+return result; //  
+}
 //+------------------------------------------------------------------+
 //| تابع لاگ کتابخانه                                                |
 //+------------------------------------------------------------------+
@@ -293,6 +314,67 @@ bool CMarketStructureShift::IsDowntrend() const
     if (ArraySize(m_swing_highs_array) < 2 || ArraySize(m_swing_lows_array) < 2) return false; // چک حداقل 2 عضو
     // چک سقف جدید < سقف قدیمی و کف جدید < کف قدیمی
     return (m_swing_highs_array[0] < m_swing_highs_array[1] && m_swing_lows_array[0] < m_swing_lows_array[1]);
+}
+
+//+------------------------------------------------------------------+
+//| [NEW] گرفتن دومین سقف آخر                                        |
+//+------------------------------------------------------------------+
+double CMarketStructureShift::GetSecondLastSwingHigh() const
+{
+    if (ArraySize(m_swing_highs_array) < 2) return -1.0; // چک اندازه آرایه
+    return m_swing_highs_array[1]; // بازگشت دومین عضو
+}
+
+//+------------------------------------------------------------------+
+//| [NEW] گرفتن دومین کف آخر                                         |
+//+------------------------------------------------------------------+
+double CMarketStructureShift::GetSecondLastSwingLow() const
+{
+    if (ArraySize(m_swing_lows_array) < 2) return -1.0; // چک اندازه آرایه
+    return m_swing_lows_array[1]; // بازگشت دومین عضو
+}
+
+//+------------------------------------------------------------------+
+//| [NEW] اسکن گذشته برای پیدا کردن MSS                               |
+//+------------------------------------------------------------------+
+bool CMarketStructureShift::ScanPastForMSS(bool is_buy_direction, int lookback_bars, int &found_at_bar)
+{
+    found_at_bar = -1; // ریست اندیس
+    if (lookback_bars <= 0) return false; // چک ورودی
+
+    int total_bars = iBars(m_symbol, m_period); // تعداد بارها
+    if (total_bars < lookback_bars) lookback_bars = total_bars - 1; // تنظیم نگاه به عقب
+
+    for (int i = 1; i <= lookback_bars; i++) // حلقه به عقب
+    {
+        const int curr_bar = i; // بار فعلی اسکن
+        if (total_bars < curr_bar + m_swing_length * 2 + 1) continue; // چک داده
+
+        bool isSwingHigh = true, isSwingLow = true; // فلگ‌ها
+
+        for (int a = 1; a <= m_swing_length; a++) // چک اطراف
+        {
+            if ((high(curr_bar) <= high(curr_bar - a)) || (high(curr_bar) < high(curr_bar + a))) isSwingHigh = false;
+            if ((low(curr_bar) >= low(curr_bar - a)) || (low(curr_bar) > low(curr_bar + a))) isSwingLow = false;
+        }
+
+        double temp_high = isSwingHigh ? high(curr_bar) : 0;
+        double temp_low = isSwingLow ? low(curr_bar) : 0;
+
+        // چک شکست در جهت مورد نظر
+        if (is_buy_direction && temp_high > 0 && IsUptrend()) // برای خرید و MSS صعودی
+        {
+            found_at_bar = curr_bar; // تنظیم اندیس
+            return true; // پیدا شد
+        }
+        else if (!is_buy_direction && temp_low > 0 && IsDowntrend()) // برای فروش و MSS نزولی
+        {
+            found_at_bar = curr_bar; // تنظیم اندیس
+            return true; // پیدا شد
+        }
+    }
+
+    return false; // پیدا نشد
 }
 
 //+------------------------------------------------------------------+
@@ -358,7 +440,3 @@ void CMarketStructureShift::drawBreakLevel_MSS(string objName,datetime time1,dou
    }
    ChartRedraw(m_chart_id); // بازسازی
 }
-
-// /* کامنت توضیح اصلاحات اضافی:
-// - هیچ مشکل منطقی دیگری پیدا نشد که باعث کرش یا عدم معامله شود. کد به طور کلی پایدار است و با اصلاحات کاربر، تمام حالت‌های ورودی پوشش داده می‌شود.
-// */
