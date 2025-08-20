@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2025,hipoalgoritm" // حقوق کپی‌رایت اکسپرت
 #property link      "https://www.mql5.com" // لینک مرتبط
-#property version   "1.7" // نسخه نهایی و کاملا اصلاح شده
+#property version   "3.1" // نسخه نهایی و کاملا اصلاح شده
 #property description "اکسپرت معاملاتی پیشرفته ممنتو بر اساس استراتژی کراس سه گانه ایچیموکو" // توضیح اکسپرت
 
 
@@ -46,6 +46,7 @@ int OnInit() {
     g_settings.primary_strategy             = Inp_Primary_Strategy; // <<<< اضافه شود
     g_settings.signal_mode                  = Inp_Signal_Mode; // کپی حالت سیگنال
     g_settings.entry_confirmation_mode      = Inp_Entry_Confirmation_Mode; // ✅ اضافه شد
+   
     g_settings.grace_period_mode            = Inp_Grace_Period_Mode; // ✅ اضافه شد
     g_settings.grace_period_candles         = Inp_Grace_Period_Candles; // کپی تعداد کندل مهلت
     g_settings.confirmation_type            = Inp_Confirmation_Type; // کپی نوع تایید
@@ -54,7 +55,7 @@ int OnInit() {
     g_settings.talaqi_atr_multiplier        = Inp_Talaqi_ATR_Multiplier; // کپی ضریب ATR تلاقی
     g_settings.talaqi_distance_in_points    = Inp_Talaqi_Distance_in_Points; // کپی فاصله دستی تلاقی
     g_settings.talaqi_kumo_factor           = Inp_Talaqi_Kumo_Factor; // کپی ضریب کومو تلاقی
-
+    g_settings.entry_tactic                 = Inp_Entry_Tactic; //
     // 4. تنظیمات حد ضرر
     g_settings.sl_timeframe                 = Inp_SL_Timeframe; // <<<< این خط اضافه شود
     g_settings.stoploss_type                = Inp_StopLoss_Type; // کپی نوع SL
@@ -71,6 +72,9 @@ int OnInit() {
     g_settings.sl_vol_regime_ema_period     = Inp_SL_Vol_Regime_EMA_Period; // کپی دوره EMA پویا
     g_settings.sl_high_vol_multiplier       = Inp_SL_High_Vol_Multiplier; // کپی ضریب بالا نوسان
     g_settings.sl_low_vol_multiplier        = Inp_SL_Low_Vol_Multiplier; // کپی ضریب پایین نوسان
+
+    g_settings.min_sl_distance_atr_percent = Inp_Min_SL_Distance_Atr_Percent; // [NEW]
+    g_settings.sl_buffer_atr_percent = Inp_SL_Buffer_Atr_Percent; // [NEW]
 
     // 5. تنظیمات مدیریت سرمایه
     g_settings.risk_percent_per_trade       = Inp_Risk_Percent_Per_Trade; // کپی درصد ریسک
@@ -97,11 +101,17 @@ int OnInit() {
     g_settings.enable_kumo_expansion_filter = Inp_Enable_KumoExpansion_Filter; // <<<< اضافه شود
     g_settings.enable_chikou_space_filter   = Inp_Enable_ChikouSpace_Filter;   // <<<< اضافه شود
 
+    g_settings.mkm_kijun_slope_period = Inp_MKM_Kijun_Slope_Period; // [NEW]
+    g_settings.mkm_kumo_expansion_period = Inp_MKM_Kumo_Expansion_Period;
+    
     // 8. <<< بخش اضافه شده برای خروج زودرس >>>
     g_settings.enable_early_exit            = Inp_Enable_Early_Exit; // کپی فعال کردن خروج زودرس
     g_settings.early_exit_rsi_period        = Inp_Early_Exit_RSI_Period; // کپی دوره RSI خروج
     g_settings.early_exit_rsi_overbought    = Inp_Early_Exit_RSI_Overbought; // کپی سطح اشباع خرید
     g_settings.early_exit_rsi_oversold      = Inp_Early_Exit_RSI_Oversold; // کپی سطح اشباع فروش
+
+    g_settings.structural_grace_candles = Inp_Structural_Grace_Candles; // [NEW]
+    g_settings.structure_lookback_bars = Inp_Structure_Lookback_Bars; // [NEW]
 
 
     //--- بقیه تابع OnInit بدون تغییر ...
@@ -120,7 +130,7 @@ int OnInit() {
         if (!g_symbol_managers[i].Init()) { // چک اولیه
             Print("مقداردهی اولیه نماد ", sym, " با خطا مواجه شد. عملیات متوقف می‌شود.");
             for (int j = 0; j <= i; j++) { // پاکسازی
-                if (g_symbol_managers[j] != NULL) {
+                if (g_symbol_managers[j] != NULL) { // [MODIFIED] چک NULL
                     delete g_symbol_managers[j];
                     g_symbol_managers[j] = NULL;
                 }
@@ -227,7 +237,7 @@ void OnTradeTransaction(const MqlTradeTransaction &trans,
                // مدیر استراتژی مربوط به این نماد را پیدا می‌کنیم
                for(int i = 0; i < ArraySize(g_symbol_managers); i++) { // حلقه مدیران
                   if(g_symbol_managers[i] != NULL && g_symbol_managers[i].GetSymbol() == deal_symbol) { // چک نماد
-                     // مدیر گرافیک آن را می‌گیریم
+                     // مدیر گرافیک آن را می‌گیریم و در متغیر محلی ذخیره می‌کنیم [MODIFIED]
                      CVisualManager *visual_manager = g_symbol_managers[i].GetVisualManager(); // گرفتن مدیر گرافیک
                      if(visual_manager != NULL) { // چک وجود
                         // ایندکس نماد را در داشبورد پیدا می‌کنیم
@@ -268,8 +278,12 @@ void OnChartEvent(const int id,
       // مدیر استراتژی مربوط به چارت فعلی را پیدا کن
       for(int i = 0; i < ArraySize(g_symbol_managers); i++) { // حلقه مدیران
          if(g_symbol_managers[i] != NULL && g_symbol_managers[i].GetSymbol() == _Symbol) { // چک نماد
-            // رویداد را برای پردازش به مدیر گرافیک ارسال کن
-            g_symbol_managers[i].GetVisualManager().OnChartEvent(id, lparam, dparam, sparam); // ارسال رویداد
+            // مدیر گرافیک را در متغیر محلی ذخیره کن [MODIFIED]
+            CVisualManager *visual_manager = g_symbol_managers[i].GetVisualManager(); // گرفتن مدیر گرافیک
+            if (visual_manager != NULL) // چک وجود
+            {
+                visual_manager.OnChartEvent(id, lparam, dparam, sparam); // ارسال رویداد
+            }
             break; // کار تمام است، از حلقه خارج شو
          }
       }
@@ -373,7 +387,7 @@ void CalculateAdvancedMetrics(double &r_squared, double &downside_consistency)
    int equity_points = 1; // شمارنده نقاط
    for(uint i = 0; i < total_deals; i++) // حلقه معاملات
      {
-      ulong ticket = HistoryDealGetTicket(i); // تیکت معامله
+      ulong ticket = HistoryDealGetTicket(i); // تیکت
       if(ticket > 0) // چک تیکت
         {
          if(HistoryDealGetInteger(ticket, DEAL_ENTRY) == DEAL_ENTRY_OUT) // چک خروج
@@ -381,7 +395,7 @@ void CalculateAdvancedMetrics(double &r_squared, double &downside_consistency)
             current_balance += HistoryDealGetDouble(ticket, DEAL_PROFIT) + HistoryDealGetDouble(ticket, DEAL_COMMISSION) + HistoryDealGetDouble(ticket, DEAL_SWAP); // آپدیت بالانس
             equity_curve[equity_points].time = (datetime)HistoryDealGetInteger(ticket, DEAL_TIME); // زمان نقطه
             equity_curve[equity_points].balance = current_balance; // بالانس نقطه
-            equity_points++; // افزایش شمارنده
+            equity_points++; // افزایش
            }
         }
      }
@@ -461,7 +475,7 @@ void CalculateAdvancedMetrics(double &r_squared, double &downside_consistency)
 
 
 //+------------------------------------------------------------------+
-//|    بخش بهینه‌سازی سفارشی (Custom Optimization) نسخه 10.0 - نهایی   |
+//|     بخش بهینه‌سازی سفارشی (Custom Optimization) نسخه 10.0 - نهایی   |
 //|      با "منحنی مجازات دراوداون پیوسته" (Continuous Penalty Curve)     |
 //+------------------------------------------------------------------+
 
