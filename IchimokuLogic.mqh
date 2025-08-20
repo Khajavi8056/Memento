@@ -73,6 +73,8 @@ private:
     CVisualManager* m_visual_manager; // مدیر گرافیک و داشبورد
     CMarketStructureShift m_ltf_analyzer; // تحلیلگر ساختار بازار در تایم فریم پایین (LTF)
     CMarketStructureShift m_grace_structure_analyzer; // تحلیلگر ساختار برای مهلت ساختاری
+    bool                m_waiting_for_touch;     // [جدید] حالت جدید: انتظار برای رسیدن قیمت به سطح پولبک
+    double              m_pullback_target_price; // [جدید] قیمت هدف برای پولبک در حالت TACTIC_PREDICTIVE
 
     //--- توابع کمکی داخلی ---
     void Log(string message); // تابع لاگ کردن پیام‌ها
@@ -108,7 +110,8 @@ private:
     int CountSymbolTrades(); // شمارش معاملات باز برای نماد فعلی
     int CountTotalTrades(); // شمارش کل معاملات باز
     void OpenTrade(bool is_buy); // باز کردن معامله جدید
-    bool PlaceLimitOrder(bool is_buy);
+    
+ //////////   bool PlaceLimitOrder(bool is_buy);
     bool IsDataReady(); // چک آماده بودن داده‌های تمام تایم فریم‌ها
     bool IsNewBar(ENUM_TIMEFRAMES timeframe, datetime &last_bar_time); // چک تشکیل کندل جدید در تایم فریم مشخص
 
@@ -140,7 +143,10 @@ CStrategyManager::CStrategyManager(string symbol, SSettings &settings)
     m_last_bar_time_ltf = 0; // مقدار اولیه زمان آخرین کندل LTF
     m_is_waiting = false; // مقدار اولیه حالت انتظار (غیرفعال)
     m_waiting_for_shift = false; // [NEW] مقدار اولیه حالت تغییر
-    m_waiting_for_pullback = false; // [NEW] مقدار اولیه حالت پولبک
+    m_waiting_for_pullback = false; // [NEW] مقدار اولیه حالت 
+    m_waiting_for_touch = false;             // مقدار اولیه حالت جدید
+    m_pullback_target_price = 0.0;           // ریست کردن قیمت هدف
+  
     ArrayFree(m_potential_signals); // آزاد کردن آرایه سیگنال‌های بالقوه
     m_ichimoku_handle = INVALID_HANDLE; // مقدار اولیه هندل ایچیموکو
     m_atr_handle = INVALID_HANDLE; // مقدار اولیه هندل ATR
@@ -337,11 +343,36 @@ void CStrategyManager::ProcessSignalSearch()
             int found_at_bar = -1;
             bool has_existing_mss = m_ltf_analyzer.ScanPastForMSS(is_new_signal_buy, m_settings.structure_lookback_bars, found_at_bar);
 
-            if (has_existing_mss)
+            // ...
+    
+  if (has_existing_mss)
+    {
+    // [تغییر یافته] بر اساس تاکتیک ورودی، تصمیم می‌گیریم وارد کدام فاز انتظار شویم
+    if(m_settings.entry_tactic == TACTIC_PREDICTIVE)
+    {
+        // تاکتیک پیش‌بینی: محاسبه قیمت هدف و ورود به فاز "انتظار برای تاچ"
+        int ltf_ichi_handle = iIchimoku(m_symbol, m_settings.ltf_timeframe, m_settings.tenkan_period, m_settings.kijun_period, m_settings.senkou_period);
+        if(ltf_ichi_handle != INVALID_HANDLE)
+        {
+            double kijun_buffer[1];
+            if(CopyBuffer(ltf_ichi_handle, 1, 1, 1, kijun_buffer) >= 1)
             {
-                m_waiting_for_pullback = true;
-                Log("ساختار LTF هم‌جهت است. ورود به فاز انتظار برای پولبک.");
+                m_pullback_target_price = kijun_buffer[0];
+                m_waiting_for_touch = true;
+                Log("ساختار LTF هم‌جهت است. ورود به فاز انتظار برای تاچ قیمت هدف: " + DoubleToString(m_pullback_target_price, _Digits));
             }
+            IndicatorRelease(ltf_ichi_handle);
+        }
+    }
+    else // TACTIC_CONFIRMATION
+    {
+        // تاکتیک تاییدی: ورود به فاز انتظار برای تشکیل سوینگ (منطق قبلی)
+        m_waiting_for_pullback = true;
+        Log("ساختار LTF هم‌جهت است. ورود به فاز انتظار برای پولبک.");
+    }
+    }
+// ...
+
             else
             {
                 m_waiting_for_shift = true;
@@ -419,30 +450,34 @@ void CStrategyManager::ProcessSignalSearch()
 }
 
 
-
 //+------------------------------------------------------------------+
-//| مدیریت سیگنال‌های فعال با معماری حالت-محور (نسخه تاکتیکی)        |
+//| مدیریت سیگنال‌های فعال با معماری حالت-محور (نسخه نهایی با حالت "انتظار برای تاچ") |
 //+------------------------------------------------------------------+
 void CStrategyManager::ManageActiveSignal(bool is_new_htf_bar)
 {
-    // اگر در هیچ حالت انتظاری نیستیم، هیچ کاری برای انجام دادن وجود ندارد.
-    if (!m_waiting_for_shift && !m_waiting_for_pullback && !m_is_waiting && ArraySize(m_potential_signals) == 0) return;
+    // --- گاردریل اولیه: اگر در هیچ حالت انتظاری نیستیم، کاری برای انجام دادن وجود ندارد ---
+    if (!m_waiting_for_shift && !m_waiting_for_pullback && !m_is_waiting && !m_waiting_for_touch && ArraySize(m_potential_signals) == 0) return;
 
-    // چک می‌کنیم آیا کندل جدید در تایم فریم پایین (LTF) داریم یا نه
+    // --- چک می‌کنیم آیا کندل جدید در تایم فریم پایین (LTF) داریم یا نه ---
     bool is_new_ltf_bar = IsNewBar(m_settings.ltf_timeframe, m_last_bar_time_ltf);
 
-    // --- بخش ۱: اجرای معماری "خلبان" با تاکتیک‌های ورودی متفاوت ---
-    if (m_settings.entry_confirmation_mode == CONFIRM_LOWER_TIMEFRAME && (m_waiting_for_shift || m_waiting_for_pullback))
+    // =================================================================================================
+    // === بخش ۱: اجرای معماری "خلبان" (تاییدیه در تایم فریم پایین) =====================================
+    // =================================================================================================
+    if (m_settings.entry_confirmation_mode == CONFIRM_LOWER_TIMEFRAME && (m_waiting_for_shift || m_waiting_for_pullback || m_waiting_for_touch))
     {
         // --- مدیریت انقضای سیگنال (خط قرمز یا قانون پدربزرگ) ---
+        // این بخش برای تمام حالت‌های انتظار (تغییر ساختار، پولبک، تاچ) یکسان عمل می‌کند
         bool is_signal_expired = false;
         if (m_settings.grace_period_mode == GRACE_BY_CANDLES)
         {
+            // انقضا بر اساس تعداد کندل
             if (is_new_ltf_bar) m_signal.grace_candle_count++;
             if (m_signal.grace_candle_count >= m_settings.structural_grace_candles) is_signal_expired = true;
         }
         else // GRACE_BY_STRUCTURE (روش هوشمند)
         {
+            // انقضا بر اساس شکست سطح ابطال
             double current_price_ltf = iClose(m_symbol, m_settings.ltf_timeframe, 1);
             if (m_signal.invalidation_level > 0 &&
                ((m_signal.is_buy && current_price_ltf < m_signal.invalidation_level) ||
@@ -450,67 +485,111 @@ void CStrategyManager::ManageActiveSignal(bool is_new_htf_bar)
                is_signal_expired = true;
         }
         
+        // --- اگر سیگنال منقضی شده، تمام حالت‌ها را ریست و خارج می‌شویم ---
         if (is_signal_expired)
         {
             Log("سیگنال به دلیل انقضا (شکست سطح ابطال یا تمام شدن کندل‌های مهلت) باطل شد.");
             m_waiting_for_shift = false;
             m_waiting_for_pullback = false;
+            m_waiting_for_touch = false; // ریست حالت جدید
+            m_pullback_target_price = 0.0; // ریست قیمت هدف
             return;
         }
 
-        // --- مدیریت حالت‌ها فقط در کندل جدید LTF ---
+        // --- مدیریت حالت‌ها فقط در کندل جدید LTF (برای بهینگی) ---
         if (is_new_ltf_bar)
         {
             // از تحلیلگر ساختار بازار گزارش جدید می‌گیریم
             SMssSignal ltf_signal = m_ltf_analyzer.ProcessNewBar();
             
-            // اگر در فاز "انتظار برای تغییر ساختار" (MSS) هستیم
+            // --- فاز ۱: "انتظار برای تغییر ساختار" (MSS) ---
             if (m_waiting_for_shift)
             {
+                // اگر تغییر ساختار در جهت سیگنال ما رخ داد
                 if ((m_signal.is_buy && ltf_signal.type == MSS_SHIFT_UP) || (!m_signal.is_buy && ltf_signal.type == MSS_SHIFT_DOWN))
                 {
-                    Log("تغییر ساختار (MSS) در LTF تایید شد. ورود به فاز انتظار پولبک.");
-                    m_waiting_for_shift = false;
-                    m_waiting_for_pullback = true;
+                    Log("تغییر ساختار (MSS) در LTF تایید شد. ورود به فاز بعدی...");
+                    m_waiting_for_shift = false; // از این فاز خارج می‌شویم
+
+                    // --- دوراهی تاکتیک: حالا وارد کدام فاز شویم؟ ---
+                    if (m_settings.entry_tactic == TACTIC_PREDICTIVE)
+                    {
+                        // تاکتیک پیش‌بینی: محاسبه قیمت هدف و ورود به فاز "انتظار برای تاچ"
+                        int ltf_ichi_handle = iIchimoku(m_symbol, m_settings.ltf_timeframe, m_settings.tenkan_period, m_settings.kijun_period, m_settings.senkou_period);
+                        if(ltf_ichi_handle != INVALID_HANDLE)
+                        {
+                            double kijun_buffer[1];
+                            if(CopyBuffer(ltf_ichi_handle, 1, 1, 1, kijun_buffer) >= 1)
+                            {
+                                m_pullback_target_price = kijun_buffer[0];
+                                m_waiting_for_touch = true; // ورود به فاز جدید
+                                Log("ورود به فاز انتظار برای تاچ قیمت هدف: " + DoubleToString(m_pullback_target_price, _Digits));
+                            }
+                            IndicatorRelease(ltf_ichi_handle);
+                        }
+                    }
+                    else // TACTIC_CONFIRMATION
+                    {
+                        // تاکتیک تاییدی: ورود به فاز انتظار برای تشکیل سوینگ
+                        m_waiting_for_pullback = true;
+                        Log("ورود به فاز انتظار برای پولبک و تشکیل سوینگ.");
+                    }
                 }
             }
-            // اگر در فاز "انتظار برای پولبک" هستیم
+            // --- فاز ۲ (تاکتیک تاییدی): "انتظار برای پولبک" و تشکیل سوینگ ---
             else if (m_waiting_for_pullback)
             {
-                // ================== دوراهی تاکتیک ورود: کاربر کدام روش را انتخاب کرده؟ ==================
-                if(m_settings.entry_tactic == TACTIC_CONFIRMATION)
+                // منتظر می‌مانیم تا تحلیلگر ساختار بازار، تشکیل یک سوینگ جدید (که نشانه پایان پولبک است) را گزارش دهد
+                if (ltf_signal.new_swing_formed && (m_signal.is_buy != ltf_signal.is_swing_high))
                 {
-                    // تاکتیک ۱: ورود بر اساس تایید (منطق قبلی و محافظه‌کارانه)
-                    // منتظر می‌مانیم تا یک سوینگ لو (برای خرید) یا سوینگ های (برای فروش) به طور کامل تایید شود
-                    if (ltf_signal.new_swing_formed && (m_signal.is_buy != ltf_signal.is_swing_high))
+                    Log("تاکتیک تایید: پولبک (تشکیل سوینگ مخالف) در LTF تایید شد. آماده برای ورود Market.");
+                    // قبل از ورود، آخرین چک فیلترها
+                    if(AreAllFiltersPassed(m_signal.is_buy))
                     {
-                        Log("تاکتیک تایید: پولبک (تشکیل سوینگ مخالف) در LTF تایید شد. آماده برای ورود Market.");
-                        if(AreAllFiltersPassed(m_signal.is_buy))
-                        {
-                            OpenTrade(m_signal.is_buy);
-                        }
-                        // ریست کامل حالت‌ها پس از تلاش برای ورود
-                        m_waiting_for_shift = false;
-                        m_waiting_for_pullback = false;
+                        OpenTrade(m_signal.is_buy); // شلیک!
                     }
+                    // ریست کامل حالت‌ها پس از تلاش برای ورود (چه موفق چه ناموفق)
+                    m_waiting_for_shift = false;
+                    m_waiting_for_pullback = false;
+                    m_waiting_for_touch = false;
+                    m_pullback_target_price = 0.0;
                 }
-                else // TACTIC_PREDICTIVE
+            }
+        } // پایان if(is_new_ltf_bar)
+
+        // --- [معماری جدید] فاز ۲ (تاکتیک پیش‌بینی): "انتظار برای تاچ" ---
+        // این بخش خارج از if(is_new_ltf_bar) است تا در هر تیک قیمت چک شود و فرصت از دست نرود
+        if (m_waiting_for_touch)
+        {
+            // قیمت فعلی بازار را می‌گیریم
+            double current_price = m_signal.is_buy ? SymbolInfoDouble(m_symbol, SYMBOL_ASK) : SymbolInfoDouble(m_symbol, SYMBOL_BID);
+            
+            bool target_reached = false;
+            // اگر سیگنال خرید است و قیمت به سطح هدف یا پایین‌تر از آن رسیده
+            if(m_signal.is_buy && current_price <= m_pullback_target_price) target_reached = true;
+            // اگر سیگنال فروش است و قیمت به سطح هدف یا بالاتر از آن رسیده
+            if(!m_signal.is_buy && current_price >= m_pullback_target_price) target_reached = true;
+
+            // اگر قیمت به هدف رسید
+            if(target_reached)
+            {
+                Log("تاکتیک پیش‌بینی: قیمت به سطح هدف (" + DoubleToString(m_pullback_target_price, _Digits) + ") رسید. آماده برای ورود Market.");
+                // آخرین چک فیلترها
+                if(AreAllFiltersPassed(m_signal.is_buy))
                 {
-                    // تاکتیک ۲: ورود پیش‌بینی با لیمیت اردر (منطق جدید و تهاجمی)
-                    // به جای انتظار برای تایید، تلاش می‌کنیم یک سفارش لیمیت در محل احتمالی پایان پولبک قرار دهیم
-                    Log("تاکتیک پیش‌بینی: جستجو برای محل مناسب لیمیت اردر...");
-                    if(PlaceLimitOrder(m_signal.is_buy))
-                    {
-                        // اگر سفارش با موفقیت گذاشته شد، از حالت انتظار خارج می‌شویم
-                        m_waiting_for_shift = false;
-                        m_waiting_for_pullback = false;
-                    }
+                    OpenTrade(m_signal.is_buy); // شلیک!
                 }
-                // ======================================================================================
+                // ریست کامل حالت‌ها پس از تلاش برای ورود
+                m_waiting_for_shift = false;
+                m_waiting_for_pullback = false;
+                m_waiting_for_touch = false;
+                m_pullback_target_price = 0.0;
             }
         }
     }
-    // --- بخش ۲: اجرای معماری قدیمی (برای سازگاری با تنظیمات قبلی) ---
+    // =================================================================================================
+    // === بخش ۲: اجرای معماری قدیمی (برای سازگاری با تنظیمات قبلی) =======================================
+    // =================================================================================================
     else if (m_settings.entry_confirmation_mode == CONFIRM_CURRENT_TIMEFRAME)
     {
         // (این بخش بدون تغییر باقی می‌ماند)
@@ -580,9 +659,10 @@ void CStrategyManager::ManageActiveSignal(bool is_new_htf_bar)
              }
         }
     }
-
-
-
+    // =================================================================================================
+    // === بخش ۳: مسیر استراتژی MKM (بدون تغییر) ========================================================
+    // =================================================================================================
+  
     // مسیر MKM
     else if (m_settings.primary_strategy == STRATEGY_KUMO_MTL)
     {
@@ -743,112 +823,7 @@ bool CStrategyManager::CheckFinalConfirmation(bool is_buy)
 //+------------------------------------------------------------------+
 //| [جدید] قرار دادن سفارش لیمیت بر اساس تاکتیک پیش‌بینی            |
 //+------------------------------------------------------------------+
-bool CStrategyManager::PlaceLimitOrder(bool is_buy)
-{
-    // ۱. گرفتن قیمت کیجون‌سن در تایم فریم پایین به عنوان هدف پولبک
-    int ltf_ichi_handle = iIchimoku(m_symbol, m_settings.ltf_timeframe, m_settings.tenkan_period, m_settings.kijun_period, m_settings.senkou_period);
-    if(ltf_ichi_handle == INVALID_HANDLE) return false;
-
-    double kijun_buffer[1];
-    if(CopyBuffer(ltf_ichi_handle, 1, 1, 1, kijun_buffer) < 1)
-    {
-        IndicatorRelease(ltf_ichi_handle);
-        return false;
-    }
-    IndicatorRelease(ltf_ichi_handle);
-    double limit_price = kijun_buffer[0];
-
-    // ۲. بررسی منطقی بودن قیمت لیمیت
-    // سفارش خرید لیمیت باید پایین‌تر از قیمت فعلی بازار باشد
-    if(is_buy && limit_price >= SymbolInfoDouble(m_symbol, SYMBOL_ASK))
-    {
-        Log("قیمت لیمیت خرید ("+DoubleToString(limit_price, _Digits)+") بالاتر از قیمت فعلی Ask است. سفارش قرار داده نشد.");
-        return false;
-    }
-    // سفارش فروش لیمیت باید بالاتر از قیمت فعلی بازار باشد
-    if(!is_buy && limit_price <= SymbolInfoDouble(m_symbol, SYMBOL_BID))
-    {
-        Log("قیمت لیمیت فروش ("+DoubleToString(limit_price, _Digits)+") پایین‌تر از قیمت فعلی Bid است. سفارش قرار داده نشد.");
-        return false;
-    }
-
-    // ۳. چک کردن تمام فیلترهای اصلی (کومو، ATR، ADX و...)
-    if(!AreAllFiltersPassed(is_buy))
-    {
-        Log("فیلترها برای قرار دادن لیمیت اردر رد شدند.");
-        return false; // هنوز شرایط برای سفارش‌گذاری مناسب نیست
-    }
-    
-    // ۴. محاسبه استاپ لاس بر اساس ساختار (قانون پدربزرگ)
-    // ما از سطح ابطال سیگنال که قبلاً مشخص شده به عنوان نقطه مرجع استاپ استفاده می‌کنیم
-    double sl = m_signal.invalidation_level;
-    if(sl <= 0) 
-    {
-        Log("خطا: سطح ابطال برای محاسبه استاپ لاس لیمیت اردر نامعتبر است.");
-        return false;
-    }
-
-    // ۵. محاسبه دقیق حجم معامله و حد سود (کپی شده از منطق OpenTrade برای ثبات)
-    double balance = AccountInfoDouble(ACCOUNT_BALANCE);
-    double risk_amount = balance * (m_settings.risk_percent_per_trade / 100.0);
-    double loss_for_one_lot = 0;
-
-    // توجه: محاسبه سود/ضرر برای لیمیت اردر باید بر اساس قیمت لیمیت و استاپ لاس انجام شود
-    if(!OrderCalcProfit(is_buy ? ORDER_TYPE_BUY : ORDER_TYPE_SELL, m_symbol, 1.0, limit_price, sl, loss_for_one_lot))
-    {
-        Log("خطا در محاسبه سود/زیان برای لیمیت اردر. کد خطا: " + (string)GetLastError());
-        return false;
-    }
-    loss_for_one_lot = MathAbs(loss_for_one_lot);
-    if(loss_for_one_lot <= 0)
-    {
-        Log("میزان ضرر محاسبه شده برای لیمیت اردر معتبر نیست.");
-        return false;
-    }
-    
-    double lot_size = NormalizeDouble(risk_amount / loss_for_one_lot, 2);
-    double min_lot = SymbolInfoDouble(m_symbol, SYMBOL_VOLUME_MIN);
-    double max_lot = SymbolInfoDouble(m_symbol, SYMBOL_VOLUME_MAX);
-    double lot_step = SymbolInfoDouble(m_symbol, SYMBOL_VOLUME_STEP);
-    lot_size = MathMax(min_lot, MathMin(max_lot, lot_size));
-    lot_size = MathRound(lot_size / lot_step) * lot_step;
-
-    if(lot_size < min_lot)
-    {
-        Log("حجم محاسبه شده برای لیمیت اردر کمتر از حد مجاز است.");
-        return false;
-    }
-    
-    double point = SymbolInfoDouble(m_symbol, SYMBOL_POINT);
-    double sl_distance_points = MathAbs(limit_price - sl) / point;
-    double tp_distance_points = sl_distance_points * m_settings.take_profit_ratio;
-    double tp = is_buy ? limit_price + tp_distance_points * point : limit_price - tp_distance_points * point;
-    
-    int digits = (int)SymbolInfoInteger(m_symbol, SYMBOL_DIGITS);
-    sl = NormalizeDouble(sl, digits);
-    tp = NormalizeDouble(tp, digits);
-    limit_price = NormalizeDouble(limit_price, digits);
-    
-    // ۶. تنظیم زمان انقضای سفارش (مثلاً ۵ کندل تایم پایین)
-    datetime expiration = TimeCurrent() + 5 * (datetime)PeriodSeconds(m_settings.ltf_timeframe);
-
-    // ۷. قرار دادن سفارش لیمیت
-    string comment = "Memento Predictive";
-    if(is_buy)
-    {
-        m_trade.BuyLimit(lot_size, limit_price, m_symbol, sl, tp, ORDER_TIME_SPECIFIED, expiration, comment);
-    }
-    else
-    {
-        m_trade.SellLimit(lot_size, limit_price, m_symbol, sl, tp, ORDER_TIME_SPECIFIED, expiration, comment);
-    }
-    
-    Log("سفارش لیمیت " + (is_buy ? "خرید" : "فروش") + " در قیمت " + DoubleToString(limit_price, _Digits) + " با موفقیت قرار داده شد. حجم: " + DoubleToString(lot_size,2));
-    return true; // به نشانه موفقیت در قرار دادن سفارش
-}
-
-
-
+/حذف شد چون دیجر نیازی نیست 
 
 
 //+------------------------------------------------------------------+
