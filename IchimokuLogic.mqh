@@ -108,6 +108,7 @@ private:
     int CountSymbolTrades(); // شمارش معاملات باز برای نماد فعلی
     int CountTotalTrades(); // شمارش کل معاملات باز
     void OpenTrade(bool is_buy); // باز کردن معامله جدید
+    bool PlaceLimitOrder(bool is_buy);
     bool IsDataReady(); // چک آماده بودن داده‌های تمام تایم فریم‌ها
     bool IsNewBar(ENUM_TIMEFRAMES timeframe, datetime &last_bar_time); // چک تشکیل کندل جدید در تایم فریم مشخص
 
