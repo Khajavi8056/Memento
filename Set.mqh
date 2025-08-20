@@ -1,14 +1,10 @@
 //+------------------------------------------------------------------+
-//|                                                                  |
-//|                    Project: Memento (By HipoAlgorithm)           |
-//|                    File: set.mqh (EA Settings)                   |
-//|                    Version: 9.0 (MKM Strategy Integration)       |
-//|                    © 2025, Mohammad & Gemini                     |
-//|                                                                  |
+//|                                                      set.mqh     |
+//|                 © 2025, Mohammad & Gemini                        |
 //+------------------------------------------------------------------+
 #property copyright "© 2025, hipoalgoritm" // حقوق کپی‌رایت پروژه
 #property link      "https://www.mql5.com" // لینک مرتبط با پروژه
-#property version   "9.0" // نسخه فعلی فایل تنظیمات با اضافه شدن استراتژی MKM
+#property version   "3.1" // نسخه با پیاده‌سازی ارتقاءها
 
 // --- انواع شمارشی برای خوانایی بهتر کد ---
 
@@ -18,7 +14,6 @@ enum E_Entry_Confirmation_Mode
     CONFIRM_LOWER_TIMEFRAME    // روش جدید: تاییدیه بر اساس شکست ساختار (CHoCH) در تایم فریم پایین
 };
 
-// ✅✅✅ [جدید] نوع مهلت برای انقضای سیگنال در حالت انتظار ✅✅✅
 enum E_Grace_Period_Mode
 {
     GRACE_BY_CANDLES,          // انقضا بر اساس تعداد کندل (روش ساده)
@@ -31,7 +26,8 @@ enum E_SL_Mode
 {
     MODE_COMPLEX,         // بهینه (انتخاب نزدیک‌ترین گزینه منطقی)
     MODE_SIMPLE,          // ساده (بر اساس رنگ مخالف کندل)
-    MODE_ATR              // پویا (مبتنی بر ATR)
+    MODE_ATR,             // پویا (مبتنی بر ATR)
+    MODE_STRUCTURE        // [MODIFIED] ساختاری (بر اساس ساختار بازار)
 };
 
 enum E_Signal_Mode { MODE_REPLACE_SIGNAL, MODE_SIGNAL_CONTEST }; // حالت‌های مدیریت سیگنال
@@ -55,6 +51,12 @@ enum E_Primary_Strategy_Mode
     STRATEGY_KUMO_MTL       // استراتژی جدید: ابر، مومنتوم و نوسان (MKM)
 };
 
+// set.mqh
+enum E_Entry_Tactic
+{
+    TACTIC_CONFIRMATION, // تاکتیک تایید (منتظر تشکیل سوینگ لو)
+    TACTIC_PREDICTIVE    // تاکتیک پیش‌بینی (قراردادن لیمیت اردر)
+};
 
 //+------------------------------------------------------------------+
 //|                      تنظیمات ورودی اکسپرت                         |
@@ -69,7 +71,6 @@ input bool            Inp_Enable_Logging    = true;                   // فعا�
 
 // ---=== 📈 2. تنظیمات ایچیموکو (Ichimoku Baseline) 📈 ===---
 input group           "      ---=== 📈 2. تنظیمات ایچیموکو (Ichimoku) 📈 ===---"; // گروه تنظیمات ایچیموکو
-// ✅✅✅ [جدید] ورودی برای تایم فریم اصلی ✅✅✅
 input ENUM_TIMEFRAMES Inp_Ichimoku_Timeframe = PERIOD_H1;                // تایم فریم اصلی برای تحلیل ایچیموکو
 input int             Inp_Tenkan_Period     = 10;                     // دوره تنکان-سن (بهینه شده)
 input int             Inp_Kijun_Period      = 28;                     // دوره کیجون-سن (بهینه شده)
@@ -84,11 +85,11 @@ input E_Signal_Mode   Inp_Signal_Mode         = MODE_SIGNAL_CONTEST;  // روش 
 input group           "         --- تاییدیه نهایی ورود (Final Confirmation) ---"; // زیرگروه تاییدیه ورود
 input E_Entry_Confirmation_Mode Inp_Entry_Confirmation_Mode = CONFIRM_CURRENT_TIMEFRAME; // نوع تاییدیه ورود
 
-// ✅✅✅ [بخش جدید] تنظیمات مهلت سیگنال ✅✅✅
+input E_Entry_Tactic          Inp_Entry_Tactic = TACTIC_CONFIRMATION; // <<<< ✅ این خط جدیده
+
 input group           "         --- مهلت سیگنال در حالت انتظار (Grace Period) ---"; // زیرگروه مهلت سیگنال
 input E_Grace_Period_Mode Inp_Grace_Period_Mode = GRACE_BY_CANDLES;   // نوع انقضای سیگنال
 input int             Inp_Grace_Period_Candles= 4;                      // [حالت کندلی] تعداد کندل مهلت برای تاییدیه
-// نکته: در حالت ساختاری، سطح ابطال به صورت خودکار پیدا می‌شود.
 
 input group           "         --- تنظیمات تاییدیه تایم فریم پایین (LTF) ---"; // زیرگروه تاییدیه LTF
 input ENUM_TIMEFRAMES Inp_LTF_Timeframe = PERIOD_M5;                      // [روش LTF] تایم فریم برای تاییدیه ورود
@@ -121,6 +122,10 @@ input int             Inp_SL_Vol_Regime_EMA_Period = 20;                // [پو
 input double          Inp_SL_High_Vol_Multiplier = 2.2;                 // [پویا] ضریب ATR در رژیم نوسان بالا
 input double          Inp_SL_Low_Vol_Multiplier = 1.5;                  // [پویا] ضریب ATR در رژیم نوسان پایین
 
+// [NEW] گروه جدید برای مدیریت ریسک پویا
+input group           "    --- مدیریت ریسک پویا SL ---";
+input double          Inp_Min_SL_Distance_Atr_Percent = 0.5;            // حداقل فاصله SL بر اساس درصد ATR
+input double          Inp_SL_Buffer_Atr_Percent = 0.1;                 // بافر SL بر اساس درصد ATR
 
 // ---=== 💰 5. مدیریت سرمایه (Money Management) 💰 ===---
 input group           " ---=== 💰 5. مدیریت سرمایه (Money Management) 💰 ===---"; // گروه مدیریت سرمایه
@@ -151,12 +156,22 @@ input bool            Inp_Enable_KijunSlope_Filter = false;     // فعال‌س
 input bool            Inp_Enable_KumoExpansion_Filter = false;  // فعال‌سازی فیلتر انبساط کومو
 input bool            Inp_Enable_ChikouSpace_Filter = false;    // فعال‌سازی فیلتر فضای باز چیکو
 
+// [NEW] گروه جدید برای پارامترهای استراتژی MKM
+input group           "         --- پارامترهای استراتژی MKM ---";
+input int             Inp_MKM_Kijun_Slope_Period = 5;                   // دوره محاسبه شیب کیجون برای MKM
+input int            Inp_MKM_Kumo_Expansion_Period = 20;   // <<<< (دوره برای بررسی انبساط کومو)
+
 // ---=== 🎯 8. منطق خروج (Exit Logic) 🎯 ===---
 input group "       ---=== 🎯 8. منطق خروج (Exit Logic) 🎯 ===---"; // گروه منطق خروج
 input bool            Inp_Enable_Early_Exit = false;                    // فعال سازی خروج زودرس با کراس چیکو و تایید RSI
 input int             Inp_Early_Exit_RSI_Period = 14;                   // [خروج زودرس] دوره RSI
 input int             Inp_Early_Exit_RSI_Overbought = 70;               // [خروج زودرس] سطح اشباع خرید برای خروج از فروش
 input int             Inp_Early_Exit_RSI_Oversold = 30;                 // [خروج زودرس] سطح اشباع فروش برای خروج از خرید
+
+// [NEW] گروه جدید برای تاییدیه ساختاری
+input group           "         --- تنظیمات تاییدیه ساختاری ---";
+input int             Inp_Structural_Grace_Candles = 3;                 // تعداد کندل مهلت ساختاری
+input int             Inp_Structure_Lookback_Bars = 50;                 // تعداد بار نگاه به عقب برای اسکن ساختار
 
 
 //+------------------------------------------------------------------+
@@ -171,7 +186,6 @@ struct SSettings
     bool                enable_logging; // فعال کردن لاگ‌ها
     
     // 2. Ichimoku
-    // ✅✅✅ [بخش اصلاح شده] متغیرهای ایچیموکو ✅✅✅
     ENUM_TIMEFRAMES     ichimoku_timeframe;      // تایم فریم اصلی تحلیل
     int                 tenkan_period; // دوره تنکان
     int                 kijun_period; // دوره کیجون
@@ -182,8 +196,9 @@ struct SSettings
     E_Primary_Strategy_Mode primary_strategy; // استراتژی اصلی
     E_Signal_Mode       signal_mode; // حالت سیگنال
     
-    // ✅✅✅ [بخش اصلاح شده] متغیرهای تاییدیه و مهلت ✅✅✅
     E_Entry_Confirmation_Mode entry_confirmation_mode; // نوع تاییدیه ورود
+    E_Entry_Tactic          entry_tactic; // <<<< ✅ این خط جدیده
+
     E_Grace_Period_Mode grace_period_mode;           // نوع مهلت سیگنال
     int                 grace_period_candles;        // [حالت کندلی] تعداد کندل مهلت
     E_Confirmation_Mode confirmation_type;           // [حالت تایم فریم فعلی] نوع تایید کندل
@@ -210,6 +225,10 @@ struct SSettings
     int                 sl_vol_regime_ema_period; // دوره EMA پویا
     double              sl_high_vol_multiplier; // ضریب بالا نوسان
     double              sl_low_vol_multiplier; // ضریب پایین نوسان
+
+    // [NEW] مدیریت ریسک پویا SL
+    double              min_sl_distance_atr_percent; // حداقل فاصله SL بر اساس ATR
+    double              sl_buffer_atr_percent; // بافر SL بر اساس ATR
 
     // 5. Money Management
     double              risk_percent_per_trade; // درصد ریسک
@@ -242,4 +261,11 @@ struct SSettings
     int                 early_exit_rsi_period; // دوره RSI خروج
     int                 early_exit_rsi_overbought; // سطح اشباع خرید
     int                 early_exit_rsi_oversold; // سطح اشباع فروش
+
+    // [NEW] پارامترهای MKM
+    int                 mkm_kijun_slope_period; // دوره شیب کیجون برای MKM
+    int                    mkm_kumo_expansion_period;
+    // [NEW] تاییدیه ساختاری
+    int                 structural_grace_candles; // تعداد کندل مهلت ساختاری
+    int                 structure_lookback_bars; // تعداد بار نگاه به عقب برای ساختار
 };
