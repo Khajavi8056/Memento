@@ -712,61 +712,100 @@ void CStrategyManager::ManageActiveSignal(bool is_new_htf_bar)
 }
 
 //+------------------------------------------------------------------+
-//| چک کراس سه‌گانه (Triple Cross) - بهبود: تلرانس برای Chikou اضافه شد|
+//| چک کراس سه‌گانه (Triple Cross) - نسخه 4.0                        |
+//| [ارتقاء یافته] با منطق پیشرفته برای تشخیص کراس واقعی و نرم        |
+//| این نسخه به جای بررسی ۲ کندل، یک دوره نگاه به عقب را بررسی می‌کند  |
+//| تا از سیگنال‌های کاذب ناشی از گپ یا حرکات ناگهانی جلوگیری کند.    |
 //+------------------------------------------------------------------+
 bool CStrategyManager::CheckTripleCross(bool& is_buy)
 {
-    int shift = m_settings.chikou_period; // شیفت مرجع چیکو
-    if (iBars(m_symbol, _Period) < shift + 2) return false; // چک تعداد بارها
+    // --- بخش ۱: بررسی کراس یا تلاقی تنکان و کیجون (بدون تغییر) ---
+    int shift = m_settings.chikou_period; // شیفت مرجع چیکو (مثلاً 26)
+    // حداقل باید به اندازه شیفت + دوره نگاه به عقب کندل داشته باشیم
+    const int chikou_lookback_period = 3; // <<<< این همان ایده‌ی شماست: بررسی ۳ کندل آخر برای کراس چیکو
+    if (iBars(m_symbol, m_settings.ichimoku_timeframe) < shift + chikou_lookback_period + 1) return false;
 
-    double tk_shifted[], ks_shifted[]; // بافرهای شیفت شده
+    // کپی داده‌های تنکان و کیجون در نقطه شیفت
+    double tk_shifted[], ks_shifted[];
     if(CopyBuffer(m_ichimoku_handle, 0, shift, 2, tk_shifted) < 2 || 
        CopyBuffer(m_ichimoku_handle, 1, shift, 2, ks_shifted) < 2)
     {
        return false; // اگر داده کافی نبود
     }
        
-    double tenkan_at_shift = tk_shifted[0]; // تنکان در شیفت
-    double kijun_at_shift = ks_shifted[0]; // کیجون در شیفت
-    double tenkan_prev_shift = tk_shifted[1]; // تنکان قبلی
-    double kijun_prev_shift = ks_shifted[1]; // کیجون قبلی
+    double tenkan_at_shift = tk_shifted[0];
+    double kijun_at_shift = ks_shifted[0];
+    double tenkan_prev_shift = tk_shifted[1];
+    double kijun_prev_shift = ks_shifted[1];
 
-    bool is_cross_up = tenkan_prev_shift < kijun_prev_shift && tenkan_at_shift > kijun_at_shift; // کراس صعودی
-    bool is_cross_down = tenkan_prev_shift > kijun_prev_shift && tenkan_at_shift < kijun_at_shift; // کراس نزولی
-    bool is_tk_cross = is_cross_up || is_cross_down; // وجود کراس
+    // شرط ۱: آیا کراس تنکان/کیجون رخ داده؟
+    bool is_cross_up = tenkan_prev_shift < kijun_prev_shift && tenkan_at_shift > kijun_at_shift;
+    bool is_cross_down = tenkan_prev_shift > kijun_prev_shift && tenkan_at_shift < kijun_at_shift;
+    bool is_tk_cross = is_cross_up || is_cross_down;
 
-    double tolerance = GetTalaqiTolerance(shift); // تلرانس تلاقی
-    bool is_confluence = (tolerance > 0) ? (MathAbs(tenkan_at_shift - kijun_at_shift) <= tolerance) : false; // چک تلاقی
+    // شرط ۲: آیا تلاقی (Confluence) داریم؟
+    double tolerance = GetTalaqiTolerance(shift);
+    bool is_confluence = (tolerance > 0) ? (MathAbs(tenkan_at_shift - kijun_at_shift) <= tolerance) : false;
 
-    if (!is_tk_cross && !is_confluence) // اگر نه کراس و نه تلاقی
+    // اگر نه کراس داشتیم و نه تلاقی، سیگنالی وجود ندارد
+    if (!is_tk_cross && !is_confluence)
     {
-        return false; // بدون سیگنال
+        return false;
     }
 
-    double chikou_now  = iClose(m_symbol, m_settings.ichimoku_timeframe, 1); // چیکو فعلی
-    double chikou_prev = iClose(m_symbol, m_settings.ichimoku_timeframe, 2);  // چیکو قبلی
-
-    double upper_line = MathMax(tenkan_at_shift, kijun_at_shift); // خط بالا
-    double lower_line = MathMin(tenkan_at_shift, kijun_at_shift); // خط پایین
-
-    // بهبود: تلرانس کوچک برای Chikou (نصف تلرانس TK) برای جلوگیری از نویز
-    double chikou_tolerance = tolerance * 0.5; // تلرانس Chikou (پیشنهاد تست شده)
-
-    bool chikou_crosses_up = (chikou_now > upper_line - chikou_tolerance) && (chikou_prev < upper_line + chikou_tolerance); // کراس صعودی با تلرانس
-    if (chikou_crosses_up) // اگر صعودی
+    // --- بخش ۲: بررسی کراس هوشمند چیکو اسپن (منطق جدید) ---
+    double upper_line = MathMax(tenkan_at_shift, kijun_at_shift); // خط بالایی در نقطه کراس
+    double lower_line = MathMin(tenkan_at_shift, kijun_at_shift); // خط پایینی در نقطه کراس
+    
+    // کپی قیمت‌های بسته شدن اخیر برای بررسی (معادل چیکو اسپن)
+    double close_prices[];
+    if(CopyClose(m_symbol, m_settings.ichimoku_timeframe, 1, chikou_lookback_period, close_prices) < chikou_lookback_period)
     {
-        is_buy = true; // تنظیم خرید
-        return true;  // موفقیت
+        return false; // داده کافی نیست
+    }
+    ArraySetAsSeries(close_prices, true); // مرتب‌سازی از حال به گذشته
+    
+    // ** منطق اصلی کراس صعودی **
+    // شرط ۱: کندل آخر (جدیدترین) باید بالای خطوط باشد
+    bool is_currently_above = (close_prices[0] > upper_line);
+    // شرط ۲: حداقل یکی از کندل‌های قبلی در دوره نگاه به عقب، باید زیر خطوط بوده باشد
+    bool was_previously_below = false;
+    for(int i = 1; i < chikou_lookback_period; i++)
+    {
+        if(close_prices[i] < lower_line)
+        {
+            was_previously_below = true;
+            break;
+        }
     }
 
-    bool chikou_crosses_down = (chikou_now < lower_line + chikou_tolerance) && (chikou_prev > lower_line - chikou_tolerance); // کراس نزولی با تلرانس
-    if (chikou_crosses_down) // اگر نزولی
+    if (is_currently_above && was_previously_below)
     {
-        is_buy = false; // تنظیم فروش
-        return true;  // موفقیت
+        is_buy = true;
+        return true;
     }
 
-    return false;  // بدون سیگنال
+    // ** منطق اصلی کراس نزولی **
+    // شرط ۱: کندل آخر (جدیدترین) باید پایین خطوط باشد
+    bool is_currently_below = (close_prices[0] < lower_line);
+    // شرط ۲: حداقل یکی از کندل‌های قبلی در دوره نگاه به عقب، باید بالای خطوط بوده باشد
+    bool was_previously_above = false;
+    for(int i = 1; i < chikou_lookback_period; i++)
+    {
+        if(close_prices[i] > upper_line)
+        {
+            was_previously_above = true;
+            break;
+        }
+    }
+
+    if (is_currently_below && was_previously_above)
+    {
+        is_buy = false;
+        return true;
+    }
+
+    return false;  // هیچ کراس معتبری پیدا نشد
 }
 
 //+------------------------------------------------------------------+
